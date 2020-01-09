@@ -1,0 +1,75 @@
+{
+  "name": "fuel-lambda",
+  "version": 2,
+  "public": false,
+  "builds": [
+    { "src": "lambdas/*.js", "use": "@now/node@canary" },
+    { "src": "structs/*.js", "use": "@now/node@canary" },
+    { "src": "transactions/*.js", "use": "@now/node@canary" },
+    { "src": "types/*.js", "use": "@now/node@canary" },
+    { "src": "utils/*.js", "use": "@now/node@canary" },
+    { "src": "interfaces/*.js", "use": "@now/node@canary" },
+    { "src": "errors/*.js", "use": "@now/node@canary" },
+    { "src": "dbs/*.js", "use": "@now/node@canary" },
+    { "src": "config/*.js", "use": "@now/node@canary" }
+  ],
+  "routes": [
+    { "src": "/transact(.*)",
+      "methods": ["PUT", "POST", "OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
+        "Access-Control-Allow-Credentials": "true"
+      },
+      "dest": "/lambdas/transact.js"
+    },
+    { "src": "/faucet(.*)",
+      "methods": ["PUT", "POST", "OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
+        "Access-Control-Allow-Credentials": "true"
+      },
+      "dest": "/lambdas/faucet.js"
+    },
+    { "src": "/get(.*)",
+      "methods": ["GET", "PUT", "POST", "OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
+        "Access-Control-Allow-Credentials": "true"
+      },
+      "dest": "/lambdas/get.js"
+    },
+    { "src": "/account(.*)",
+      "methods": ["PUT", "POST", "OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
+        "Access-Control-Allow-Credentials": "true"
+      },
+      "dest": "/lambdas/account.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/lambdas/200.js",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "OPTIONS",
+        "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+      },
+      "methods": ["OPTIONS"]
+    },
+    { "src": "/", "status": 404, "dest": "https://fuel.sh" }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "mysql_host": "@mysql_host",
+    "mysql_port": "@mysql_port",
+    "mysql_database": "@mysql_database",
+    "mysql_user": "@mysql_user",
+    "mysql_password": "@mysql_password",
+    "web3_provider": "@web3_provider",
+    "chain_id": "@chain_id"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "name": "fuel-core",
+  "version": "0.0.1",
+  "description": "Essential javascript architecture for the Fuel side chain",
+  "main": "index.js",
+  "scripts": {
+    "start": "npm run node-sync",
+    "test": "NODE_ENV=testing INDENT=true npm run test-all | ./node_modules/.bin/tap-mocha-reporter spec",
+    "build-fuel": "COMPILE=True node ./contracts/Fuel.js",
+    "build-utility": "COMPILE=True node ./contracts/FuelUtility.js",
+    "build-dai": "COMPILE=True node ./contracts/FakeDai.js",
+    "deploy-fuel": "node ./contracts/deploy.js",
+    "deploy-lambdas": "NODE_ENV=production now --prod -e NODE_ENV=production",
+    "test-all": "NODE_ENV=testing node ./tests/test.Fuel.js",
+    "test-node-sync": "NODE_ENV=testing reset=1 providerServer=True node ./nodes/sync.test.js",
+    "test-node-faucet": "NODE_ENV=testing providerServer=True node ./nodes/faucet.test.js",
+    "test-sync-inspect": "NODE_ENV=testing node --expose-gc --inspect=9224 ./nodes/sync.test.js",
+    "test-sync-prof": "NODE_ENV=testing providerServer=True node --prof ./nodes/sync.test.js",
+    "node-ganache": "NODE_ENV=production node ./nodes/ganache.node.js",
+    "node-faucet": "NODE_ENV=production node ./nodes/faucet.node",
+    "node-verifier": "NODE_ENV=production verifier=1 node ./nodes/sync.node",
+    "node-sync": "NODE_ENV=production node ./nodes/sync.node",
+    "test-browser-build": "parcel browser/index.html",
+    "reset": "node config/reset.js",
+    "show-accounts": "node config/accounts.js",
+    "lambda-account": "micro --port 3004 lambdas/account.js",
+    "flame": "node --prof-process --preprocess -j isolate*.log | flamebearer"
+  },
+  "keywords": [
+    "fuel",
+    "tests",
+    "ethereum",
+    "sidechain"
+  ],
+  "engines": {
+    "node": "12.x"
+  },
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "fs-readfile-promise": "^3.0.1",
+    "ganache-core": "^2.9.1-beta.0",
+    "regenerator-runtime": "^0.13.3",
+    "solc": "^0.5.12",
+    "tap-mocha-reporter": "^5.0.0",
+    "write": "^2.0.0",
+    "zora": "^3.0.3"
+  },
+  "optionalDependencies": {
+    "@sentry/node": "^5.10.2",
+    "level": "^6.0.0",
+    "leveldown": "^5.4.1",
+    "rimraf": "^3.0.0"
+  },
+  "dependencies": {
+    "axios": "^0.19.1",
+    "bn.js": "^5.1.1",
+    "ethers": "^4.0.42",
+    "ethjs-provider-http": "^0.1.6",
+    "ethjs-rpc": "^0.2.0",
+    "level-js": "^5.0.1",
+    "levelup": "^4.3.2",
+    "localstorage-down": "^0.6.7",
+    "memdown": "^5.1.0",
+    "micro": "^9.3.4",
+    "micro-cors": "^0.1.1",
+    "mysql": "^2.17.1",
+    "stream-to-array": "^2.3.0"
+  }
+}
