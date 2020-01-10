@@ -16,9 +16,14 @@ import { Wallet, utils, dbs } from "fuel-core";
 const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
 const { faucet, transfer, tokens } = new Wallet({ signer, db: new dbs.Index() });
 
-await faucet();
+(async ()=>{
 
-await transfer(500, tokens.fakeDai, signer.address);
+  await faucet();
+
+  await transfer(500, tokens.fakeDai, signer.address);
+
+})()
+
 ```
 
 ## Deposit / Withdraw Usage
@@ -33,13 +38,18 @@ const wallet = new Wallet({
   chainId: 3, // default is 3, 1 is mainnet
 });
 
-await wallet.deposit(1000, wallet.tokens.ether /*, { from: eth_accounts[0] } */);
+(async ()=>{
 
-console.log(await wallet.balance(wallet.tokens.ether));
+  await wallet.deposit(1000, wallet.tokens.ether /*, { from: eth_accounts[0] } */);
 
-await wallet.withdraw(500, wallet.tokens.ether); // make a withdrawal
+  console.log(await wallet.balance(wallet.tokens.ether));
 
-await wallet.retrieve(await wallet.withdrawals(0)); // wait 2 weeks to fire this..
+  await wallet.withdraw(500, wallet.tokens.ether); // make a withdrawal
+
+  await wallet.retrieve(await wallet.withdrawals(0)); // wait 2 weeks to fire this..
+
+})()
+
 ```
 
 ## Syncing
@@ -48,7 +58,12 @@ await wallet.retrieve(await wallet.withdrawals(0)); // wait 2 weeks to fire this
 const { sync } = new Wallet(...);
 
 // Sync your wallet DB with the Fuel API
-await sync();
+(async ()=>{
+
+  await sync();
+  
+})()
+
 ```
 
 ## Wallet
