@@ -2148,7 +2148,7 @@ async function simulatedContract(contract, remoteDB, mempoolDB, noIntake, localD
         _ignoreFrom: true,
         _post: post(remoteDB, mempoolDB, accountsDB, faucetDB),
       });
-      const { balance, transfer, deposit, withdraw } = wallet2;
+      const { balance, transfer, deposit, withdraw, withdrawals } = wallet2;
 
       const bal = await balance(wallet2.tokens.fakeDai);
 
@@ -2236,9 +2236,9 @@ async function simulatedContract(contract, remoteDB, mempoolDB, noIntake, localD
       // Wallet 2
       _t.equal(wallet3FakeDaiBalance.toNumber(), 222, 'wallet 3 balance post fakeDai');
 
+      /*
       console.log('Attempting fake dai and ether withdrawls.');
 
-      /*
       const withdrawlOfEther = await withdraw(28,
         wallet2.tokens.ether);
       const withdrawlOfDai = await withdraw(49,
@@ -2247,10 +2247,183 @@ async function simulatedContract(contract, remoteDB, mempoolDB, noIntake, localD
       console.log('Waiting for finalization delay..');
 
       await increaseBlocks((await contract.FINALIZATION_DELAY()).toNumber());
+
+      await retrive(wallet2.tokens.ether);
       */
-
-
     }
+
+    return contract;
+  } catch (error) {
+    console.log(error);
+    throw new ByPassError(error);
+  }
+
+  });
+}
+
+// Simulation Testing
+async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, localDB, accountsDB, t, faucetDB) {
+  test('spend tests', async _t => {
+
+  try {
+    if (remoteDB || mempoolDB) {
+      TypeDB(remoteDB);
+      TypeDB(mempoolDB);
+    }
+
+    // Genesis Block
+    const genesis = new GenesisBlock();
+
+    console.log('Deploy secondaruy token..');
+
+    // Token
+    let erc20Token = await constructUtility(big(1000), 0);
+
+    // Mint user tokens
+    const erc20TokenMint = await erc20Token.mint(address, 500);
+    await erc20TokenMint.wait();
+
+    // Mint user tokens
+    const erc20TokenMint2 = await erc20Token.mint(accounts[3].address, 1000);
+    await erc20TokenMint2.wait();
+
+    // Mint user tokens
+    const erc20TokenApproval = await erc20Token.approve(contract.address, 30);
+    await erc20TokenApproval.wait();
+
+    // Make Deposit and Register Token
+    const erc20Deposit = await contract.deposit(address, erc20Token.address, big(30), {
+      gasLimit: loadsOfGas,
+    });
+    await erc20Deposit.wait();
+    const erc20DepositReceipt = await rpc('eth_getTransactionReceipt', erc20Deposit.hash);
+
+    // Testing wallet
+    const wallet_db_2 = new MemoryDB();
+    await  wallet_db_2.clear();
+    const wallet2 = new Wallet({
+      signer: accounts[3],
+      provider,
+      db: wallet_db_2,
+      chainId: 10,
+      rpc: wrappedRPC(accounts[3]),
+      _addresses: {
+        local: {
+          fuel: contract.address,
+          ether: '0x0000000000000000000000000000000000000000',
+          fakeDai: String(erc20Token.address).toLowerCase(),
+        },
+      },
+      _ids: {
+        local: {
+          '0x0000000000000000000000000000000000000000': '0',
+          [String(erc20Token.address).toLowerCase()]: '1',
+        },
+      },
+      _ignoreFrom: true,
+      _post: post(remoteDB, mempoolDB, accountsDB, faucetDB),
+    });
+    const { balance, transfer, deposit, withdraw, withdrawals } = wallet2;
+
+    const bal = await balance(wallet2.tokens.fakeDai);
+
+    _t.equal(bal.toNumber(), 0, 'wallet 2 fakeDai balance');
+
+    // Wallet 2
+    await deposit(500, wallet2.tokens.fakeDai);
+    await deposit(utils.parseEther('32'), wallet2.tokens.ether);
+
+    const bal2 = await balance(wallet2.tokens.fakeDai);
+    const bal3 = await balance(wallet2.tokens.ether);
+
+    // Wallet 2
+    _t.equal(bal2.toNumber(), 500, 'wallet 2 balance post fakeDai deposit');
+    _t.equal(bal3.eq(utils.parseEther('32')), true, 'wallet 2 balance post ether deposit');
+
+    console.log('attempting transfer, waiting first..');
+
+    await wait(10000);
+
+    // Node
+    const transferA = await transfer(25,
+        wallet2.tokens.ether,
+        accounts[2].address);
+
+    const transferAA = await transfer(300,
+        wallet2.tokens.ether,
+        accounts[2].address);
+
+    // Node
+    const transferB = await transfer(122,
+        wallet2.tokens.fakeDai,
+        accounts[2].address);
+
+    const transferBB = await transfer(100,
+        wallet2.tokens.fakeDai,
+        accounts[2].address);
+
+    const transferAAA = await transfer(25,
+      wallet2.tokens.ether,
+      accounts[2].address);
+
+    const transferAAAA = await transfer(25,
+      wallet2.tokens.ether,
+      accounts[2].address);
+
+    console.log('Attempting to process second wallet 3 syncing, waiting..');
+
+    const wallet_db_3 = new MemoryDB();
+    await  wallet_db_3.clear();
+    const wallet3 = new Wallet({
+      signer: accounts[2],
+      provider,
+      db: wallet_db_3,
+      chainId: 10,
+      rpc: wrappedRPC(accounts[2]),
+      _addresses: {
+        local: {
+          fuel: contract.address,
+          ether: '0x0000000000000000000000000000000000000000',
+          fakeDai: String(erc20Token.address).toLowerCase(),
+        },
+      },
+      _ids: {
+        local: {
+          '0x0000000000000000000000000000000000000000': '0',
+          [String(erc20Token.address).toLowerCase()]: '1',
+        },
+      },
+      _ignoreFrom: true,
+      _post: post(remoteDB, mempoolDB, accountsDB, faucetDB),
+    });
+
+    await wallet3.sync();
+
+    console.log('post wallet 3 sync');
+
+    const wallet3EtherBalance = await wallet3.balance(wallet3.tokens.ether);
+
+    // Wallet 2
+    _t.equal(wallet3EtherBalance.toNumber(), 375, 'wallet 3 balance post ether');
+
+    const wallet3FakeDaiBalance = await wallet3.balance(wallet3.tokens.fakeDai);
+
+    // Wallet 2
+    _t.equal(wallet3FakeDaiBalance.toNumber(), 222, 'wallet 3 balance post fakeDai');
+
+    console.log('Attempting fake dai and ether withdrawls.');
+
+    const withdrawlOfEther = await withdraw(28,
+      wallet2.tokens.ether);
+    const withdrawlOfDai = await withdraw(49,
+      wallet2.tokens.fakeDai);
+
+    console.log('Waiting for finalization delay..');
+
+    await increaseBlocks((await contract.FINALIZATION_DELAY()).toNumber());
+
+    await retrieve(wallet2.tokens.ether, 0);
+    await retrieve(wallet2.tokens.ether, 0);
 
     return contract;
   } catch (error) {
@@ -2530,4 +2703,5 @@ module.exports = {
   Fuel,
   atFuel,
   sendTransaction,
+  simulatedWalletUsage,
 };

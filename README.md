@@ -35,7 +35,7 @@ const wallet = new Wallet({
   signer: utils.SigningKey(utils.randomBytes(32)),
   provider: window.web3.currentProvider,
   db: new dbs.Index(),
-  chainId: 3, // default is 3, 1 is mainnet
+  chainId: 3, // default is 3 Ropsten (only supported)
 });
 
 (async ()=>{
@@ -44,9 +44,9 @@ const wallet = new Wallet({
 
   console.log(await wallet.balance(wallet.tokens.ether));
 
-  await wallet.withdraw(500, wallet.tokens.ether); // make a withdrawal
+  await wallet.withdraw(500, wallet.tokens.ether); // make a withdrawal UTXO
 
-  await wallet.retrieve(await wallet.withdrawals(0)); // wait 2 weeks to fire this..
+  await wallet.retrieve(wallet.tokens.ether); // wait 2 weeks, select withdrawal zero or first withdrawal in DB to retrieve [, withdrawlIndex]
 
 })()
 
@@ -61,7 +61,7 @@ const { sync } = new Wallet(...);
 (async ()=>{
 
   await sync();
-  
+
 })()
 
 ```
@@ -73,7 +73,7 @@ new Wallet({
   signer, // [Object] ethers Signer object
   provider, // [Object] web3 provider object
   db: new dbs.Memory(), // [Object] database object
-  chainId: '3' // [String | Number] mainnet or '3' ropsten
+  chainId: '3' // [String | Number] '3' Ropsten (only supported)
 });
 ```
 

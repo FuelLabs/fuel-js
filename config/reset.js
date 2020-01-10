@@ -65,6 +65,6 @@ async function clear() {
 }
 
 // Clear execution
-// clear()
-// .then(console.log)
-// .catch(console.log);
+clear()
+ .then(console.log)
+ .catch(console.log);

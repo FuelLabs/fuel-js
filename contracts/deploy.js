@@ -40,6 +40,19 @@ async function deploy() {
     await fuelContract.deployed();
     console.log('Fuel contract deployed to', fuelContract.address);
 
+    // Check finalization delay
+    if (!(await fuelContract.FINALIZATION_DELAY()).eq(50400)) {
+      throw new Error('Invalid finalization delay!');
+    }
+
+    if (!(await fuelContract.SUBMISSION_DELAY()).eq(14400)) {
+      throw new Error('Invalid submission delay!');
+    }
+
+    if (!(await fuelContract.BOND_SIZE()).eq(utils.parseEther('.1'))) {
+      throw new Error('Invalid bond size!');
+    }
+
     // Fuel Factory
     const FakeDaiFactory = new ContractFactory(interfaces.FakeDaiInterface.abi,
       FakeDaiBytecode,
@@ -143,7 +156,9 @@ module.exports = {
   }
 }
 
-// Start Sequence
 deploy()
 .then(console.log)
 .catch(console.error);
+
+// Start Sequence
+//

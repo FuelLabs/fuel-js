@@ -433,8 +433,8 @@ async function sync(opts = {}) {
               // Notatre recordAccounts change
               if (opts.accounts) {
                 // Token ID
-                const tokenId = RLP.decode(await opts.db.get(String(interfaces.FuelDBKeys.tokenID
-                    + log.values.token.slice(2)).toLowerCase()));
+                const tokenID = _utils.big(RLP.decode(await opts.db.get(String(interfaces.FuelDBKeys.tokenID
+                    + log.values.token.slice(2)).toLowerCase())));
 
                 // UTXO Proof creation
                 const utxoProof = new structs.UTXOProof({
@@ -443,7 +443,7 @@ async function sync(opts = {}) {
                   type: interfaces.FuelOutputTypes.Withdrawal,
                   owner: log.values.account,
                   amount: log.values.amount,
-                  tokenId: _utils.big(tokenId).toNumber(),
+                  tokenID: tokenID,
                 });
 
                 // Delete

@@ -4,17 +4,25 @@ import { Wallet, utils, dbs } from "../index";
 async function app() {
   try {
     const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
-    const { faucet, transfer, tokens, balance } = new Wallet({
+    const { faucet, transfer, tokens, balance, blockNumber } = new Wallet({
       signer,
       db: new dbs.Index(),
-      api: 'https://fuel-lambda.now.sh/',
+      // api: 'https://fuel-lambda.now.sh/',
     });
 
-    await faucet();
+    // Test new chain..
+    /* console.log(await post('https://fuel-lambda.now.sh/get', {
+      key: '0x07',
+    }));
+    */
 
-    await transfer(500, tokens.fakeDai, signer.address);
+    // console.log(await blockNumber());
 
-    console.log(await balance(tokens.fakeDai));
+    // await faucet();
+
+    // await transfer(500, tokens.fakeDai, signer.address);
+
+    // console.log(await balance(tokens.fakeDai));
 
 
     // const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..

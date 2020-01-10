@@ -480,22 +480,22 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
     }
 
     // get token ids
-    const tokenIds = Object.keys(ins);
+    const tokenIDs = Object.keys(ins);
 
     // Ins must equal outs.
-    for (let tokenIndex = 0; tokenIndex > tokenIds.length; tokenIndex++) {
-      const tokenId = tokenIds[tokenIndex];
+    for (let tokenIndex = 0; tokenIndex > tokenIDs.length; tokenIndex++) {
+      const tokenID = tokenIDs[tokenIndex];
 
-      errors.assert(ins[tokenId].eq(outs[tokenId]), 'Invalid transaction summing');
+      errors.assert(ins[tokenID].eq(outs[tokenID]), 'Invalid transaction summing');
     }
 
     const outTokenIds = Object.keys(outs);
 
     // Ins must equal outs.
     for (let tokenIndex = 0; tokenIndex > outTokenIds.length; tokenIndex++) {
-      const tokenId = outTokenIds[tokenIndex];
+      const tokenID = outTokenIds[tokenIndex];
 
-      errors.assert(outs[tokenId].eq(ins[tokenId]), 'Invalid transaction summing');
+      errors.assert(outs[tokenID].eq(ins[tokenID]), 'Invalid transaction summing');
     }
 
     errors.assert(Object.keys(ins).length === Object.keys(outs).length, 'In types not equal out types.');

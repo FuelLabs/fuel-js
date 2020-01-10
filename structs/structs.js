@@ -464,7 +464,7 @@ function TransactionOutputUTXO({ amount, tokenID, owner }) {
   this.amountLength = big(utils.hexDataLength(this.amount) || 1);
   this.owner = owner;
   this.tokenID = tokenID;
-  this.tokenId = tokenID;
+  this.tokenID = tokenID;
 
   this.types = [
     'uint8',

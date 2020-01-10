@@ -53,7 +53,6 @@ function Wallet({
     try {
       // Timeout
       const timeout = _receiptTimeout || 100000; // 100 seconds
-
       types.TypeHex(txhash, 32);
 
       // Receipt
@@ -85,6 +84,12 @@ function Wallet({
   const _api = api || 'https://api.fuel.sh/'; // APIclon\\
   const __post = postDecoder(_post || axios.post);
 
+  // API endpoint check
+  if (_api[_api.length - 1] !== '/') {
+    throw new Error('API endpoint must end in a "/"');
+  }
+
+  // Post
   this.post = __post;
 
   // Object Properties
@@ -116,17 +121,17 @@ function Wallet({
       types.TypeAddress(token);
 
       // Token ID
-      let _tokenId = __ids[String(token).toLowerCase()];
+      let _tokenID = __ids[String(token).toLowerCase()];
 
       // Otherwise get the token id
-      if (!_tokenId && _tokenId !== 0) {
-        _tokenId = _utils.big(await _rpc('eth_call', {
+      if (!_tokenID && _tokenID !== 0) {
+        _tokenID = _utils.big(await _rpc('eth_call', {
           to: __addresses.fuel,
           data: FuelInterface.functions.tokens.encode([token]),
         })).toNumber();
       }
 
-      if (!_tokenId) {
+      if (!_tokenID) {
         throw new Error('Invalid token does not exist in Fuel.');
       }
 
@@ -136,7 +141,7 @@ function Wallet({
           || row.key.indexOf(FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)) === 0) {
           const decoded = structs.decodeUTXORLP(row.value);
 
-          if (String(decoded.proof.tokenID.toNumber()).toLowerCase() === String(_tokenId).toLowerCase()) {
+          if (String(decoded.proof.tokenID.toNumber()).toLowerCase() === String(_tokenID).toLowerCase()) {
             // Decode Amount and increase baance..
             result.balance = result.balance.add(decoded.proof.amount);
 
@@ -192,8 +197,10 @@ function Wallet({
               + interfaces.FuelDBKeys.withdrawal.slice(2)) === 0) {
           const decoded = structs.decodeUTXORLP(row.value);
 
+          const utxoProof = new structs.UTXOProof(decoded.proof);
+
           result.withdrawals.push({
-            key: row.key, value: row.value, decoded,
+            key: row.key, value: row.value, decoded, utxoProof,
           });
         }
       })
@@ -218,9 +225,13 @@ function Wallet({
 
   // withdrawalss
   this.withdrawals = async (token, index = 0) => {
-    if (typeof index !== 'undefined') { types.TypeNumber(index); }
+    try {
+      if (typeof index !== 'undefined') { types.TypeNumber(index); }
 
-    return (await inputs(token)).withdrawals[index] || null;
+      return (await inputs(token)).withdrawals[index] || null;
+    } catch (error) {
+      throw new errors.ByPassError(error);
+    }
   };
 
   // this will get all account information for the provided signer key
@@ -625,42 +636,58 @@ function Wallet({
   };
 
   // Retrive
-  this.retrieve = async (withdrawlUTXOID, opts = {}) => {
+  this.retrieve = async (token, withdrawalIndex = 0, opts = {}) => {
     try {
+      types.TypeHex(token, 20);
+      types.TypeNumber(withdrawalIndex);
       types.TypeObject(opts);
-      types.TypeHex(withdrawlUTXOID, 32);
 
+      // Check RPC
       if (!_rpc) {
-        throw new Error('You must specify a provider for the wallet');
+        throw new Error('You must specify a web3 provider to retrieve funds.');
       }
 
-      return;
+      // Get withdrawal
+      const withdrawal = await this.withdrawals(token, withdrawalIndex);
 
-      // From
-      const _from = await resolveFrom(opts);
+      // If withdrawl doesnt exist
+      if (!withdrawal) {
+        throw new Error('Withdrawal does not exist! "sync()" wallet or check details.');
+      }
+
+      // Withdrawal
+      const utxo = await __post(`${_api}get`, {
+        key: interfaces.FuelDBKeys.withdrawal + withdrawal.utxoProof.hash.slice(2),
+      });
+
+      // No block
+      if (!utxo[1]) {
+        throw new Error('Withdrawal UTXO has not been published to a block and is likely not finalized yet.');
+      }
 
       // Withdraw
-      const blockNumber = _utils.big(0);
-      const transactionRootIndex = 0;
-      const transactionHashId = '0x';
+      const blockNumber = _utils.big(utxo[1]);
+      const transactionRootIndex = _utils.big(root[3]).toNumber();
+      const transactionIndex = _utils.big(utxo[4]).toNumber();; // 4 is Tx index
 
       // Get Data for the retrieval..
       const block = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.block + _utils._utils.big(blockNumber.toNumber()).toHexString().slice(2),
       });
+      const blockTransactionRootHashes = block[4];
+
+      // Root Hash
+      const transactionRootHash = blockTransactionRootHashes[transactionRootIndex];
       const transactionRoot = await __post(`${_api}get`, {
-        key: interfaces.FuelDBKeys.transactionRoot + _utils._utils.big(transactionRootIndex).toHexString().slice(2),
+        key: interfaces.FuelDBKeys.transactionRoot + transactionRootHash.slice(2),
       });
-      const transaction = await __post(`${_api}get`, {
-        key: interfaces.FuelDBKeys.transaction + transactionHashId.slice(2),
-      });
-      const utxo = await __post(`${_api}get`, {
-        key: interfaces.FuelDBKeys.withdraw + withdrawlUTXOID.slice(2),
-      });
+
+      // Root Ethereum Tx hash
+      const transactionRootTransactionHash = transactionRoot[3];
 
       // Proof TX / Leafs
       const transactionsData = await transactionsFromReceipt(_rpc,
-        transactionHashId);
+        transactionRootTransactionHash);
       const transactionLeafs = parseTransactions(transactionsData);
 
       // Withdrawal Proof
@@ -670,7 +697,7 @@ function Wallet({
           previousBlockHash: block[1],
           ethereumBlockNumber: _utils.big(block[2]),
           blockHeight: _utils.big(block[3]),
-          transactionRoots: block[4],
+          transactionRoots: blockTransactionRootHashes,
         }),
         root: new structs.TransactionRootHeader({
           producer: transactionRoot[0],
@@ -680,14 +707,14 @@ function Wallet({
         }),
         merkle: new structs.TransactionMerkleProof({
           transactionLeafs,
-          transactionIndex: _utils.big(transaction[3]).toNumber(),
+          transactionIndex: transactionIndex,
         }),
         transaction: new structs.TransactionData({
           inputIndex: 0,
           outputIndex: _utils.big(utxo[0][1]).toNumber(),
           witnessIndex: 0,
-          transactionIndex: _utils.big(transaction[3]).toNumber(),
-          transactionLeaf: transaction[0],
+          transactionIndex: transactionIndex,
+          transactionLeaf: transactionLeafs[transactionIndex],
         }),
         proofs: new structs.TransactionProofs([ new structs.WithdrawalProof(token) ]),
       }));
@@ -695,17 +722,19 @@ function Wallet({
       // Proof Submission
       const submitProofTxHash = await _rpc('eth_sendTransaction', Object.assign({
         to: __addresses.fuel,
-        value: _utils.big(0).toHexString(),
+        value: _utils.big(0).toHexString(), // no ETH required.
         gasLimit: _gasLimit.toHexString(),
         data: FuelInterface.functions.submitProof.encode([proof.encoded]),
-      }, _ignoreFrom ? {} : { from: _from }));
+      }, _ignoreFrom ? {} : { from: await resolveFrom(opts) }));
+
+      // Get receipt
       const proofReceipt = await _getReceipt(submitProofTxHash);
       if (_utils.big(proofReceipt.status).eq(0)) {
-        throw new Error(`While submitting withdrawal proof into Fuel, there was an error, receipt 0 status.`);
+        throw new Error(`While submitting withdrawal proof to Fuel contract, there was an error, receipt 0 status, hash ${proofReceipt.transactionHash}.`);
       }
 
       // This will get the funds back to the user..
-      return true;
+      return proofReceipt;
     } catch (error) {
       throw new errors.ByPassError(error);
     }
