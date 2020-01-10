@@ -1,4 +1,4 @@
-const mysql = require('mysql');
+const mysql = require('mysql2');
 const { ByPassError } = require('../errors/errors');
 const types = require('../types/types');
 

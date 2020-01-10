@@ -1,18 +1,20 @@
 require('regenerator-runtime');
-const { Wallet, utils, dbs } = require("../index");
+import { Wallet, utils, dbs } from "../index";
 
 async function app() {
   try {
-    /*
     const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
-    const { faucet, transfer, tokens, balance } = new Wallet({ signer, db: new dbs.Index(), api: 'https://fuel-lambda.now.sh/' });
+    const { faucet, transfer, tokens, balance } = new Wallet({
+      signer,
+      db: new dbs.Index(),
+      api: 'https://fuel-lambda.now.sh/',
+    });
 
     await faucet();
 
     await transfer(500, tokens.fakeDai, signer.address);
 
     console.log(await balance(tokens.fakeDai));
-    */
 
 
     // const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
@@ -29,18 +31,19 @@ async function app() {
     // console.log(utils.formatEther(await balance(tokens.fakeDai)));
 
 
-    const signer = new utils.SigningKey('0xfac10a0e2c13ad277a8ab2b633642e6d9a8d5916621fe984c34d9587ebddfc63');
-    const signer2 = new utils.SigningKey('0xeac10a0e2c13ad277a8ab2b633642e6d9a8d5916621fe984c34d9587ebddfc63'); // utils.randomBytes(32));
-    const { faucet, transfer, balance, tokenID, tokens, post, sync } = new Wallet({ signer, db: new dbs.Index() });
+    // const signer = new utils.SigningKey(utils.randomBytes(32));
+    // const signer2 = new utils.SigningKey(utils.randomBytes(32)); // utils.randomBytes(32));
+    // const { faucet, transfer, balance, tokenID, tokens, post, sync } = new Wallet({ signer, db: new dbs.Index() });
 
     // await sync();
 
-    await faucet();
+    // await faucet();
 
     // console.log(await tokenID(tokens.fakeDai));
 
     // console.log(utils.formatEther(await balance(tokens.fakeDai)));
 
+    /*
     await sync();
 
 
@@ -49,6 +52,7 @@ async function app() {
     console.timeEnd('Transact');
     //await transfer(utils.parseEther('1.5'), tokens.fakeDai, signer2.address);
     await transfer(utils.parseEther('1.4'), tokens.fakeDai, signer2.address);
+    */
 
     // console.log(utils.formatEther(await balance(tokens.fakeDai)));
 

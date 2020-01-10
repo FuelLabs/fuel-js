@@ -39,6 +39,11 @@ module.exports = cors(async (req, res) => {
       let result = null;
       let error = null;
 
+      // Deny IP logs
+      if (data.key.indexOf(FuelDBKeys.ip) === 0) {
+        throw new Error('IP log access denied.');
+      }
+
       try {
         result = await db.get(data.key);
       } catch (error) {

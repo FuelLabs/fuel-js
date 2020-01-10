@@ -75,7 +75,7 @@ new dbs.Memory({ ... }); // Memory storage (memdown)
 ## Running a Node
 
 ```sh
-git clone fuel
+git clone https://github.com/fuellabs/fuel-core
 # setup your environment variables (described below)
 npm install
 # then run one of the following commands

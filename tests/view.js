@@ -27,7 +27,8 @@ const accounts = new MysqlDB({ // for storing remotly for lambda processing
 });
 
 async function app() {
-  (await accounts.createReadStream()).on('data', console.log);
+  (await db.createReadStream())
+  .on('data', console.log);
 }
 
 app().then(console.log).catch(console.log);

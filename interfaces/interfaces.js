@@ -386,6 +386,7 @@ const FuelDBKeys = {
   mempoolTransaction: '0x16',
   withdrawal: '0x17',
   commitment: '0x18',
+  ip: '0x19',
 };
 
 // Fuel Contract Instance
