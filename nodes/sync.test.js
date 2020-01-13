@@ -123,8 +123,8 @@ test('test syncing sequence', async t => {
 
     // Simulated Contract in seperate thread.. memory leaks unfortunatly for testing..
     const timeout = setTimeout(async () => {
-      // await env.simulatedWalletUsage(contract, remote, mempool, false, local, accounts, testSuite, faucet);
-      await env.simulatedContract(contract, remote, mempool, false, local, accounts, testSuite, faucet); // NO INtake
+      await env.simulatedWalletUsage(contract, remote, mempool, false, local, accounts, testSuite, faucet);
+      // await env.simulatedContract(contract, remote, mempool, false, local, accounts, testSuite, faucet); // NO INtake
     }, 10);
 
     // Logger with Sentry support
@@ -137,7 +137,9 @@ test('test syncing sequence', async t => {
 
     // Sync sequence which just keeps looping and syncing..
     await sync({ db, rpc: env.rpc, mempool, accounts, commitments, logger, contract, keys,
-      remoteVolume: 0, cycleInterval: 1, waitTime: 100, hardStop: _utils.big(6) });
+      remoteVolume: 0, cycleInterval: 1,
+      maximumMempoolAge: _utils.minutes(2),
+      waitTime: 1000, hardStop: _utils.big(6) });
   } catch (error) {
     console.error(error);
   }

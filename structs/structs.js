@@ -754,7 +754,7 @@ function UTXOProof({ transactionHashId, outputIndex, type, amount, owner,
     block ? block.height : '0x0',
     block ? block.hash : '0x0',
     root ? big(root.index).toHexString() : '0x0',
-    transactionIndex ? big(transactionIndex).toHexString() : '0x0',
+    transactionIndex ? big(transactionIndex).toHexString() : '0x0'
   ]);
   this.encoded = abi.encode(this.types, this.values);
   this.hash = utils.keccak256(this.encoded);
@@ -952,6 +952,41 @@ function TransactionProof({ block, root, merkle, transaction, proofs, message })
   this.length = utils.hexDataLength(this.encoded);
 }
 
+/*
+// Iterate Through Merkle Proof Depths
+// https://crypto.stackexchange.com/questions/31871/what-is-the-canonical-way-of-creating-merkle-tree-branches
+for { let depth := 0 } lt(depth, treeHeight) { depth := safeAdd(depth, 1) } {
+    // get the leaf hash
+    let proofLeafHash := load32(treeMemoryPosition, depth)
+
+    // Determine Proof Direction the merkle brand left:  tx index % 2 == 0
+    switch eq(smod(transactionIndex, 2), 0)
+
+    // Direction is left branch
+    case 1 {
+        mstore(mul32(1), proofLeafHash)
+        mstore(mul32(2), computedHash)
+
+        // Leftishness Detected in Proof, This is not Rightmost
+        mpush(Stack_MerkleProofLeftish, True)
+    }
+
+    // Direction is right branch
+    case 0 {
+        mstore(mul32(1), computedHash)
+        mstore(mul32(2), proofLeafHash)
+    }
+
+    default { revert(0, 0) } // Direction is Invalid, Ensure no other cases!
+
+    // Construct Depth Hash
+    computedHash := keccak256(mul32(1), mul32(2))
+
+    // Shift transaction index right by 1
+    transactionIndex := shr(transactionIndex, 1)
+}
+*/
+
 // Construct Merkle Tree Root
 function constructMerkleTreeRoot(transactionLeafs) {
   // Leafs
@@ -1006,13 +1041,14 @@ function OverflowingTransactionMerkleProof() {
 }
 
 // Transaction Merkle Proof
-function TransactionMerkleProof({ transactionLeafs, transactionIndex }) {
+/*
+function TransactionMerkleProof({ transactionLeafs, transactionIndex, merkleTreeRoot }) {
   // Enforce Object
   assertNew(this, TransactionMerkleProof);
 
   // Enforce
-  TypeNumber(transactionIndex);
   TypeArray(transactionLeafs);
+  TypeNumber(transactionIndex);
 
   // Construct
   let hashes = transactionLeafs.map(leaf => leaf.hash);
@@ -1061,6 +1097,84 @@ function TransactionMerkleProof({ transactionLeafs, transactionIndex }) {
       }
 
       // push proof up
+      if (hashes[z + 1] === masterHash) {
+        proof.push(hashes[z]);
+        masterHash = depthHash;
+      }
+
+      // push master hash
+      swap.push(depthHash);
+    }
+
+    // switch places to next height
+    hashes = swap;
+    swap = []; // clear swap
+
+     // shim 1 to zero (stop), i.e. top height end..
+    if (hashes.length < 2) {
+      // Hashes length
+      break;
+    }
+  }
+
+  this.leftish = leftish;
+  this.oppositeLeafHash = oppositeLeafHash;
+  this.proof = proof;
+  this.transactionHash = this.proof[0] || null;
+  this.types = [
+    'bytes32',
+    'bytes32[]',
+  ];
+  this.values = [this.oppositeLeafHash, this.proof];
+  this.encoded = abi.encode(this.types, this.values);
+  this.length = utils.hexDataLength(this.encoded);
+}
+*/
+
+function TransactionMerkleProof({ transactionLeafs, transactionIndex }) {
+  // Enforce Object
+  assertNew(this, TransactionMerkleProof);
+
+  // Enforce
+  TypeArray(transactionLeafs);
+  TypeNumber(transactionIndex);
+
+  // Construct
+  let hashes = transactionLeafs.map(leaf => leaf.hash);
+
+  if (hashes.length % 2 > 0) {
+    hashes.push(emptyBytes32);
+  }
+
+  let oppositeLeafHash = hashes[transactionIndex]; // select actual leaf hash
+  let masterHash = oppositeLeafHash;
+  let swap = [];
+  let proof = [];
+  let leftish = false;
+
+  // Merklization Routine (inefficient)
+  for (var i = 0; hashes.length > 0; i++) { // depth
+    // if its uneven, pad with zero hash
+    if (hashes.length % 2 > 0) {
+      hashes.push(emptyBytes32);
+    }
+
+    for (var z = 0; z < hashes.length; z += 2) { // do hashes (2 hashes together)
+      // depth hash
+      let depthHash = utils.keccak256(hashes[z]
+          + hashes[z + 1].slice(2));
+
+      // push proof up
+      if (hashes[z] === masterHash) {
+        proof.push(hashes[z + 1]);
+        masterHash = depthHash;
+
+        if (z < hashes.length) {
+          leftish = true;
+        }
+      }
+
+      // push proof up rightish
       if (hashes[z + 1] === masterHash) {
         proof.push(hashes[z]);
         masterHash = depthHash;

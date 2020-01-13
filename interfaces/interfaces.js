@@ -280,7 +280,7 @@ const ERC20Interface = new utils.Interface([
 const FuelEventsInterface = new utils.Interface([
   // EVENTS
   'event DepositMade(address indexed account, address indexed token, uint256 amount)',
-  'event WithdrawalMade(address indexed account, address token, uint256 amount, uint256 indexed blockHeight, uint256 transactionRootIndex, bytes32 indexed transactionLeafHash, uint8 outpointIndex, bytes32 transactionHashId)',
+  'event WithdrawalMade(address indexed account, address token, uint256 amount, uint256 indexed blockHeight, uint256 transactionRootIndex, bytes32 indexed transactionLeafHash, uint8 outputIndex, bytes32 transactionHashId)',
   'event TransactionsSubmitted(bytes32 indexed transactionRoot, address producer, bytes32 indexed merkleTreeRoot, bytes32 indexed commitmentHash)',
   'event BlockCommitted(address blockProducer, bytes32 indexed previousBlockHash, uint256 indexed blockHeight, bytes32[] transactionRoots)',
   'event FraudCommitted(uint256 indexed previousTip, uint256 indexed currentTip, uint256 indexed fraudCode)',
@@ -388,6 +388,7 @@ const FuelDBKeys = {
   commitment: '0x18',
   ip: '0x19',
   contract: '0x20', // for fuel contract address.
+  withdrawn: '0x21',
 };
 
 // Fuel Contract Instance

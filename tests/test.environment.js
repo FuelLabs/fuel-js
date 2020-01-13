@@ -2298,6 +2298,8 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await erc20Deposit.wait();
     const erc20DepositReceipt = await rpc('eth_getTransactionReceipt', erc20Deposit.hash);
 
+    console.log('ERC20 token addr', erc20Token.address);
+
     // Testing wallet
     const wallet_db_2 = new MemoryDB();
     await  wallet_db_2.clear();
@@ -2323,7 +2325,9 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
       _ignoreFrom: true,
       _post: post(remoteDB, mempoolDB, accountsDB, faucetDB),
     });
-    const { balance, transfer, deposit, withdraw, withdrawals } = wallet2;
+    const { balance, transfer, deposit, withdraw, withdrawals, retrieve } = wallet2;
+
+    await _utils.wait(10000);
 
     const bal = await balance(wallet2.tokens.fakeDai);
 
@@ -2418,12 +2422,19 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     const withdrawlOfDai = await withdraw(49,
       wallet2.tokens.fakeDai);
 
-    console.log('Waiting for finalization delay..');
+    console.log('Waiting for finalization delay..', (await contract.blockTip()).toNumber());
 
-    await increaseBlocks((await contract.FINALIZATION_DELAY()).toNumber());
+    await increaseBlocks((await contract.FINALIZATION_DELAY()).mul(2).toNumber());
+
+    // console.log(await retrieve(wallet2.tokens.fakeDai, 0));
+    await transfer(2, wallet2.tokens.fakeDai, wallet3.address);
+    await transfer(1, wallet2.tokens.fakeDai, wallet3.address);
+    await transfer(4, wallet2.tokens.fakeDai, wallet3.address);
 
     await retrieve(wallet2.tokens.ether, 0);
-    await retrieve(wallet2.tokens.ether, 0);
+    await retrieve(wallet2.tokens.fakeDai, 0);
+
+    // console.log('Retrieval success??');
 
     return contract;
   } catch (error) {

@@ -3,7 +3,7 @@ import { Wallet, utils, dbs } from "../index";
 
 async function app() {
   try {
-    const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
+    const signer = new utils.SigningKey('0xdb96fced0d365dfd65468164d38c82f6af6fb2e8fb2227b0198a370eaa48a1c3'); // warning: not secure entropy generation..
     const { faucet, transfer, tokens, balance, blockNumber } = new Wallet({
       signer,
       db: new dbs.Index(),
@@ -16,7 +16,7 @@ async function app() {
     }));
     */
 
-    // console.log(await blockNumber());
+    console.log(await blockNumber());
 
     // await faucet();
 

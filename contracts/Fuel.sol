@@ -51,8 +51,8 @@ contract ERC20 {
 contract FuelConstants {
     // CONSTANTS
     uint256 constant public BOND_SIZE = .1 ether; // required for block commitment
-    uint256 constant public FINALIZATION_DELAY = 7 days / 12; //  ~ 1 weeks at 12 second block times
-    uint256 constant public SUBMISSION_DELAY = uint256(2 days) / 12; //  ~ 2 day (should be 2 days) in Ethereum Blocks
+    uint256 constant public FINALIZATION_DELAY = 1000; // 7 days / 12; //  ~ 1 weeks at 12 second block times
+    uint256 constant public SUBMISSION_DELAY = 12; // uint256(2 days) / 12; //  ~ 2 day (should be 2 days) in Ethereum Blocks
     uint256 constant public CLOSING_DELAY = uint256(90 days) / 12; // (should be 2 months)
     uint256 constant public MAX_TRANSACTIONS_SIZE = 58823;
     uint256 constant public TRANSACTION_ROOTS_MAX = 256;
@@ -292,7 +292,7 @@ contract FuelConstants {
 contract Fuel is FuelConstants, DSMath {
     // EVENTS
     event DepositMade(address indexed account, address indexed token, uint256 amount);
-    event WithdrawalMade(address indexed account, address token, uint256 amount, uint256 indexed blockHeight, uint256 transactionRootIndex, bytes32 indexed transactionLeafHash, uint8 outpointIndex, bytes32 transactionHashId);
+    event WithdrawalMade(address indexed account, address token, uint256 amount, uint256 indexed blockHeight, uint256 transactionRootIndex, bytes32 indexed transactionLeafHash, uint8 outputIndex, bytes32 transactionHashId);
     event TransactionsSubmitted(bytes32 indexed transactionRoot, address producer, bytes32 indexed merkleTreeRoot, bytes32 indexed commitmentHash);
     event BlockCommitted(address blockProducer, bytes32 indexed previousBlockHash, uint256 indexed blockHeight, bytes32[] transactionRoots);
     event FraudCommitted(uint256 indexed previousTip, uint256 indexed currentTip, uint256 indexed fraudCode);
@@ -800,7 +800,9 @@ contract Fuel is FuelConstants, DSMath {
                 mstore(mul32(4), 0)
 
                 // Log withdrawal data and topics
-                log4(mul32(1), mul32(4), WithdrawalEventTopic, blockProducer, blockHeight, transactionLeafHash)
+                log4(mul32(1), mul32(4), WithdrawalEventTopic, blockProducer,
+                  blockHeight,
+                  transactionLeafHash)
             }
 
             // Invalid Proof Type
@@ -1090,9 +1092,6 @@ contract Fuel is FuelConstants, DSMath {
               // Select Tree (ahead of Array length)
               let treeMemoryPosition := selectMerkleTree(merkleProof)
 
-              // Select computed hash, initialize with opposite leaf hash
-              let computedHash := selectOppositeTransactionLeaf(merkleProof)
-
               // Select Transaction Index
               let transactionIndex := selectTransactionIndex(transactionData)
 
@@ -1100,10 +1099,13 @@ contract Fuel is FuelConstants, DSMath {
               assertOrInvalidProof(lt(treeHeight, MerkleTreeHeightMaximum),
                 ErrorCode_MerkleTreeHeightOverflow)
 
+              // Select computed hash, initialize with opposite leaf hash
+              let computedHash := selectOppositeTransactionLeaf(merkleProof)
+
               // Assert Leaf Hash is base of Merkle Proof
               assertOrInvalidProof(eq(
                 constructTransactionLeafHash(transactionData), // constructed
-                selectMerkleTreeBaseLeaf(merkleProof) // proof provided
+                computedHash // proof provided
               ), ErrorCode_TransactionLeafHashInvalid)
 
               // Clean Rightmost (leftishness) Detection Var (i.e. any previous use of this Stack Position)
@@ -1120,8 +1122,8 @@ contract Fuel is FuelConstants, DSMath {
 
                   // Direction is left branch
                   case 1 {
-                      mstore(mul32(1), proofLeafHash)
-                      mstore(mul32(2), computedHash)
+                      mstore(mul32(1), computedHash)
+                      mstore(mul32(2), proofLeafHash)
 
                       // Leftishness Detected in Proof, This is not Rightmost
                       mpush(Stack_MerkleProofLeftish, True)
@@ -1129,8 +1131,8 @@ contract Fuel is FuelConstants, DSMath {
 
                   // Direction is right branch
                   case 0 {
-                      mstore(mul32(1), computedHash)
-                      mstore(mul32(2), proofLeafHash)
+                      mstore(mul32(1), proofLeafHash)
+                      mstore(mul32(2), computedHash)
                   }
 
                   default { revert(0, 0) } // Direction is Invalid, Ensure no other cases!
@@ -1139,7 +1141,7 @@ contract Fuel is FuelConstants, DSMath {
                   computedHash := keccak256(mul32(1), mul32(2))
 
                   // Shift transaction index right by 1
-                  transactionIndex := shr(transactionIndex, 1)
+                  transactionIndex := shr(1, transactionIndex)
               }
 
               // Assert constructed merkle tree root is provided merkle tree root, or else, Invalid Inclusion!
@@ -2534,7 +2536,8 @@ contract Fuel is FuelConstants, DSMath {
                     }
 
                     // Log block tips (old / new)
-                    log4(0, 0, FraudEventTopic, previousBlockTip, getBlockTip(), fraudCode)
+                    log4(0, 0, FraudEventTopic, previousBlockTip, getBlockTip(),
+                      fraudCode)
 
                     // Transfer Half The Bond for this Block
                     transfer(div(BOND_SIZE, 2), EtherToken, EtherToken, caller())
@@ -2717,7 +2720,7 @@ contract Fuel is FuelConstants, DSMath {
                 assertOrInvalidProof(lt(tokenID, getNumTokens()), ErrorCode_TransferTokenIDOverflow)
 
                 // Assert address is properly registered token
-                assertOrInvalidProof(eq(token, getTokens(tokenID)), ErrorCode_TransferTokenAddress)
+                assertOrInvalidProof(eq(tokenID, getTokens(token)), ErrorCode_TransferTokenAddress)
 
                 // Ether Token
                 if eq(token, EtherToken) {

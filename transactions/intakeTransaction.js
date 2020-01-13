@@ -566,6 +566,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
     // Attempt writes into results
     await db.batch(writes);
 
+    console.log('mempool intake!');
+
     // Notate tx in mempool, if this fails it can be healed later..
     await mempool.set(FuelDBKeys.mempoolTransaction
         + unsignedTransaction.hash.toLowerCase().slice(2),

@@ -95,6 +95,7 @@ function Wallet({
   // Object Properties
   this.db = db;
   this.chainId = String(chainId || '3'); // Ropsten by defaiult..
+  this.address = signer.address;
   const network = this.network = networks[this.chainId];
 
   // get addresses
@@ -196,12 +197,13 @@ function Wallet({
           || row.key.indexOf(interfaces.FuelDBKeys.mempool
               + interfaces.FuelDBKeys.withdrawal.slice(2)) === 0) {
           const decoded = structs.decodeUTXORLP(row.value);
-
           const utxoProof = new structs.UTXOProof(decoded.proof);
 
-          result.withdrawals.push({
-            key: row.key, value: row.value, decoded, utxoProof,
-          });
+          if (String(decoded.proof.tokenID.toNumber()).toLowerCase() === String(_tokenID).toLowerCase()) {
+            result.withdrawals.push({
+              key: row.key, value: row.value, decoded, utxoProof,
+            });
+          }
         }
       })
       .on('end', () => resolve(result))
@@ -226,6 +228,7 @@ function Wallet({
   // withdrawalss
   this.withdrawals = async (token, index = 0) => {
     try {
+      types.TypeAddress(token);
       if (typeof index !== 'undefined') { types.TypeNumber(index); }
 
       return (await inputs(token)).withdrawals[index] || null;
@@ -667,12 +670,12 @@ function Wallet({
 
       // Withdraw
       const blockNumber = _utils.big(utxo[1]);
-      const transactionRootIndex = _utils.big(root[3]).toNumber();
-      const transactionIndex = _utils.big(utxo[4]).toNumber();; // 4 is Tx index
+      const transactionRootIndex = _utils.big(utxo[3]).toNumber();
+      const transactionIndex = _utils.big(utxo[4]).toNumber(); // 4 is Tx index
 
       // Get Data for the retrieval..
       const block = await __post(`${_api}get`, {
-        key: interfaces.FuelDBKeys.block + _utils._utils.big(blockNumber.toNumber()).toHexString().slice(2),
+        key: interfaces.FuelDBKeys.block + _utils.big(blockNumber.toNumber()).toHexString().slice(2),
       });
       const blockTransactionRootHashes = block[4];
 
@@ -688,7 +691,8 @@ function Wallet({
       // Proof TX / Leafs
       const transactionsData = await transactionsFromReceipt(_rpc,
         transactionRootTransactionHash);
-      const transactionLeafs = parseTransactions(transactionsData);
+      const transactionLeafs = parseTransactions(transactionsData)
+        .map(leafHex => new structs.FillProof(leafHex));
 
       // Withdrawal Proof
       const proof = new structs.UserWithdrawalProof(new structs.TransactionProof({
@@ -707,16 +711,17 @@ function Wallet({
         }),
         merkle: new structs.TransactionMerkleProof({
           transactionLeafs,
-          transactionIndex: transactionIndex,
+          transactionIndex,
         }),
         transaction: new structs.TransactionData({
           inputIndex: 0,
           outputIndex: _utils.big(utxo[0][1]).toNumber(),
           witnessIndex: 0,
-          transactionIndex: transactionIndex,
+          transactionIndex,
           transactionLeaf: transactionLeafs[transactionIndex],
         }),
-        proofs: new structs.TransactionProofs([ new structs.WithdrawalProof(token) ]),
+        proofs: new structs.TransactionProofs([ new structs
+            .WithdrawalProof(token) ]),
       }));
 
       // Proof Submission
@@ -729,9 +734,12 @@ function Wallet({
 
       // Get receipt
       const proofReceipt = await _getReceipt(submitProofTxHash);
-      if (_utils.big(proofReceipt.status).eq(0)) {
+      if (!proofReceipt.status || _utils.big(proofReceipt.status).eq(0)) {
         throw new Error(`While submitting withdrawal proof to Fuel contract, there was an error, receipt 0 status, hash ${proofReceipt.transactionHash}.`);
       }
+
+      // Remove if success
+      await this.db.del(withdrawal.key);
 
       // This will get the funds back to the user..
       return proofReceipt;

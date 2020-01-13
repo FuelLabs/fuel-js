@@ -433,13 +433,13 @@ async function sync(opts = {}) {
               // Notatre recordAccounts change
               if (opts.accounts) {
                 // Token ID
-                const tokenID = _utils.big(RLP.decode(await opts.db.get(String(interfaces.FuelDBKeys.tokenID
+                const tokenID = _utils.big(_utils.RLP.decode(await opts.db.get(String(interfaces.FuelDBKeys.tokenID
                     + log.values.token.slice(2)).toLowerCase())));
 
                 // UTXO Proof creation
                 const utxoProof = new structs.UTXOProof({
                   transactionHashId: log.values.transactionHashId,
-                  outputIndex: log.values.outputIndex,
+                  outputIndex: _utils.big(log.values.outputIndex).toNumber(),
                   type: interfaces.FuelOutputTypes.Withdrawal,
                   owner: log.values.account,
                   amount: log.values.amount,
@@ -449,10 +449,15 @@ async function sync(opts = {}) {
                 // Delete
                 await opts.db.del(interfaces.FuelDBKeys.withdrawal
                     + utxoProof.hash.slice(2));
+                await opts.db.put(interfaces.FuelDBKeys.storage
+                    + interfaces.FuelDBKeys.withdrawal.slice(2)
+                    + utxoProof.hash.slice(2), utxoProof.rlp());
 
                 // Input into accounts, we can make this better using batching..
                 await opts.accounts
-                  .put(interfaces.FuelDBKeys.withdraw + _withdrawalHashId.slice(2),
+                  .del(interfaces.FuelDBKeys.withdrawal + utxoProof.hash.slice(2));
+                await opts.accounts
+                  .put(interfaces.FuelDBKeys.withdrawn + utxoProof.hash.slice(2),
                       String(log.values.account).toLowerCase());
               }
               break;
@@ -552,16 +557,22 @@ async function sync(opts = {}) {
         const currentTime = _utils.unixtime();
 
         // If there is no commitment queue, or the last commitment age is old, begin new commitment
-        if (!opts.keys || !(opts.keys || {}).transactions_submission_keys || !synced || !opts.mempool
-          || !(commitment.blockHeight.eq(_utils.big(-1))
-          || ((currentTime - commitment.age) > _utils.minutes(30)))) { continue; }
+        if (!opts.keys // no keys
+          || !synced // not synced
+          || !opts.mempool // no mempool db
+          || !(opts.keys || {}).transactions_submission_keys // no submission keys
+          || !(commitment.blockHeight.eq(_utils.big(-1)) // commitment isn't empy
+          || ((currentTime - commitment.age) > _utils.minutes(30)))) { // commitment age is not 30 minutes old
+          continue;
+        }
 
         // UTXO's related to this mempool set
         let checkUTXOs = {};
 
         // Check current time
         const { mempoolTransactions,
-            oldestTransactionAge, reads } = await structs.getMempoolTransactions(opts.mempool, 10000);
+            oldestTransactionAge,
+            reads } = await structs.getMempoolTransactions(opts.mempool, 10000);
 
         // Reads Check UTXOs, this is just to check if any of these UTXOs are somehow magically spent already..
         for (var readIndex = 0; readIndex < reads.length; readIndex++) {
@@ -569,9 +580,19 @@ async function sync(opts = {}) {
           checkUTXOs[checkUTXOKey] = await opts.db.get(checkUTXOKey);
         }
 
+        console.log('mempool len / oldest / current / min age',
+          mempoolTransactions.length,
+          oldestTransactionAge,
+          currentTime,
+          (opts.maximumMempoolAge || 1000),
+          (currentTime - (opts.maximumMempoolAge || 1000)));
+
         // If certain number of transactions reached in pool, or mempool age has hit maximum
-        if (mempoolTransactions.length > (opts.minimumTransactionVolume || 1000)
-          || oldestTransactionAge > (currentTime - (opts.maximumMempoolAge || 1000))) {
+        if (mempoolTransactions.length > 0 &&
+            (mempoolTransactions.length > (opts.minimumTransactionVolume || 1000)
+            || oldestTransactionAge <= (currentTime - (opts.maximumMempoolAge || 1000)))) {
+
+          console.log('Starting mempool commitment!');
 
           // Mempool commitment
           await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
