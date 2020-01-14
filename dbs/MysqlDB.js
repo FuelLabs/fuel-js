@@ -27,6 +27,9 @@ function MysqlDB(opts) {
   delete options.indexValue;
   delete options.useQuery;
 
+  // add Table name property..
+  this.table = table;
+
   // Create Pool
   let pool = mysql.createPool(options);
 
@@ -38,6 +41,8 @@ function MysqlDB(opts) {
     secondaryIndexes: true,
     batchReads: true,
     backgroundProcessing: false,
+    mysql: true, // added
+    multiTableBatch: true, // added
   };
 
   // Transact
@@ -116,7 +121,7 @@ function MysqlDB(opts) {
       // MUST Be right filter..
       const hasGet = _arr.filter(v => v.type === 'get').length > 0;
       const arr = hasGet ? _arr : _arr
-        .map(v => v.type + v.key)
+        .map(v => (v.table || table) + v.type + v.key)
         .map((v, i, s) => s.lastIndexOf(v) === i ? i : null)
         .filter(v => v !== null)
         .map(v => _arr[v]);
@@ -142,48 +147,69 @@ function MysqlDB(opts) {
       let sqlQuery = '';
       let _sqlQuery = '';
       let previousType = null;
+      let tables = {};
       const len = (arr.length > batchVolume ? batchVolume : arr.length);
+
       for (var i = 0; i < len; i++) {
+        // Get row specifed table
+        const rowTable = arr[i].table || table;
+
+        // Add to tables for empty delete removals later.
+        tables[rowTable] = true;
+
         switch (arr[i].type)  {
           case 'put':
             const delKey = arr[i].ignore === false
               ? ''
               : `${'`'}key${'`'} = ${mysql.escape(arr[i].key)}`;
+            const putRowType = rowTable + 'put';
 
-            if (previousType !== 'put') {
-              _sqlQuery += `DELETE FROM ${table} WHERE (${delKey}`;
-              sqlQuery += `INSERT INTO ${table}(${'`'}key${'`'},${'`'}value${'`'}) VALUES (${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
+            if (previousType !== putRowType) {
+              _sqlQuery += `DELETE FROM ${rowTable} WHERE (${delKey}`;
+              sqlQuery += `INSERT INTO ${rowTable}(${'`'}key${'`'},${'`'}value${'`'}) VALUES (${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
             } else {
               _sqlQuery += arr[i].ignore === false ? '' : ` OR ${delKey}`;
               sqlQuery += `,(${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
             }
-            if ((arr[i + 1] || empty).type !== 'put' || (i + 1) === len) {
+            const futurePutRowType = ((arr[i + 1] || empty).table || table)
+              + (arr[i + 1] || empty).type;
+
+            if (futurePutRowType !== putRowType || (i + 1) === len) {
               _sqlQuery += ');';
               sqlQuery += ';';
             }
-            previousType = 'put';
+            previousType = putRowType;
             break;
 
           case 'get':
-            sqlQuery += `SELECT value FROM ${table} WHERE (${'`'}key${'`'} <=> ${mysql.escape(arr[i].key)});`;
-            previousType = 'get';
+            sqlQuery += `SELECT value FROM ${rowTable} WHERE (${'`'}key${'`'} <=> ${mysql.escape(arr[i].key)});`;
+            previousType = rowTable + 'get';
             break;
 
           case 'del':
-            if (previousType !== 'del') {
-              sqlQuery += `DELETE FROM ${table} WHERE (${'`'}key${'`'} = ${mysql.escape(arr[i].key)}`;
+            const delRowType = rowTable + 'del';
+
+            if (previousType !== delRowType) {
+              sqlQuery += `DELETE FROM ${rowTable} WHERE (${'`'}key${'`'} = ${mysql.escape(arr[i].key)}`;
             } else {
               sqlQuery += ` OR ${'`'}key${'`'} = ${mysql.escape(arr[i].key)}`;
             }
-            if ((arr[i + 1] || empty).type !== 'del' || (i + 1) === len) {
+            const futureDelRowType = ((arr[i + 1] || empty).table || table)
+              + (arr[i + 1] || empty).type;
+            if (futureDelRowType !== delRowType || (i + 1) === len) {
               sqlQuery += ');';
             }
-            previousType = 'del';
+            previousType = delRowType;
             break;
         }
       }
 
-      const transactionResults = await transact(replaceAll(_sqlQuery, emptyDel, '') + sqlQuery);
+      // Remove all empty delete statements
+      const preSQLQuery = Object.keys(tables)
+         .reduce((acc, tableName) => replaceAll(acc, `DELETE FROM ${tableName} WHERE ();`, ''), _sqlQuery);
+
+      // Tx Results
+      const transactionResults = await transact(preSQLQuery + sqlQuery);
       return await batch(arr.slice(len), results.concat(transactionResults), initCount);
     } catch (error) {
       throw new ByPassError(error);

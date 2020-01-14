@@ -138,7 +138,7 @@ test('test syncing sequence', async t => {
     // Sync sequence which just keeps looping and syncing..
     await sync({ db, rpc: env.rpc, mempool, accounts, commitments, logger, contract, keys,
       remoteVolume: 0, cycleInterval: 1,
-      maximumMempoolAge: _utils.minutes(2),
+      maximumMempoolAge: _utils.minutes(1),
       waitTime: 1000, hardStop: _utils.big(6) });
   } catch (error) {
     console.error(error);

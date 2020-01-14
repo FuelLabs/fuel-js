@@ -17,7 +17,6 @@ const {
   wait,
 } = require('../utils/utils');
 const _utils = require('../utils/utils');
-
 const {
   FuelInterface,
   FuelUtilityInterface,

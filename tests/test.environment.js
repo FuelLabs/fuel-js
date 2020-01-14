@@ -2424,15 +2424,25 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
 
     console.log('Waiting for finalization delay..', (await contract.blockTip()).toNumber());
 
-    await increaseBlocks((await contract.FINALIZATION_DELAY()).mul(2).toNumber());
+    // Little linger
+    await _utils.wait(_utils.minutes(2) * 1000);
+
+    const retBlock = (await contract.FINALIZATION_DELAY()).mul(2).toNumber();
+    await increaseBlocks(retBlock);
 
     // console.log(await retrieve(wallet2.tokens.fakeDai, 0));
     await transfer(2, wallet2.tokens.fakeDai, wallet3.address);
     await transfer(1, wallet2.tokens.fakeDai, wallet3.address);
     await transfer(4, wallet2.tokens.fakeDai, wallet3.address);
 
+    console.log('Waiting for tip 1');
+
+    console.log('Retrieval started');
+
     await retrieve(wallet2.tokens.ether, 0);
     await retrieve(wallet2.tokens.fakeDai, 0);
+
+    console.log('Retrieval completed');
 
     // console.log('Retrieval success??');
 

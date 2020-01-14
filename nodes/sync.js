@@ -580,19 +580,10 @@ async function sync(opts = {}) {
           checkUTXOs[checkUTXOKey] = await opts.db.get(checkUTXOKey);
         }
 
-        console.log('mempool len / oldest / current / min age',
-          mempoolTransactions.length,
-          oldestTransactionAge,
-          currentTime,
-          (opts.maximumMempoolAge || 1000),
-          (currentTime - (opts.maximumMempoolAge || 1000)));
-
         // If certain number of transactions reached in pool, or mempool age has hit maximum
         if (mempoolTransactions.length > 0 &&
             (mempoolTransactions.length > (opts.minimumTransactionVolume || 1000)
             || oldestTransactionAge <= (currentTime - (opts.maximumMempoolAge || 1000)))) {
-
-          console.log('Starting mempool commitment!');
 
           // Mempool commitment
           await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({

@@ -204,12 +204,14 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
               + inputs[inputIndex].utxoID.toLowerCase().slice(2),
             value: SpentOutputHex,
             ignore: false,
+            table: db.table,
           });
           accountSpendWrites.push({
             type: 'put',
             key: FuelDBKeys.mempoolSpend
               + inputs[inputIndex].utxoID.toLowerCase().slice(2),
             value: null,
+            table: accounts.table,
           });
           break;
 
@@ -230,12 +232,14 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
               + inputs[inputIndex].depositHashID.toLowerCase().slice(2),
             value: SpentOutputHex,
             ignore: false, // this prevents double spending!
+            table: db.table,
           });
           accountSpendWrites.push({
             type: 'put',
             key: FuelDBKeys.mempoolSpend
               + inputs[inputIndex].depositHashID.toLowerCase().slice(2),
             value: null,
+            table: accounts.table,
           });
           break;
 
@@ -258,12 +262,14 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
               + inputs[inputIndex].utxoID.toLowerCase().slice(2),
             value: SpentOutputHex,
             ignore: false, // this prevents double spending!
+            table: db.table,
           });
           accountSpendWrites.push({
             type: 'put',
             key: FuelDBKeys.mempoolSpend
               + inputs[inputIndex].utxoID.toLowerCase().slice(2),
             value: null,
+            table: accounts.table,
           });
           break;
 
@@ -285,12 +291,14 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
               + inputs[inputIndex].utxoID.toLowerCase().slice(2),
             value: SpentOutputHex,
             ignore: false, // this prevents double spending!
+            table: db.table,
           });
           accountSpendWrites.push({
             type: 'put',
             key: FuelDBKeys.mempoolSpend
               + inputs[inputIndex].utxoID.toLowerCase().slice(2),
             value: null,
+            table: accounts.table,
           });
           break;
 
@@ -387,6 +395,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
     const _accountSpendWrites = inputs.map((input, _inputIndex) => Object
       .assign(accountSpendWrites[_inputIndex], {
       value: String(recoveredWitnesses[input.witnessReference]).toLowerCase(),
+      table: accounts.table,
     }));
 
     // Do all DB reads at once, including most recent processed blockTip and numTokens..
@@ -530,6 +539,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
         key: output_key,
         value: utxoProof.rlp(),
         ignore: false,
+        table: db.table,
       });
 
       if (accounts) {
@@ -537,15 +547,11 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
           type: 'put',
           key: output_key,
           value: String(utxoProof._ownerAddress).toLowerCase(),
+          table: accounts.table,
         });
       }
     }
     const unixtime = big(Math.floor((new Date()).getTime() / 1000)).toHexString();
-
-    // Account writes, this can be made more efficient with a single connection
-    if (accounts) {
-      await accounts.batch(accountWrites.concat(_accountSpendWrites));
-    }
 
     // In keys and out keys
     const inKeys = Object.keys(ins);
@@ -563,10 +569,14 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
       errors.assert(ins[outKeys[tokenIDKey]].eq(outs[outKeys[tokenIDKey]]), `Invalid inputs not equal to outputs, token ID ${inKeys[tokenIDKey]}`);
     }
 
+
+    // Account writes, this can be made more efficient with a single connection
+    if (accounts) {
+      await accounts.batch(accountWrites.concat(_accountSpendWrites));
+    }
+
     // Attempt writes into results
     await db.batch(writes);
-
-    console.log('mempool intake!');
 
     // Notate tx in mempool, if this fails it can be healed later..
     await mempool.set(FuelDBKeys.mempoolTransaction
@@ -580,6 +590,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
           unixtime,
           inputHashes,
         ]));
+
+    console.log('mempool intake!');
 
     // Inserted success.
     return true;

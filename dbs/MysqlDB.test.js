@@ -147,7 +147,7 @@ test('module test', async t => {
   t.equal(await db.get('dropcheck2'), 'yes8', 'added in batch');
   t.equal(await db.get('hello2'), 'yes8', 'added in batch');
 
-  await db.drop();
+  console.log('Multi-table update');
 
   const db2 = new MySQLDB({ // for storing remotly for lambda processing
     host: process.env.mysql_host, // "SG-fuel3-1564-master.servers.mongodirector.com",
@@ -158,7 +158,29 @@ test('module test', async t => {
     table: 'accounts_test', // key / value table..
     indexValue: true,
   });
+
   await db2.create();
+
+  await db.batch([
+    { type: 'put', key: 'talk', value: 'walk' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val122' },
+    { type: 'put', table: 'accounts_test', key: 'test22', value: 'val120' },
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val199' },
+    { type: 'del', table: 'accounts_test', key: 'test22' },
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll2' },
+    { type: 'del', key: 'johnny' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll' },
+  ]);
+
+  t.equal(db.table, 'testkeyvalues', 'table name a');
+  t.equal(db2.table, 'accounts_test', 'table name b');
+
+  t.equal(await db.get('talk'), 'walk', 'multi table test');
+  t.equal(await db2.get('test84'), 'val199', 'multi table test');
+  t.equal(await db2.get('test22'), null, 'multi table test');
+  t.equal(await db.get('johnny'), 'valll', 'multi table test');
+
+  await db.drop();
 
   await db2.set('utxo1_account', '0xaa');
   await db2.set('utxo2_account', '0xaa');
