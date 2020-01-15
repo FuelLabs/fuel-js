@@ -2298,6 +2298,19 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await erc20Deposit.wait();
     const erc20DepositReceipt = await rpc('eth_getTransactionReceipt', erc20Deposit.hash);
 
+    // Second Token
+    let erc20Token3 = await constructUtility(big(1000), 0);
+    const erc20TokenMint3 = await erc20Token3.mint(address, 130);
+    await erc20TokenMint3.wait();
+
+    const erc20TokenApproval3 = await erc20Token3.approve(contract.address, 130);
+    await erc20TokenApproval3.wait();
+    const erc20Deposit3 = await contract.deposit(accounts[4].address, erc20Token3.address, big(130), {
+      gasLimit: loadsOfGas,
+    });
+    await erc20Deposit3.wait();
+    const erc20DepositReceipt3 = await rpc('eth_getTransactionReceipt', erc20Deposit3.hash);
+
     console.log('ERC20 token addr', erc20Token.address);
 
     // Testing wallet
@@ -2443,6 +2456,41 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await retrieve(wallet2.tokens.fakeDai, 0);
 
     console.log('Retrieval completed');
+
+    const wallet4 = new Wallet({
+      signer: accounts[4],
+      provider,
+      db: new MemoryDB(),
+      chainId: 10,
+      rpc: wrappedRPC(accounts[4]),
+      _addresses: {
+        local: {
+          fuel: contract.address,
+          ether: '0x0000000000000000000000000000000000000000',
+          fakeDai: String(erc20Token.address).toLowerCase(),
+          secondaryToken: erc20Token3.address,
+        },
+      },
+      _ids: {
+        local: {
+          '0x0000000000000000000000000000000000000000': '0',
+          [String(erc20Token.address).toLowerCase()]: '1',
+        },
+      },
+      _ignoreFrom: true,
+      _post: post(remoteDB, mempoolDB, accountsDB, faucetDB),
+    });
+
+    await wallet4.sync();
+
+    _t.equal((await wallet4.balance(wallet4.tokens.secondaryToken)).toNumber(), 130, 'tokem 3 wallet 4 balance');
+
+    await wallet4.transfer(23, wallet4.tokens.secondaryToken, wallet3.address);
+
+    await wallet3.sync();
+
+    _t.equal((await wallet3.balance(wallet4.tokens.secondaryToken)).toNumber(), 23, 'tokem 3 wallet 3 balance');
+
 
     // console.log('Retrieval success??');
 

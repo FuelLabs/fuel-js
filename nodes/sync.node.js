@@ -141,8 +141,20 @@ async function node() {
       ? _utils.big(process.env.gasLimit) : _utils.big(4000000);
 
     // Sync sequence which just keeps looping and syncing..
-    await sync({ db, rpc, mempool, accounts, commitments, logger, contract, keys, gasLimit,
-      remoteVolume: 10, cycleInterval: 15, waitTime: 1000 });
+    await sync({
+      db,
+      mempool,
+      accounts,
+      rpc,
+      commitments,
+      logger,
+      contract,
+      keys,
+      gasLimit,
+      cycleInterval: 15,
+      waitTime: 1000,
+      maximumMempoolAge: _utils.minutes(10),
+    });
   } catch (error) {
     console.log(error);
     logger.error(error);

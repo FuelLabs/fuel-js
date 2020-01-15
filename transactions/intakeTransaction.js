@@ -141,12 +141,18 @@ function bigGT(val, greaterThan, message = '') {
 const emptyRLP = RLP.encode('0x0');
 
 // intake transaction to the mempool
-async function intakeTransaction({ transaction, db, mempool, accounts, force }) {
+async function intakeTransaction({ transaction, db, mempool, accounts, force, batchAll }) {
   try {
     TypeHex(transaction);
     TypeDB(db);
     TypeDB(mempool);
     if (typeof accounts !== 'undefined') { TypeDB(accounts); }
+    if (typeof batchAll !== 'undefined') {
+      TypeBoolean(batchAll);
+      if (batchAll && (!db.supports.mysql || !mempool.supports.mysql || !accounts.supports.mysql)) {
+        throw new Error('Batch all on, but mysql not activated!');
+      }
+    }
     TypeBoolean(force || false); // accept without considering fees
     errors.assert(transaction.length > 100 && transaction.length < 1200, 'Invalid transaction byte length');
     const decoded = RLP.decode(transaction);
@@ -569,29 +575,42 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force }) 
       errors.assert(ins[outKeys[tokenIDKey]].eq(outs[outKeys[tokenIDKey]]), `Invalid inputs not equal to outputs, token ID ${inKeys[tokenIDKey]}`);
     }
 
+    const mempoolKey = FuelDBKeys.mempoolTransaction
+        + unsignedTransaction.hash.toLowerCase().slice(2);
+    const mempoolEntry = RLP.encode([
+      unsignedTransaction.hash.toLowerCase(),
+      unsignedTransaction.encoded, // payload for proecessing
+      witnesses, // witnesses
+      metadata, // metadata
+      transaction, // the entire tx submission
+      unixtime,
+      inputHashes,
+    ]);
 
-    // Account writes, this can be made more efficient with a single connection
-    if (accounts) {
-      await accounts.batch(accountWrites.concat(_accountSpendWrites));
+    // We assume if it's mysql, they are all the same DB for now..
+    if (batchAll) {
+      // We batch all into a single set of writes and deletes.
+      await db.batch(accountWrites
+        .concat(_accountSpendWrites)
+        .concat(writes)
+        .concat([{
+          type: 'put',
+          key: mempoolKey,
+          value: mempoolEntry,
+          table: mempool.table,
+        }]));
+    } else {
+      // Account writes, this can be made more efficient with a single connection
+      if (accounts) {
+        await accounts.batch(accountWrites.concat(_accountSpendWrites));
+      }
+
+      // Attempt writes into results
+      await db.batch(writes);
+
+      // Notate tx in mempool, if this fails it can be healed later..
+      await mempool.set(mempoolKey, mempoolEntry);
     }
-
-    // Attempt writes into results
-    await db.batch(writes);
-
-    // Notate tx in mempool, if this fails it can be healed later..
-    await mempool.set(FuelDBKeys.mempoolTransaction
-        + unsignedTransaction.hash.toLowerCase().slice(2),
-        RLP.encode([
-          unsignedTransaction.hash.toLowerCase(),
-          unsignedTransaction.encoded, // payload for proecessing
-          witnesses, // witnesses
-          metadata, // metadata
-          transaction, // the entire tx submission
-          unixtime,
-          inputHashes,
-        ]));
-
-    console.log('mempool intake!');
 
     // Inserted success.
     return true;

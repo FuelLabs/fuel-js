@@ -698,7 +698,8 @@ async function sync(opts = {}) {
                 });
 
                 // Setup commitment if transaction sent off, false for not committed to L1 chain
-                await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
+                await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({},
+                    commitment, {
                   roots: Object.assign(commitment.roots, {
                     [rootRecompute.hash]: false,
                   }),

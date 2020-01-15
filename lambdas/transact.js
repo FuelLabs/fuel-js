@@ -49,6 +49,7 @@ module.exports = cors(async (req, res) => {
         db: remote,
         mempool,
         accounts,
+        batchAll: true,
       });
 
       // send out result

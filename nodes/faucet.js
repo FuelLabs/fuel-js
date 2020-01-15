@@ -163,6 +163,7 @@ async function faucet({ db, mempool, requests, accounts, spendableInputs,
             mempool: mempool,
             accounts: accounts,
             force: true, // accept without considering fees..
+            batchAll: true,
           });
         } catch (error) {
           console.log(error);

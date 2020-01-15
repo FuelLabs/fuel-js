@@ -5,7 +5,7 @@ const { intakeTransaction } = require('../transactions/intakeTransaction');
 const MysqlDB = require('../dbs/MysqlDB');
 const { FuelDBKeys } = require('../interfaces/interfaces');
 const cors = microCors({ allowMethods: ['POST', 'OPTIONS'] });
-const { unixtime, big } = require('../utils/utils');
+const { unixtime, big, ipToHex } = require('../utils/utils');
 
 const remote = new MysqlDB({ // for storing remotly for lambda processing
   host: process.env.mysql_host,
@@ -36,16 +36,18 @@ module.exports = cors(async (req, res) => {
     // Faucet string fixed.
     if (req.method !== 'OPTIONS') {
       const data = await json(req);
-      const ip = big(String(req.headers['x-forwarded-for'])
-        .toLowerCase().trim().replace(/\./gi, "")).toHexString();
+      const ip = ipToHex(req.headers['x-forwarded-for']);
       const address = String(data.address).toLowerCase();
       const timeId = big(Math.round(unixtime() / 600)).toHexString(); // once an hour..
 
       TypeHex(data.address, 20);
 
       try {
-        await remote.set(FuelDBKeys.ip + ip.slice(2) + timeId.slice(2), '0x1', false); // SHOULD BE ,false); // prevent duplicates for issuance..
-        await requests.set(FuelDBKeys.ip + ip.slice(2), data.address);
+        // Batch writes in single tx. one pass to db
+        await remote.batch([
+          { type: 'put', table: remote.table, key: FuelDBKeys.ip + ip.slice(2) + timeId.slice(2), value: '0x1', ignore: false },
+          { type: 'put', table: requests.table, key: FuelDBKeys.ip + ip.slice(2), value: data.address },
+        ]);
 
         // send out result
         await send(res, 200, { error: null, result: '0x1' });

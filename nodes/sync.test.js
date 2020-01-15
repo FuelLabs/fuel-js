@@ -139,7 +139,7 @@ test('test syncing sequence', async t => {
     await sync({ db, rpc: env.rpc, mempool, accounts, commitments, logger, contract, keys,
       remoteVolume: 0, cycleInterval: 1,
       maximumMempoolAge: _utils.minutes(1),
-      waitTime: 1000, hardStop: _utils.big(6) });
+      waitTime: 100, hardStop: _utils.big(2) });
   } catch (error) {
     console.error(error);
   }

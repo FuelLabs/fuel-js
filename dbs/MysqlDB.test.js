@@ -1,4 +1,5 @@
 const MySQLDB = require('./MySQLDB');
+const _utils = require('../utils/utils');
 
 // Core
 const { test } = require('zora');
@@ -58,6 +59,39 @@ test('module test', async t => {
     { type: 'del', key: 'hello6' },
     { type: 'put', key: 'hello3', value: 'yes3' },
   ]);
+
+  try {
+    await db.batch([
+      { type: 'put', key: 'hello3', value: 'yes4' },
+      { type: 'del', key: 'hello6' },
+      { type: 'put', key: 'hello3', value: 'yes', ignore: false },
+    ]);
+  } catch (error) {
+    t.equal(typeof error, 'object', 'throw while transacting');
+  }
+
+
+  try {
+    await db.batch([
+      { type: 'put', key: 'hello3', value: 'yes4' },
+      { type: 'del', key: 'hello6' },
+      { type: 'put', key: 'hello3', value: 'yes', ignore: false },
+    ]);
+  } catch (error) {
+    t.equal(typeof error, 'object', 'throw while transacting');
+  }
+
+
+  try {
+    await db.batch([
+      { type: 'put', key: 'hello3', value: 'yes4' },
+      { type: 'del', key: 'hello6' },
+      { type: 'put', key: 'hello3', value: 'yes', ignore: false },
+    ]);
+  } catch (error) {
+    t.equal(typeof error, 'object', 'throw while transacting');
+  }
+
 
   try {
     await db.batch([
@@ -172,13 +206,42 @@ test('module test', async t => {
     { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll' },
   ]);
 
+  await _utils.wait(1000);
+
+  try {
+    await db.batch([
+      { type: 'put', table: 'accounts_test', key: 'test84', value: 'val199', ignore: false },
+      { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll' },
+    ]);
+
+    t.equal(true, false, 'batch should have thrown!');
+  } catch (err) {
+    t.equal(typeof err !== 'undefined', true, 'ignore in multi table batch');
+  }
+
   t.equal(db.table, 'testkeyvalues', 'table name a');
   t.equal(db2.table, 'accounts_test', 'table name b');
 
-  t.equal(await db.get('talk'), 'walk', 'multi table test');
+  t.equal(await db.get('johnny'), 'valll', 'multi table test');
   t.equal(await db2.get('test84'), 'val199', 'multi table test');
   t.equal(await db2.get('test22'), null, 'multi table test');
+  t.equal(await db.get('talk'), 'walk', 'multi table test');
+
+  await db.batch([
+    { type: 'put', key: 'talk', value: 'walk' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val122' },
+    { type: 'put', table: 'accounts_test', key: 'test22', value: 'val120' },
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val199' },
+    { type: 'del', table: 'accounts_test', key: 'test22' },
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll2' },
+    { type: 'del', key: 'johnny' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll' },
+  ]);
+
   t.equal(await db.get('johnny'), 'valll', 'multi table test');
+  t.equal(await db2.get('test84'), 'val199', 'multi table test');
+  t.equal(await db2.get('test22'), null, 'multi table test');
+  t.equal(await db.get('talk'), 'walk', 'multi table test');
 
   await db.drop();
 

@@ -1,7 +1,7 @@
 const { utils } = require('ethers');
 
 const abi = new utils.AbiCoder();
-const big = v => utils.bigNumberify(v);
+const big = (v, f) => utils.bigNumberify(v, f);
 const BN = require('bn.js');
 
 // Main vars
@@ -40,6 +40,15 @@ const unixtime = () => Math.floor((new Date()).getTime() / 1000);
 // Minues
 const minutes = v => v * 60;
 
+// Ip to Hex
+const ipToHex = ip => RLP.encode(ip.split('.')
+  .map(v => big(v)));
+
+// Hex to IP
+const hexToIP = hex => RLP.decode(hex)
+  .reduce((acc, v) => acc + '.' + big(v).toNumber(), '')
+  .slice(1);
+
 // RLP
 function serializeRLP(arr) {
   return arr.map(v => (typeof v === 'number') ? big(v).toHexString() : v);
@@ -64,4 +73,6 @@ module.exports = {
   unixtime,
   minutes,
   serializeRLP,
+  ipToHex,
+  hexToIP,
 };

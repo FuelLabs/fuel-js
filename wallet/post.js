@@ -29,6 +29,7 @@ module.exports = (db, mempool, accounts, faucet) => async (url, args = {}) => {
         db,
         mempool,
         accounts,
+        batchAll: true,
       });
 
       // send out result
@@ -39,8 +40,8 @@ module.exports = (db, mempool, accounts, faucet) => async (url, args = {}) => {
       const ip = '0.0.0.0';
       TypeHex(args.address, 20);
 
-      await db.set(FuelDBKeys.ip + ip, '1'); // SHOULD BE ,false); // prevent duplicates for issuance..
-      await faucet.set(FuelDBKeys.ip + ip, args.address);
+      await db.set(FuelDBKeys.ip + _utils.ipToHex(ip).slice(2), '1'); // SHOULD BE ,false); // prevent duplicates for issuance..
+      await faucet.set(FuelDBKeys.ip + _utils.ipToHex(ip).slice(2), args.address);
 
       // send out result
       return { data: { error: null, result: '0x1' }};

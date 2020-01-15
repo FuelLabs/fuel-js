@@ -45,19 +45,16 @@ function MysqlDB(opts) {
     multiTableBatch: true, // added
   };
 
-  // Transact
   const transact = this.transact = query => new Promise((resolve, reject) => {
     pool.getConnection(function(connectionError, conn) {
-      if (connectionError) { return reject(connectionError); }
+      if (connectionError) { conn.release(); return reject(connectionError); }
 
       // Use just query not transaction
       if (useQuery === true) {
         conn.query(query, function (queryError, results) {
           if (queryError) {
-            return conn.rollback(function() {
-              conn.release();
-              return reject(queryError);
-            });
+            conn.release();
+            return reject(queryError);
           }
 
           conn.release();
@@ -69,27 +66,26 @@ function MysqlDB(opts) {
 
           conn.query(query, function (queryError, results) {
             if (queryError) {
-              return conn.rollback(function() {
+              conn.rollback(function() {
                 conn.release();
-                return reject(queryError);
+                reject(queryError);
+              });
+            } else {
+              conn.commit(function(commitError) {
+                if (commitError) {
+                  return conn.rollback(function() {
+                    conn.release();
+                    return reject(commitError);
+                  });
+                } else {
+                  conn.release();
+                  return resolve(results);
+                }
               });
             }
-
-            conn.commit(function(commitError) {
-              if (commitError) {
-                return conn.rollback(function() {
-                  conn.release();
-                  return reject(commitError);
-                });
-              }
-
-              conn.release();
-              return resolve(results);
-            });
           });
         });
       }
-
     });
   });
 
@@ -121,7 +117,7 @@ function MysqlDB(opts) {
       // MUST Be right filter..
       const hasGet = _arr.filter(v => v.type === 'get').length > 0;
       const arr = hasGet ? _arr : _arr
-        .map(v => (v.table || table) + v.type + v.key)
+        .map((v, i = console.log('en', (v.table || table) + v.type + v.key)) => (v.table || table) + v.type + v.key)
         .map((v, i, s) => s.lastIndexOf(v) === i ? i : null)
         .filter(v => v !== null)
         .map(v => _arr[v]);
@@ -134,7 +130,7 @@ function MysqlDB(opts) {
         const final = results
           .map(v => Array.isArray(v)
             ? ((v[0] ? v[0] : {}).value || null)
-            : (v.value ? v.value : (v || null)));
+            : ((v || {}).value ? v.value : (v || null)));
 
         if (final.length === 0 && initCount === 1) {
           return [null];
@@ -208,23 +204,14 @@ function MysqlDB(opts) {
       const preSQLQuery = Object.keys(tables)
          .reduce((acc, tableName) => replaceAll(acc, `DELETE FROM ${tableName} WHERE ();`, ''), _sqlQuery);
 
+      console.log(preSQLQuery + sqlQuery);
+
       // Tx Results
       const transactionResults = await transact(preSQLQuery + sqlQuery);
       return await batch(arr.slice(len), results.concat(transactionResults), initCount);
     } catch (error) {
       throw new ByPassError(error);
     }
-  };
-  var end = this.end = (...args) => pool.end(console.log);
-  this.handleProcess = proc => {
-    proc.on('SIGINT', () => { end(); });
-    proc.on('SIGTERM', () => { end(); });
-    proc.on('SIGQUIT', () => { end(); });
-    proc.once('SIGINT', () => { end(); });
-    proc.once('SIGTERM', () => { end(); });
-    proc.once('SIGQUIT', () => { end(); });
-    proc.on('uncaughtException', () => { end(); });
-    proc.on('exit', () => { end(); });
   };
 }
 
