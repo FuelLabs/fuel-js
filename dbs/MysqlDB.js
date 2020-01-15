@@ -32,6 +32,7 @@ function MysqlDB(opts) {
 
   // Create Pool
   let pool = mysql.createPool(options);
+  this.pool = pool;
 
   // Supports notation
   this.supports = {
@@ -45,6 +46,7 @@ function MysqlDB(opts) {
     multiTableBatch: true, // added
   };
 
+
   const transact = this.transact = query => new Promise((resolve, reject) => {
     pool.getConnection(function(connectionError, conn) {
       if (connectionError) { conn.release(); return reject(connectionError); }
@@ -53,7 +55,6 @@ function MysqlDB(opts) {
       if (useQuery === true) {
         conn.query(query, function (queryError, results) {
           if (queryError) {
-            conn.release();
             return reject(queryError);
           }
 
@@ -67,7 +68,7 @@ function MysqlDB(opts) {
           conn.query(query, function (queryError, results) {
             if (queryError) {
               conn.rollback(function() {
-                conn.release();
+                // conn.release();
                 reject(queryError);
               });
             } else {
