@@ -46,8 +46,50 @@ function MysqlDB(opts) {
     multiTableBatch: true, // added
   };
 
-
   const transact = this.transact = query => new Promise((resolve, reject) => {
+    pool.getConnection(function(connectionError, conn) {
+      if (connectionError) { conn.release(); return reject(connectionError); }
+
+      // Use just query not transaction
+      if (useQuery === true) {
+        conn.query(query, (queryError, results) => {
+          if (queryError) {
+            return reject(queryError);
+          }
+
+          conn.release();
+          return resolve(results);
+        });
+      } else {
+        conn.query('START TRANSACTION;' + query, function (queryError, results) {
+          if (queryError) {
+            conn.rollback(function() {
+              // conn.release();
+              reject(queryError);
+            });
+          } else {
+            conn.commit(function(commitError) {
+              if (commitError) {
+                return conn.rollback(function() {
+                  conn.release();
+                  return reject(commitError);
+                });
+              } else {
+                conn.release();
+
+                console.log('Result header', results);
+
+                return resolve(results.slice(1));
+              }
+            });
+          }
+        });
+      }
+    });
+  });
+
+
+  const transact2 = this.transact2 = query => new Promise((resolve, reject) => {
     pool.getConnection(function(connectionError, conn) {
       if (connectionError) { conn.release(); return reject(connectionError); }
 
@@ -71,6 +113,9 @@ function MysqlDB(opts) {
                 // conn.release();
                 reject(queryError);
               });
+
+              console.log('Results', results);
+
             } else {
               conn.commit(function(commitError) {
                 if (commitError) {
@@ -118,7 +163,7 @@ function MysqlDB(opts) {
       // MUST Be right filter..
       const hasGet = _arr.filter(v => v.type === 'get').length > 0;
       const arr = hasGet ? _arr : _arr
-        .map((v, i = console.log('en', (v.table || table) + v.type + v.key)) => (v.table || table) + v.type + v.key)
+        .map(v => (v.table || table) + v.type + v.key)
         .map((v, i, s) => s.lastIndexOf(v) === i ? i : null)
         .filter(v => v !== null)
         .map(v => _arr[v]);
@@ -204,8 +249,6 @@ function MysqlDB(opts) {
       // Remove all empty delete statements
       const preSQLQuery = Object.keys(tables)
          .reduce((acc, tableName) => replaceAll(acc, `DELETE FROM ${tableName} WHERE ();`, ''), _sqlQuery);
-
-      console.log(preSQLQuery + sqlQuery);
 
       // Tx Results
       const transactionResults = await transact(preSQLQuery + sqlQuery);

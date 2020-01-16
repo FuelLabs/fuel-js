@@ -1,5 +1,7 @@
 # Fuel Core
 
+[![npm version](https://badge.fury.io/js/fuel-core.svg)](https://badge.fury.io/js/fuel-core)
+
 Essential JavaScript architecture for the Fuel side chain.
 
 ## Install
@@ -18,20 +20,20 @@ const { faucet, transfer, tokens } = new Wallet({ signer, db: new dbs.Index() })
 
 (async ()=>{
 
-  await faucet();
+  await faucet(); // get 100^18 fakeDai
 
-  await transfer(500, tokens.fakeDai, signer.address);
+  await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
 
 })()
 
 ```
 
-## Deposit / Withdraw Usage
+## Deposit / Withdraw
 
 ```js
 import { Wallet, utils, dbs } from "fuel-core";
 
-const wallet = new Wallet({
+const { deposit, balance, withdraw, retrieve } = new Wallet({
   signer: utils.SigningKey(utils.randomBytes(32)),
   provider: window.web3.currentProvider,
   db: new dbs.Index(),
@@ -40,13 +42,13 @@ const wallet = new Wallet({
 
 (async ()=>{
 
-  await wallet.deposit(1000, wallet.tokens.ether /*, { from: eth_accounts[0] } */);
+  await deposit(1000, wallet.tokens.ether /*, { from: eth_accounts[0] } */);
 
-  console.log(await wallet.balance(wallet.tokens.ether));
+  console.log(await balance(wallet.tokens.ether));
 
-  await wallet.withdraw(500, wallet.tokens.ether); // make a withdrawal UTXO
+  await withdraw(500, wallet.tokens.ether); // make a withdrawal UTXO
 
-  await wallet.retrieve(wallet.tokens.ether); // wait 2 weeks, select withdrawal zero or first withdrawal in DB to retrieve [, withdrawlIndex]
+  await retrieve(wallet.tokens.ether); // wait 1 weeks, select withdrawal zero or first withdrawal in DB to retrieve [, withdrawlIndex]
 
 })()
 

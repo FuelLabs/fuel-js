@@ -1,13 +1,36 @@
 require('regenerator-runtime');
 import { Wallet, utils, dbs } from "../index";
 
+const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
+const { faucet, transfer, sync, tokens, balance } = new Wallet({
+  signer,
+  db: new dbs.Memory(),
+  api: 'https://fuel-lambda.fuellabs.now.sh/',
+});
+
+(async ()=>{
+
+  console.time('Faucet');
+  await faucet(); // get 100^18 fakeDai
+  console.timeEnd('Faucet');
+
+  console.time('Transfer');
+  await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
+  console.timeEnd('Transfer');
+
+  await sync();
+
+  console.log(await balance(tokens.fakeDai));
+
+})()
+
+/*
 async function app() {
   try {
     const signer = new utils.SigningKey('0xdb96fced0d365dfd65468164d38c82f6af6fb2e8fb2227b0198a370eaa48a1c3'); // warning: not secure entropy generation..
     const { faucet, transfer, tokens, balance, blockNumber } = new Wallet({
       signer,
-      db: new dbs.Index(),
-      // api: 'https://fuel-lambda.now.sh/',
+      db: new dbs.Memory(),
     });
 
     // Test new chain..
@@ -16,7 +39,7 @@ async function app() {
     }));
     */
 
-    console.log(await blockNumber());
+    // console.log(await blockNumber());
 
     // await faucet();
 
@@ -92,17 +115,20 @@ async function app() {
       mempoolSpend: '0x15',
       mempoolTransaction: '0x16',
       withdrawal: '0x17',
+
+
+
+
+      } catch (error) {
+      console.log(error);
+      }
+      }
+
+      app()
+      .then(console.log)
+      .catch(console.log);
+
       */
-
-
-  } catch (error) {
-    console.log(error);
-  }
-}
-
-app()
-.then(console.log)
-.catch(console.log);
 
 /*
 const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..

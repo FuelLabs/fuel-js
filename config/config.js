@@ -2,20 +2,20 @@
 // Tokens
 const addresses = {
   ropsten: {
-    fuel: "0x7B8AB9e901c386C3a14FA96d687A85231836Df1D",
+    fuel: "0xB01cbfd7AEDdAE55E7a56E153Ff5f8FD991f6AFB",
     ether: '0x0000000000000000000000000000000000000000',
-    fakeDai: "0x353296f3D5cB1447A0971FF5cd795feaeD52e8FD",
+    fakeDai: "0xa68bb214c94cb15Eae1E5c7F7b9E1074057824D9",
   },
 };
 
 // Faucet
 const faucet = {
   ropsten: {
-    key: "0x05e3d36d5bfb49c29319e319413cff34bcf2a8df6575ac405a79d2c049d3c7b1be",
-    value: "0xf8419499b722ccd2d6baf0325bf9524bc2e5d3411330b394353296f3d5cb1447a0971ff5cd795feaed52e8fd836c63a7019102f050fe938943acc45f65568000000000",
-    depositHashID: "0xe3d36d5bfb49c29319e319413cff34bcf2a8df6575ac405a79d2c049d3c7b1be",
-    ethereumBlockNumber: "0x6c63a7",
-    token: "0x353296f3d5cb1447a0971ff5cd795feaed52e8fd",
+    key: "0x0543f7d8770031adcff53b475123c3830a3ccc6333d808173aa5b5da703069a5fa",
+    value: "0xf8419499b722ccd2d6baf0325bf9524bc2e5d3411330b394a68bb214c94cb15eae1e5c7f7b9e1074057824d9836cbe92019102f050fe938943acc45f65568000000000",
+    depositHashID: "0x43f7d8770031adcff53b475123c3830a3ccc6333d808173aa5b5da703069a5fa",
+    ethereumBlockNumber: "0x6cbe92",
+    token: "0xa68bb214c94cb15eae1e5c7f7b9e1074057824d9",
     account: "0x99b722ccd2d6baf0325bf9524bc2e5d3411330b3",
   },
 };
@@ -30,7 +30,7 @@ const networks = {
 const ids = {
   ropsten: {
     '0x0000000000000000000000000000000000000000': '0',
-    "0x353296f3d5cb1447a0971ff5cd795feaed52e8fd": '1',
+    "0xa68bb214c94cb15eae1e5c7f7b9e1074057824d9": '1',
   },
 };
 

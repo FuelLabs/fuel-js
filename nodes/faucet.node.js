@@ -108,9 +108,13 @@ async function node() {
 
     // console.log(await db.get(initialInputEntry.key));
 
+
+    // await inputs.del(initialInputEntry.key);
+
     // Check that genesis exists and is not spent yet!
     if ((await inputs.get(initialInputEntry.key)) === null) {
       // Add genesis input for faucet
+      // await inputs.del(initialInputEntry.key);
       // await inputs.put(initialInputEntry.key, initialInputEntry.value);
     }
 

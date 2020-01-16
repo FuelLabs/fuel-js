@@ -1,3 +1,12 @@
+# 0.0.3 -- new contracts
+
+1. Merklization adjustments
+2. Wallet upgrades
+3. Efficiency gains during transactional intake
+4. Configuration adjustment to testnet 0.0.3
+5. MySQL DB patching
+6. Sync mempool adjustments
+
 # 0.0.1 -- new contracts
 
 1. Second testnet up with real finalization and submission delay
