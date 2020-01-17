@@ -2280,7 +2280,7 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     let erc20Token = await constructUtility(big(1000), 0);
 
     // Mint user tokens
-    const erc20TokenMint = await erc20Token.mint(address, 500);
+    const erc20TokenMint = await erc20Token.mint(address, 5000000000);
     await erc20TokenMint.wait();
 
     // Mint user tokens
@@ -2288,11 +2288,11 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await erc20TokenMint2.wait();
 
     // Mint user tokens
-    const erc20TokenApproval = await erc20Token.approve(contract.address, 30);
+    const erc20TokenApproval = await erc20Token.approve(contract.address, 5000000000);
     await erc20TokenApproval.wait();
 
     // Make Deposit and Register Token
-    const erc20Deposit = await contract.deposit(address, erc20Token.address, big(30), {
+    const erc20Deposit = await contract.deposit(address, erc20Token.address, big(5000000000), {
       gasLimit: loadsOfGas,
     });
     await erc20Deposit.wait();
@@ -2310,6 +2310,40 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     });
     await erc20Deposit3.wait();
     const erc20DepositReceipt3 = await rpc('eth_getTransactionReceipt', erc20Deposit3.hash);
+
+    const wallet_db_a = new MemoryDB();
+    await  wallet_db_a.clear();
+    const walletaa = new Wallet({
+      signer: accounts[0],
+      provider,
+      db: wallet_db_a,
+      chainId: 10,
+      rpc: wrappedRPC(accounts[0]),
+      _addresses: {
+        local: {
+          fuel: contract.address,
+          ether: '0x0000000000000000000000000000000000000000',
+          fakeDai: String(erc20Token.address).toLowerCase(),
+        },
+      },
+      _ids: {
+        local: {
+          '0x0000000000000000000000000000000000000000': '0',
+          [String(erc20Token.address).toLowerCase()]: '1',
+        },
+      },
+      _ignoreFrom: true,
+      _post: post(remoteDB, mempoolDB, accountsDB, faucetDB),
+    });
+
+    await _utils.wait(10000);
+
+    await walletaa.sync();
+    console.log('wallet a balance', await walletaa.balance(erc20Token.address));
+
+    for (var i = 0; i < 5; i++) { // test at 500
+      await walletaa.transfer(1, erc20Token.address, accounts[2].address);
+    }
 
     console.log('ERC20 token addr', erc20Token.address);
 
@@ -2349,6 +2383,10 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     // Wallet 2
     await deposit(500, wallet2.tokens.fakeDai);
     await deposit(utils.parseEther('32'), wallet2.tokens.ether);
+
+    console.log('Waiting for deposits to process');
+
+    await _utils.wait(20000);
 
     const bal2 = await balance(wallet2.tokens.fakeDai);
     const bal3 = await balance(wallet2.tokens.ether);
@@ -2417,7 +2455,6 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await wallet3.sync();
 
     console.log('post wallet 3 sync');
-
     const wallet3EtherBalance = await wallet3.balance(wallet3.tokens.ether);
 
     // Wallet 2
@@ -2441,6 +2478,9 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await _utils.wait(_utils.minutes(2) * 1000);
 
     const retBlock = (await contract.FINALIZATION_DELAY()).mul(2).toNumber();
+
+    console.log('waitiong', retBlock);
+
     await increaseBlocks(retBlock);
 
     // console.log(await retrieve(wallet2.tokens.fakeDai, 0));
@@ -2491,8 +2531,7 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
 
     _t.equal((await wallet3.balance(wallet4.tokens.secondaryToken)).toNumber(), 23, 'tokem 3 wallet 3 balance');
 
-
-    // console.log('Retrieval success??');
+    console.log('we are a the end of testing..');
 
     return contract;
   } catch (error) {

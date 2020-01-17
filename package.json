@@ -12,7 +12,7 @@
     "deploy-fuel": "node ./contracts/deploy.js",
     "deploy-lambdas": "NODE_ENV=production now --prod -e NODE_ENV=production",
     "test-all": "NODE_ENV=testing node ./tests/test.Fuel.js",
-    "test-node-sync": "NODE_ENV=testing reset=1 providerServer=True node ./nodes/sync.test.js",
+    "test-node-sync": "NODE_ENV=testing reset=1 providerServer=True node ./nodes/sync.test.js --max-old-space-size=8192",
     "test-node-faucet": "NODE_ENV=testing providerServer=True node ./nodes/faucet.test.js",
     "test-sync-inspect": "NODE_ENV=testing node --expose-gc --inspect=9224 ./nodes/sync.test.js",
     "test-sync-prof": "NODE_ENV=testing providerServer=True node --prof ./nodes/sync.test.js",

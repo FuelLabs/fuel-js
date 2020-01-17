@@ -16,7 +16,7 @@ const postDecoder = method => (url, args) => method(url, args)
     ? Promise.reject('No result')
     : (result.error
       ? Promise.reject(error)
-      : Promise.resolve(_utils.RLP.decode(result.data.result))))
+      : Promise.resolve(result.data.result ? _utils.RLP.decode(result.data.result) : null)))
   .catch(error => Promise.reject(error));
 
 // Fuel Wallet..
@@ -198,6 +198,9 @@ function Wallet({
               + interfaces.FuelDBKeys.withdrawal.slice(2)) === 0) {
           const decoded = structs.decodeUTXORLP(row.value);
           const utxoProof = new structs.UTXOProof(decoded.proof);
+
+          // Decode Amount and increase baance..
+          result.balance = result.balance.sub(decoded.proof.amount);
 
           if (String(decoded.proof.tokenID.toNumber()).toLowerCase() === String(_tokenID).toLowerCase()) {
             result.withdrawals.push({
@@ -417,6 +420,20 @@ function Wallet({
         _utils.big(tokenID.toNumber()).toHexString(),
         am.toHexString(),
       ]));
+
+      let depositUTXOSynced = null;
+      const timeout = _utils.unixtime() + (opts.timeout || _utils.minutes(5));
+      while (!depositUTXOSynced) {
+        depositUTXOSynced = ((await __post(`${_api}get`, {
+          key: interfaces.FuelDBKeys.Deposit + depositHashID.slice(2),
+        })) || [])[1]; // the actual utxo, null if not available
+
+        if (_utils.unixtime() > timeout) {
+          throw new Error('Timeout while waiting for deposit, please sync again');
+        }
+      }
+
+      // we must wait for this to be synced with the node..
 
       // Return positive result..
       return {
@@ -664,7 +681,7 @@ function Wallet({
       });
 
       // No block
-      if (!utxo[1]) {
+      if (!(utxo || [])[1]) {
         throw new Error('Withdrawal UTXO has not been published to a block and is likely not finalized yet.');
       }
 

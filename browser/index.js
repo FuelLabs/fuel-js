@@ -5,7 +5,6 @@ const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secu
 const { faucet, transfer, sync, tokens, balance } = new Wallet({
   signer,
   db: new dbs.Memory(),
-  api: 'https://fuel-lambda.fuellabs.now.sh/',
 });
 
 (async ()=>{

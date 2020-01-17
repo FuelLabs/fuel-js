@@ -1673,10 +1673,10 @@ const getMempoolTransactions = (db, limit = 10000) => new Promise((resolve, reje
         }
 
         // Add to hashes array
-          transactions.push({
-            key: data.key,
-            value: val,
-          });
+        transactions.push({
+          key: data.key,
+          value: val,
+        });
 
         // Readable pause
         if (transactions.length >= limit) {
@@ -1708,6 +1708,8 @@ function mempoolToRoots(proposedTip, submissionProducer, mempoolTransactions, ch
   let transactionIndex = 0;
   let resultRoots = [];
 
+  // organize by unixtime here..
+
   // Placement of Transactions Across Roots
   for (var mempoolIndex = 0; mempoolIndex < mempoolTransactions.length; mempoolIndex++) {
 
@@ -1727,7 +1729,7 @@ function mempoolToRoots(proposedTip, submissionProducer, mempoolTransactions, ch
       + (metadata.length * interfaces.FuelConstants.MetadataSize);
 
     // Root size + estimated size, than create a new root
-    if ((currentRootSize + estimatedSize) >= interfaces.FuelConstants.MAX_TRANSACTIONS_SIZE) {
+    if ((currentRootSize + estimatedSize) >= 15000 /*interfaces.FuelConstants.MAX_TRANSACTIONS_SIZE)*/) {
       transactionRootIndex += 1;
       currentRootSize = 0;
       transactionIndex = 0;
@@ -1825,14 +1827,18 @@ const BlockHeader = struct([
   ['ethereumBlockNumber', 'uint256'],
   ['transactionRoots', 'bytes32[]'],
 ], [
-  ['someTopic', 'address'] // this is extra data
+  ['someTopic', 'address'], // this is extra data
 ]);
 
+// all encoding methods can be set to bool true, for including extras recursivly..
 const block = new BlockHeader(addr, keccak256('0x1'), 2, 4, [keccak256('0x1')]);
-block.rlp() // encode
+block.rlp(true) // encode with extra data
 block.encode() // encoded
 block.encodePacked() // encode packed
 block.values() // values array
+block.json() // this will return JSON encoded properties object, recursivly go through properties, ask for JSON
+block.keccak256Packed()
+block.keccak256()
 block.properties.producer;
 block.properties.previousBlockHash;
 block.properties.blockHeight;
@@ -1842,6 +1848,19 @@ const _block = BlockHeader(...block.values()); // decode from array of values..
 const _block = BlockHeader.decodeRLP(...); // decode rlp
 const _block = BlockHeader.decode(...); // decode encoded
 const _block = BlockHeader.decodePacked(...); // decode packed data into block header..
+const _block = BlockHeader.decodeJSON(...)
+
+const Transaction = struct([
+  ['transactionLength', 'bytes2'],
+  ['inputsLength', 'bytes1'],
+  ['outputsLength', 'bytes1'],
+  ['witnessLength', 'bytes1'],
+  ['inputs', 'Array'],
+  ['outputs', 'Array'],
+], [
+  ['blockHeight', 'uint256'], // this is extra data
+  ['rootIndex', 'uint256'], // this is extra data
+]);
 */
 
 function commitmentStruct(rlp) {

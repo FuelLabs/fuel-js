@@ -586,6 +586,8 @@ function parseTransaction({ transactionLeaf, transactionIndex, db, block,
                 : FuelDBKeys.withdrawal)
               + utxoProof.hash.slice(2);
 
+          // console.log('DB out key / utxo id', dbKey, '0x' + dbKey.slice(4));
+
           // UTXO in DB
           promises.push(db.set(dbKey,
             utxoProof.rlp()));
@@ -652,14 +654,20 @@ function parseTransaction({ transactionLeaf, transactionIndex, db, block,
         return;
       })
       .catch(error => {
+        logger.error(error);
         const err = new errors.ByPassError(error);
         err.transactionIndex = transactionIndex;
+        err.fraudCode = error.fraudCode;
+        err.stack = err.stack;
 
         return reject(err);
       });
     } catch (error) {
+      logger.error(error);
       const err = new errors.ByPassError(error);
       err.transactionIndex = transactionIndex;
+      err.fraudCode = error.fraudCode;
+      err.stack = err.stack;
 
       return reject(err);
     }
@@ -678,6 +686,7 @@ async function getToken({ db, tokenID }) {
 // Transaction Leaf, returns TransactionLeaf, throws malformed transaction error
 async function validateTransaction({ parsedTransaction, db, accounts, block,
     contract,
+    logger,
     root, numTokens, transactionIndex, leaf, rpc, leafs }) {
   try {
     // Type Object / Open Transaction Data
@@ -795,6 +804,10 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
           }
           break;
       }
+
+      // console.log('Entry lookup hash / index / key / entry',
+      //  transactionHashId, transactionIndex,
+      //  input.utxoID || input.depositHashID, entry);
 
       // This means either it doesn't exist or is double spend
       if (!entry && !invalidInput) {
@@ -921,10 +934,12 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
     } else if (invalidInput) {
       // Transaction Proof
       const transactionProofB = await isInvalidInputReference({
-          invalidInput, db, rpc, numTokens, contract });
+          invalidInput, db, rpc, numTokens, contract, logger });
 
       // Invalid Transaction Input Doesn't Exist
       if (transactionProofB) {
+        logger.log(transactionProofB.message);
+
         throw new errors.ProofError(new InvalidTransactionInputProof(new TransactionProof({
             block,
             root,
@@ -941,27 +956,33 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
       } else {
         // Scan entire chain for Double Spend
         const ds_transactionProofB = await isDoubleSpend({
-            invalidInput, db, rpc, numTokens, contract });
+            invalidInput, db, rpc, numTokens, contract, logger });
 
         // We have a serious problem
         if (!ds_transactionProofB) {
           throw new errors.FuelError('We have a serious problem.. double spend not found in double spend serious..');
         }
 
+        // Double Spend Proof
+        const doubleSpendProof = new InvalidTransactionDoubleSpendProof(new TransactionProof({
+          block,
+          root,
+          merkle: new TransactionMerkleProof({ transactionLeafs: leafs.map(v => new FillProof(v)), transactionIndex }),
+          transaction: new TransactionData({
+            inputIndex: invalidInput.inputIndex,
+            outputIndex: 0,
+            witnessIndex: 0,
+            transactionIndex,
+            transactionLeaf: new FillProof(leaf),
+          }),
+          proofs: 0,
+        }), ds_transactionProofB);
+
+        // Double spend proof
+        logger.log(doubleSpendProof);
+
         // create malformed transaction proof
-        throw new errors.ProofError(new InvalidTransactionDoubleSpendProof(new TransactionProof({
-            block,
-            root,
-            merkle: new TransactionMerkleProof({ transactionLeafs: leafs.map(v => new FillProof(v)), transactionIndex }),
-            transaction: new TransactionData({
-              inputIndex: invalidInput.inputIndex,
-              outputIndex: 0,
-              witnessIndex: 0,
-              transactionIndex,
-              transactionLeaf: new FillProof(leaf),
-            }),
-            proofs: 0,
-          }), ds_transactionProofB));
+        throw new errors.ProofError(doubleSpendProof);
       }
     }
   } catch (error) {
@@ -970,7 +991,7 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
 }
 
 // Is Invalid, Determine if Input Reference Even exists
-async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contract }) {
+async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contract, logger }) {
   try {
     TypeDB(db);
     TypeObject(contract);
@@ -995,6 +1016,25 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
       transactionIndex,
       outputIndex,
     } = metadata;
+
+    logger.error(`
+    Fraud System Activated, Invalid Input Reference Detected Below:
+      Transaction Details:
+      Block Height: ${blockHeight}
+      Root Index: ${transactionRootIndex}
+      Tx Index: ${transactionIndex}
+      Output Index: ${outputIndex}
+
+      Metadata and Input Details:
+      Details: ${JSON.stringify(metadata)}
+      Index: ${metadataIndex}
+      Input: ${JSON.stringify(input)}
+      Input Type: ${inputType}
+      Input Index: ${inputIndex}
+      Witness Address in Question: ${witnessAddress}
+    `);
+
+    // logger.
 
     // Block Header
     const blockHeader = await getBlockHeader(db, blockHeight);
@@ -1024,7 +1064,7 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
           transactionLeaf: new FillProof(proofleafs[proofTransactionIndex]),
         }),
         proofs: 0,
-        message: 'Transaction root overflow',
+        message: `Root overflow detected root index: ${transactionRootIndex} > roots length ${blockHeader.transactionRoots.length}`,
       });
     }
 
@@ -1049,7 +1089,7 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
           transactionLeaf: new FillProof(leafs[proofTransactionIndex]),
         }),
         proofs: 0,
-        message: 'Transaction index overflow',
+        message: `Transaction index overflow index: ${transactionIndex} > leafs length ${leafs.length}`,
       });
     }
 
@@ -1071,7 +1111,7 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
           transactionLeaf: new FillProof(leafs[transactionIndex]),
         }),
         proofs: 0,
-        message: 'Transaction hash invalid empty hash',
+        message: `Transaction Hash Zero ${merkleProof.transactionHash}`,
       });
     }
 
@@ -1106,7 +1146,7 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
           transactionLeaf: new FillProof(leafs[transactionIndex]),
         }),
         proofs: 0,
-        message: 'Transaction output index overflow',
+        message: `Transaction Index Overflow index: ${outputIndex} >= outputs length ${outputs.length}`,
       });
     }
 
@@ -1160,7 +1200,7 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
     // FraudCode_InvalidUTXOHashReference
     if (!eq(utxoID, outputUTXOProof.hash)) {
       // Return transaction, as Leaf Hash is Empty!!
-      transactionProof.message = 'Invalid utxo id hash FraudCode_InvalidUTXOHashReference';
+      transactionProof.message = `Invalid utxo id hash FraudCode_InvalidUTXOHashReference ${utxoID} ${outputUTXOProof.hash}`;
       return transactionProof;
     }
 
@@ -1168,7 +1208,7 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
     if (output.type === FuelOutputTypes.Change) {
       // Input Witness Address not Equal to Witness
       if (!eq(witnessAddress, output._ownerAddress)) {
-        transactionProof.message = 'Invalid witness address';
+        transactionProof.message = `Invalid witness address ${output.type}`;
         return transactionProof;
       }
     }
@@ -1181,7 +1221,7 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
 
         // FraudCode_InvalidReturnWitnessNotSpender
         if (!eq(witnessAddress, output._returnOwnerAddress)) {
-          transactionProof.message = 'Invalid HTLC witness address on expired block height';
+          transactionProof.message = `Invalid HTLC witness address on expired block height ${blockHeader.height} ${output.expiry} ${witnessAddress} ${output._returnOwnerAddress}`;
           return transactionProof;
         }
       }
@@ -1261,7 +1301,7 @@ async function getTransactionRoot(db, blockHeader, rootIndex) {
 }
 
 // Scan Entire Chain for Input, than Produce Transaction Proof
-async function isDoubleSpend({ invalidInput, db, rpc, numTokens, contract }) {
+async function isDoubleSpend({ invalidInput, db, rpc, numTokens, contract, logger }) {
   try {
     TypeDB(db);
     TypeObject(invalidInput);
@@ -1292,7 +1332,23 @@ async function isDoubleSpend({ invalidInput, db, rpc, numTokens, contract }) {
     // get input utxo id
     const utxoID = input.utxoID;
 
-    console.log('Attempting to determine doubble spend!!');
+    // Logger Error
+    logger.error(`
+    Fraud System Activated, Invalid Input Reference Detected Below:
+    | Transaction Details:
+      Block Height: ${blockHeight}
+      Root Index: ${transactionRootIndex}
+      Tx Index: ${transactionIndex}
+      Output Index: ${outputIndex}
+
+    | Metadata and Input Details:
+      Details: ${metadata}
+      Index: ${metadataIndex}
+      Input: ${input}
+      Input Type: ${inputType}
+      Input Index: ${inputIndex}
+      Witness Address in Question: ${witnessAddress}
+    `);
 
     // search block height
     for (let searchBlockHeight = 1; // start past genesis
@@ -1338,7 +1394,7 @@ async function isDoubleSpend({ invalidInput, db, rpc, numTokens, contract }) {
 
                 // Search inputs
                 searchInputs = inputs;
-              } catch (error) { console.log('while doing double spend, malformed tx'); }
+              } catch (error) { logger.log('while doing double spend, malformed tx'); }
 
               // Search through inputs now..
               for (var searchInputIndex = 0;
@@ -1418,8 +1474,8 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
     TypeInstance(blockHeader, BlockHeader);
     TypeFunction(rpc);
     TypeObject(contract);
+    if (accounts) { TypeDB(accounts); }
     if (typeof transactions !== "undefined") { TypeBoolean(transactions); }
-    if (typeof accounts !== "undefined") { TypeDB(accounts); }
     if (typeof _roots !== "undefined") { TypeArray(_roots); }
 
     // Check for genesis
@@ -1449,10 +1505,12 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
     logger.log('Block processing begining for side-chain block: ', blockHeader.height.toString());
 
     // go through roots and parse out leafs
-    logger.time('Parallel transaction parsing');
+    logger.time(`Parallel transaction parsing ${blockHeader.transactionRoots.length}`);
     for (var transactionRootIndex = 0;
         transactionRootIndex < blockHeader.transactionRoots.length;
         transactionRootIndex++) {
+
+      transactionData[transactionRootIndex] = [];
 
       // Transaction Root
       const transactionRoot = _roots
@@ -1506,11 +1564,13 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
         leafs,
       };
 
+      logger.log(`Parsing ${leafs.length} leafs`);
+
       for (let transactionIndex = 0;
            transactionIndex < leafs.length;
            transactionIndex++) {
         try {
-          transactionData[transactionIndex] = parseTransaction({
+          transactionData[transactionRootIndex][transactionIndex] = await parseTransaction({
             transactionLeaf: leafs[transactionIndex],
             db: simulationDB,
             block: blockHeader,
@@ -1522,13 +1582,23 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
             contract,
           });
 
-          // Resolve all transactions
-          transactionData = await Promise.all(transactionData);
+          // Resolve all transactions ???
+          // transactionData = await Promise.all(transactionData);
         } catch (error) {
-          console.log(error);
-
           logger.log('Malformed transaction proof error!');
           // create malformed transaction proof
+
+          // Logger Error
+          logger.error(`Malformed Transaction Detected
+            Tx Block Height: ${blockHeader.height}
+            Root Index: ${rootHeader.index}
+            Tx Index: ${transactionIndex}
+            Tx Leaf: ${leafs[error.transactionIndex]}
+
+            Block Details: ${JSON.stringify(blockHeader)}
+            Root Details: ${JSON.stringify(rootHeader)}
+          `);
+
           return {
             success: false,
             proof: new MalformedTransactionProof(new TransactionProof({
@@ -1551,7 +1621,7 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
       // Set leafs object to null
       leafs = null;
     }
-    logger.timeEnd('Parallel transaction parsing');
+    logger.timeEnd(`Parallel transaction parsing ${blockHeader.transactionRoots.length}`);
 
     // Validate Block
     logger.time('Parallel transaction validation');
@@ -1572,7 +1642,7 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
           transactionIndex++) {
           // Detect Inputs, Invaliditiy
           validations.push(validateTransaction({
-            parsedTransaction: transactionData[transactionIndex],
+            parsedTransaction: transactionData[transactionRootIndex][transactionIndex],
             leaf: leafs[transactionIndex],
             transactionIndex,
             db: simulationDB,
@@ -1583,6 +1653,7 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
             numTokens,
             contract,
             leafs,
+            logger,
           }));
         }
 
@@ -1597,7 +1668,7 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
       }
     } catch (error) {
       if (error.proof) {
-        console.log('Transaciton input fraud error!');
+        logger.log('Transaciton input fraud error!');
         roots = null;
         return { success: false, proof: error.proof };
       } else {
@@ -1618,8 +1689,10 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
 
     // Accounts
     if (accounts) {
-      // Batch write outputs and inputs
-      await accounts.batch(accountsSimulationDB.opts);
+      if (!_roots) {
+        // Batch write outputs and inputs
+        await accounts.batch(accountsSimulationDB.opts);
+      }
 
       // Clear simulation
       await accountsSimulationDB.clear();
@@ -1628,7 +1701,7 @@ async function processBlock(blockHeader, { db, accounts, transactions, rpc, numT
 
     // Return proof
     return {
-      success:  true,
+      success: true,
       proof: null,
     };
   } catch (error) {

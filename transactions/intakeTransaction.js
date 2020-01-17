@@ -590,6 +590,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
     // We assume if it's mysql, they are all the same DB for now..
     if (batchAll) {
       // We batch all into a single set of writes and deletes.
+      // We can make this more efficient (query for most, tx for spend puts)
+      // Tx for spend gets of puts, but the rest can be just queries
       await db.batch(accountWrites
         .concat(_accountSpendWrites)
         .concat(writes)

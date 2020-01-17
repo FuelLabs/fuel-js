@@ -132,14 +132,23 @@ test('test syncing sequence', async t => {
       log: console.log,
       time: console.time,
       timeEnd: console.timeEnd,
-      error: Sentry ? Sentry.captureException : console.error,
+      error: console.error,
     };
 
     // Sync sequence which just keeps looping and syncing..
-    await sync({ db, rpc: env.rpc, mempool, accounts, commitments, logger, contract, keys,
-      remoteVolume: 0, cycleInterval: 1,
-      maximumMempoolAge: _utils.minutes(1),
-      waitTime: 100, hardStop: _utils.big(2) });
+    await sync({ db,
+      rpc: env.rpc,
+      mempool,
+      accounts,
+      commitments,
+      logger,
+      contract,
+      keys,
+      cycleInterval: 1,
+      maximumMempoolAge: _utils.minutes(1), // might be 10
+      waitTime: 1000,
+      hardStop: _utils.big(3),
+    });
   } catch (error) {
     console.error(error);
   }

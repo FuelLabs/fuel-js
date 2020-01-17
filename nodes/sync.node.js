@@ -49,7 +49,7 @@ async function node() {
     const local = new LevelUpDB('./dbcache', false, true); // for local caching..
 
     // Mysql Mempool / Accounts are supported
-    if (process.env.mysql_host) {
+    if (process.env.mysql_host && !process.env.verifier) {
       remote = new MysqlDB({ // for storing remotly for lambda processing
         host: process.env.mysql_host,
         port: parseInt(process.env.mysql_port, 10),

@@ -10,7 +10,6 @@ const replaceAll = function (str, find, replace) {
 // Has a unique ignore (double key prevention) setting, and batch multi-key GET!
 function MysqlDB(opts) {
   types.TypeObject(opts);
-
   const options = Object.assign({
     multipleStatements: true,
     debug:  false,
@@ -52,49 +51,6 @@ function MysqlDB(opts) {
 
       // Use just query not transaction
       if (useQuery === true) {
-        conn.query(query, (queryError, results) => {
-          if (queryError) {
-            return reject(queryError);
-          }
-
-          conn.release();
-          return resolve(results);
-        });
-      } else {
-        conn.query('START TRANSACTION;' + query, function (queryError, results) {
-          if (queryError) {
-            conn.rollback(function() {
-              // conn.release();
-              reject(queryError);
-            });
-          } else {
-            conn.commit(function(commitError) {
-              if (commitError) {
-                return conn.rollback(function() {
-                  conn.release();
-                  return reject(commitError);
-                });
-              } else {
-                conn.release();
-
-                console.log('Result header', results);
-
-                return resolve(results.slice(1));
-              }
-            });
-          }
-        });
-      }
-    });
-  });
-
-
-  const transact2 = this.transact2 = query => new Promise((resolve, reject) => {
-    pool.getConnection(function(connectionError, conn) {
-      if (connectionError) { conn.release(); return reject(connectionError); }
-
-      // Use just query not transaction
-      if (useQuery === true) {
         conn.query(query, function (queryError, results) {
           if (queryError) {
             return reject(queryError);
@@ -113,9 +69,6 @@ function MysqlDB(opts) {
                 // conn.release();
                 reject(queryError);
               });
-
-              console.log('Results', results);
-
             } else {
               conn.commit(function(commitError) {
                 if (commitError) {

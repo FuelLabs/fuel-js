@@ -16,13 +16,13 @@ async function sync(opts = {}) {
     // Duck-Type Checking
     types.TypeObject(opts);
     types.TypeDB(opts.db);
-    types.TypeDB(opts.accounts);
-    if (typeof opts.commitments) { types.TypeDB(opts.commitments); }
+    if (opts.accounts) { types.TypeDB(opts.accounts); }
+    if (opts.commitments) { types.TypeDB(opts.commitments); }
     types.TypeFunction(opts.rpc);
     types.TypeObject(opts.contract);
     types.TypeBoolean(opts.recordTransactions || false);
-    if (typeof opts.mempool !== 'undefined') { types.TypeDB(opts.mempool); }
-    if (typeof opts.keys !== 'undefined') { types.TypeObject(opts.keys); }
+    if (opts.mempool) { types.TypeDB(opts.mempool); }
+    if (opts.keys) { types.TypeObject(opts.keys); }
 
     // Non-Constant Variables
     let ethereumBlock = await structs.lastEthereumBlockProcessed(opts);
@@ -93,7 +93,7 @@ async function sync(opts = {}) {
           if (blockTipRLP && (opts.db || {}).supports.middleCache) {
             await opts.db.process(opts.remoteVolume || 2
                 , key => key === interfaces.FuelDBKeys.blockTip); // send to storage, no block tip update
-            await opts.db.storage.put(interfaces.FuelDBKeys.blockTip, blockTipRLP);
+            await opts.db.storage.set(interfaces.FuelDBKeys.blockTip, blockTipRLP);
           }
           */
 
@@ -132,6 +132,7 @@ async function sync(opts = {}) {
           // After, DB entry, Reset Low Spread, set ethereumBlock to past spread..
           useLowSpread = false;
         } catch (error) {
+          console.error(error);
           useLowSpread = true;
           logger.error('eth_getLogs error, attempting with lower spread...', error);
           continue;
@@ -148,11 +149,11 @@ async function sync(opts = {}) {
                   + log.values.index.sub(1).toHexString().slice(2), _utils.RLP.encode([
                 log.values.token,
               ]));
-              await opts.db.put(String(interfaces.FuelDBKeys.tokenID
+              await opts.db.set(String(interfaces.FuelDBKeys.tokenID
                   + log.values.token.slice(2)).toLowerCase(), _utils.RLP.encode([
                 log.values.index.sub(1).toHexString(),
               ]));
-              await opts.db.put(interfaces.FuelDBKeys.numTokens,
+              await opts.db.set(interfaces.FuelDBKeys.numTokens,
                   _utils.RLP.encode( log.values.index.toHexString() ));
               break;
 
@@ -167,7 +168,6 @@ async function sync(opts = {}) {
               const amount = await opts.contract.deposits(depositHashID);
               const tokenID = _utils.RLP.decode(await opts.db.get(String(interfaces.FuelDBKeys.tokenID
                   + log.values.token.slice(2)).toLowerCase())).pop();
-
               const deposit_key = interfaces.FuelDBKeys.deposit
                 + depositHashID.toLowerCase().slice(2);
 
@@ -182,7 +182,7 @@ async function sync(opts = {}) {
 
               // Account is just a list of UTXO keys..
               if (opts.accounts) {
-                await opts.accounts.put(deposit_key, String(log.values.account).toLowerCase());
+                await opts.accounts.set(deposit_key, String(log.values.account).toLowerCase());
               }
               break;
 
@@ -209,7 +209,7 @@ async function sync(opts = {}) {
               // Note this might produce dead roots, but thats okay..
               if (opts.mempool && (opts.keys || {}).block_production_key) {
                 if (typeof commitment.roots[rootHeader.hash] !== "undefined") {
-                  await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
+                  await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
                     roots: Object.assign(commitment.roots, {
                       [rootHeader.hash]: true,
                     }),
@@ -316,7 +316,8 @@ async function sync(opts = {}) {
 
                 // block and block height
                 await opts.db.set(interfaces.FuelDBKeys.block
-                    + _utils.big(log.values.blockHeight.toNumber()).toHexString().slice(2),
+                    + _utils.big(log.values.blockHeight.toNumber())
+                      .toHexString().slice(2),
                     _utils.RLP.encode([
                   log.values.blockProducer,
                   log.values.previousBlockHash,
@@ -365,7 +366,7 @@ async function sync(opts = {}) {
                       }
 
                       // Reset commitments
-                      await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
+                      await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
                         blockHeight: _utils.big(-1),
                         transactionHashes: [],
                         roots: {},
@@ -412,6 +413,9 @@ async function sync(opts = {}) {
 
                     // Submit proof]
                     if (lastFraudProofAttempted !== proof.encoded) {
+                      logger.log('Fraud detected, proof detailed below');
+                      logger.log(proof);
+
                       lastFraudProofAttempted = proof.encoded;
                       const fraudTx = await _contract.submitProof(proof.encoded, {
                         gasLimit: _gasLimit,
@@ -449,7 +453,7 @@ async function sync(opts = {}) {
                 // Delete
                 await opts.db.del(interfaces.FuelDBKeys.withdrawal
                     + utxoProof.hash.slice(2));
-                await opts.db.put(interfaces.FuelDBKeys.storage
+                await opts.db.set(interfaces.FuelDBKeys.storage
                     + interfaces.FuelDBKeys.withdrawal.slice(2)
                     + utxoProof.hash.slice(2), utxoProof.rlp());
 
@@ -457,7 +461,7 @@ async function sync(opts = {}) {
                 await opts.accounts
                   .del(interfaces.FuelDBKeys.withdrawal + utxoProof.hash.slice(2));
                 await opts.accounts
-                  .put(interfaces.FuelDBKeys.withdrawn + utxoProof.hash.slice(2),
+                  .set(interfaces.FuelDBKeys.withdrawn + utxoProof.hash.slice(2),
                       String(log.values.account).toLowerCase());
               }
               break;
@@ -538,7 +542,7 @@ async function sync(opts = {}) {
                 });
 
                 // Push the tx to mempool
-                await opts.mempool.put(interfaces.FuelDBKeys.commitment,
+                await opts.mempool.set(interfaces.FuelDBKeys.commitment,
                     structs.commitmentRLP(Object.assign({}, commitment, {
                       transactionHash: commitTx.hash,
                     })));
@@ -585,13 +589,18 @@ async function sync(opts = {}) {
             (mempoolTransactions.length > (opts.minimumTransactionVolume || 1000)
             || oldestTransactionAge <= (currentTime - (opts.maximumMempoolAge || 1000)))) {
 
+          logger.log('Mempool submission process started');
+
           // Mempool commitment
-          await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
+          await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
             blockHeight: (await opts.contract.blockTip()).add(1),
             roots: {},
             age: currentTime,
             transactionHashes: [], // empty
           }));
+
+          commitment = structs
+            .commitmentStruct(await opts.mempool.get(interfaces.FuelDBKeys.commitment));
 
           // Commitments
           if (opts.commitments) {
@@ -601,17 +610,6 @@ async function sync(opts = {}) {
               value: '0x0',
             })));
           }
-
-          commitment = structs
-            .commitmentStruct(await opts.mempool.get(interfaces.FuelDBKeys.commitment));
-
-          /*
-          // Setup a new block commitment
-          commitment.blockHeight = (await opts.contract.blockTip()).add(1);
-          commitment.roots = {};
-          commitment.age = currentTime;
-          commitment.transactionHashes = mempoolTransactions.map(row => row.key);
-          */
 
           // Returns BytesTransactions roots for this mempool
           const roots = await structs.mempoolToRoots(
@@ -694,11 +692,12 @@ async function sync(opts = {}) {
               try {
                 // Attempt submit transaction
                 await _contract.submitTransactions(root.header.merkleTreeRoot, root.transactions.encoded, {
-                  gasLimit: _gasLimit,
+                  // gasPrice: _utils.big(1000000000), // try this?
+                  gasLimit: _utils.big(7000000), // 8 million?
                 });
 
                 // Setup commitment if transaction sent off, false for not committed to L1 chain
-                await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({},
+                await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({},
                     commitment, {
                   roots: Object.assign(commitment.roots, {
                     [rootRecompute.hash]: false,
@@ -712,7 +711,7 @@ async function sync(opts = {}) {
                 logger.log(`Root submitted, roots waiting commitment ${Object.keys(commitment.roots)}`);
               } catch (submitTransactionError) {
                 // Update commitment in mempool
-                await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
+                await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
                   blockHeight: _utils.big(-1),
                 })));
 
@@ -723,7 +722,7 @@ async function sync(opts = {}) {
               }
             } else {
               // Update commitment roots, already committed
-              await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
+              await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
                 roots: Object.assign(commitment.roots, {
                   [rootRecompute.hash]: true,
                 }),
