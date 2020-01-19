@@ -557,7 +557,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
         });
       }
     }
-    const unixtime = big(Math.floor((new Date()).getTime() / 1000)).toHexString();
+    const _time = Math.floor((new Date()).getTime() / 1000);
+    const unixtime = big(_time).toHexString();
 
     // In keys and out keys
     const inKeys = Object.keys(ins);
@@ -599,6 +600,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
           type: 'put',
           key: mempoolKey,
           value: mempoolEntry,
+          created: _time,
           table: mempool.table,
         }]));
     } else {

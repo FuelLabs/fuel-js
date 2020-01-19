@@ -555,8 +555,6 @@ async function sync(opts = {}) {
           }
         }
 
-        // MEMPOOL Processing Happens Here
-
         // Necessary block production elements, time, tip and transactions
         const currentTime = _utils.unixtime();
 
@@ -576,7 +574,7 @@ async function sync(opts = {}) {
         // Check current time
         const { mempoolTransactions,
             oldestTransactionAge,
-            reads } = await structs.getMempoolTransactions(opts.mempool, 10000);
+            reads } = await structs.getMempoolTransactions(opts.mempool, 100);
 
         // Reads Check UTXOs, this is just to check if any of these UTXOs are somehow magically spent already..
         for (var readIndex = 0; readIndex < reads.length; readIndex++) {
@@ -586,7 +584,7 @@ async function sync(opts = {}) {
 
         // If certain number of transactions reached in pool, or mempool age has hit maximum
         if (mempoolTransactions.length > 0 &&
-            (mempoolTransactions.length > (opts.minimumTransactionVolume || 1000)
+            (mempoolTransactions.length > (opts.minimumTransactionVolume || 100)
             || oldestTransactionAge <= (currentTime - (opts.maximumMempoolAge || 1000)))) {
 
           logger.log('Mempool submission process started');

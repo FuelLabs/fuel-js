@@ -1681,7 +1681,12 @@ const getMempoolTransactions = (db, limit = 10000) => new Promise((resolve, reje
         // Readable pause
         if (transactions.length >= limit) {
           readable.pause();
-          resolve({ mempoolTransactions: transactions, oldestTransactionAge, reads });
+          resolve({
+            mempoolTransactions: transactions
+              .sort((a, b) => _utils.big(a[5]).gt(_utils.big(b))),
+            oldestTransactionAge,
+            reads,
+          });
         }
       }
     })
@@ -1693,7 +1698,8 @@ const getMempoolTransactions = (db, limit = 10000) => new Promise((resolve, reje
 });
 
 // Organize mempool transactions into root blocks
-function mempoolToRoots(proposedTip, submissionProducer, mempoolTransactions, checkUTXOs) {
+function mempoolToRoots(proposedTip, submissionProducer,
+    mempoolTransactions, checkUTXOs) {
   types.TypeBigNumber(proposedTip);
   types.TypeAddress(submissionProducer);
   types.TypeArray(mempoolTransactions);

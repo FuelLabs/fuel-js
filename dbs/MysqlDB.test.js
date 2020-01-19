@@ -1,5 +1,6 @@
 const MySQLDB = require('./MySQLDB');
 const _utils = require('../utils/utils');
+const streamToArray = require('stream-to-array');
 
 // Core
 const { test } = require('zora');
@@ -243,11 +244,42 @@ test('module test', async t => {
   t.equal(await db2.get('test22'), null, 'multi table test');
   t.equal(await db.get('talk'), 'walk', 'multi table test');
 
+  console.log(await streamToArray(await db.createReadStream()));
+
+  /*
+  const db4 = new MySQLDB({ // for storing remotly for lambda processing
+    host: process.env.mysql_host, // "SG-fuel3-1564-master.servers.mongodirector.com",
+    port: process.env.mysql_port,
+    database: process.env.mysql_database,
+    user: process.env.mysql_user,
+    password: process.env.mysql_password,
+    table: 'mempool_test', // key / value table..
+    created: true,
+  });
+  await db4.drop();
+  await db4.create();
+
+  await db4.put('hello', 'world');
+  await db4.batch([
+    { type: 'put', key: 'talk', value: 'walk' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val122' },
+    { type: 'put', table: 'accounts_test', key: 'test22', value: 'val120' },
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val199' },
+    { type: 'del', table: 'accounts_test', key: 'test22' },
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll2' },
+    { type: 'del', key: 'johnny' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll' },
+  ]);
+
+  console.log('sream to arr', (await db4.createReadStream()).on('result', console.log));
+  */
+
   await db.drop();
 
   await db2.set('utxo1_account', '0xaa');
   await db2.set('utxo2_account', '0xaa');
   console.log(await db2.keys('0xaa'));
+
 
   await db2.drop();
 

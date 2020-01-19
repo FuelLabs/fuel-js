@@ -126,7 +126,6 @@ const {
 } = require('../structs/structs');
 
 const { parseTransactions } = require('../blocks/parseTransactions');
-
 const MemoryDB = require('../dbs/MemoryDB');
 
 // Simulation DB, clear every block

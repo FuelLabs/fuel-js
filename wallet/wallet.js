@@ -252,6 +252,11 @@ function Wallet({
       const results = await __post(`${_api}account`, {
         address: signer.address,
       });
+
+      // if no results / stop routine.
+      if (!results) { return; }
+
+      // keys
       const keys = results[0];
       const values = results[1];
 

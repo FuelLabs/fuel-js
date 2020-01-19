@@ -1,6 +1,6 @@
 {
   "name": "fuel-core",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Essential javascript architecture for the Fuel side chain",
   "main": "index.js",
   "scripts": {
@@ -20,7 +20,7 @@
     "node-faucet": "NODE_ENV=production node ./nodes/faucet.node",
     "node-verifier": "NODE_ENV=production verifier=1 node ./nodes/sync.node",
     "node-sync": "NODE_ENV=production node ./nodes/sync.node",
-    "test-browser-build": "parcel browser/index.html",
+    "test-browser": "parcel browser/index.html",
     "reset": "node config/reset.js",
     "show-accounts": "node config/accounts.js",
     "lambda-account": "micro --port 3004 lambdas/account.js",

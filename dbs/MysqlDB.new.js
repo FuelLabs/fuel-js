@@ -19,6 +19,7 @@ function MysqlDB(opts) {
   const table = opts.table || 'keyvalues';
   const batchVolume = opts.batchVolume || 3500;
   const useQuery = opts.useQuery || false;
+  const supportsCreatedColumn = opts.created || false;
   const indexValueSQL = opts.indexValue ? ', INDEX (`value`)' : ''; // allows for a more relational push model inside the keyvalue store db
   // dual would only be used for special relational cases ie mongo or mysql..
   delete options.table;
@@ -44,6 +45,7 @@ function MysqlDB(opts) {
     backgroundProcessing: false,
     mysql: true, // added
     multiTableBatch: true, // added
+    createdColumn: supportsCreatedColumn,
   };
 
   const transact = this.transact = query => new Promise((resolve, reject) => {
@@ -63,6 +65,10 @@ function MysqlDB(opts) {
       } else {
         conn.beginTransaction(function(errTx) {
           if (errTx) { conn.release(); return reject(errTx); }
+
+
+          console.log(query);
+
 
           conn.query(query, function (queryError, results) {
             if (queryError) {
@@ -88,23 +94,35 @@ function MysqlDB(opts) {
       }
     });
   });
+  const insertCreatedKey = supportsCreatedColumn ? `,${'`'}created${'`'}` : '';
 
   const createReadStream = this.createReadStream = (opts = {}) => new Promise((resolve, reject) => {
     pool.getConnection(function(err, conn) {
       if (err) { return reject(err); }
 
+      const sql = supportsCreatedColumn
+        ? `SELECT (${'`'}key${'`'},${'`'}value${'`'}${insertCreatedKey}) FROM ${table} ORDER BY created asc;`
+        : `SELECT * FROM ${table};`;
+
+      console.log(sql);
+
       // this is new, try it out  ORDER BY ${'`'}key${'`'} ASC
-      resolve(conn.query(`SELECT * FROM ${table};`).stream().on('end', () => {
+      resolve(conn.query(sql).stream()
+      .on('result', (v) => console.log('row', v))
+      .on('end', () => {
         conn.release();
       }));
     });
   });
 
+  const createdKey = supportsCreatedColumn ? ', `created` datetime' : '';
+  const insertCreatedValue = () => supportsCreatedColumn ? `,'${datetime()}'` : '';
+  const datetime = this.datetime = () => (new Date()).toISOString().slice(0, 19).replace('T', ' ');
   const empty = {};
   this.pool = () => pool;
-  this.create = () => transact('CREATE TABLE IF NOT EXISTS ' + table +  ' (`key` VARCHAR(128) NOT NULL, `value` VARCHAR(' + (indexValueSQL.length ? '128' : '4000') + ') NOT NULL' + ', PRIMARY KEY (`key`)' + indexValueSQL + ' );');
+  this.create = () => transact('CREATE TABLE IF NOT EXISTS ' + table +  ' (`key` VARCHAR(128) NOT NULL, `value` VARCHAR(' + (indexValueSQL.length ? '128' : '4000') + ') NOT NULL' + createdKey + ', PRIMARY KEY (`key`)' + indexValueSQL + ' );');
   this.drop = () => transact(`DROP TABLE ${table};`);
-  this.set = this.put = (key, value, ignore = true) => transact(`${ignore === true ? `DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)}; ` + 'INSERT' : 'INSERT'} INTO ${table} (${'`'}key${'`'},${'`'}value${'`'}) VALUES (${mysql.escape(key)}, ${mysql.escape(value)});`);
+  this.set = this.put = (key, value, ignore = true) => transact(`${ignore === true ? `DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)}; ` + 'INSERT' : 'INSERT'} INTO ${table} (${'`'}key${'`'},${'`'}value${'`'}${insertCreatedKey}) VALUES (${mysql.escape(key)},${mysql.escape(value)}${insertCreatedValue()});`);
   this.remove = this.del = key => transact(`DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)};`);
   this.get = key => transact(`SELECT value FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)} UNION SELECT NULL;`)
     .then(v => (v[0] || empty).value || null)
@@ -163,10 +181,10 @@ function MysqlDB(opts) {
 
             if (previousType !== putRowType) {
               _sqlQuery += `DELETE FROM ${rowTable} WHERE (${delKey}`;
-              sqlQuery += `INSERT INTO ${rowTable}(${'`'}key${'`'},${'`'}value${'`'}) VALUES (${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
+              sqlQuery += `INSERT INTO ${rowTable}(${'`'}key${'`'},${'`'}value${'`'}${rowTable === table ? insertCreatedKey : ''}) VALUES (${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)}${rowTable === table ? insertCreatedValue() : ''})`;
             } else {
               _sqlQuery += arr[i].ignore === false ? '' : ` OR ${delKey}`;
-              sqlQuery += `,(${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
+              sqlQuery += `,(${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)}${rowTable === table ? insertCreatedValue() : ''})`;
             }
             const futurePutRowType = ((arr[i + 1] || empty).table || table)
               + (arr[i + 1] || empty).type;
