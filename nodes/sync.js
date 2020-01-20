@@ -42,6 +42,7 @@ async function sync(opts = {}) {
     let _toBlock = _utils.big(-1);
     let lastFraudProofAttempted = null;
     const _gasLimit = opts.gasLimit || _utils.big(4000000);
+    const maximumMempoolAge = opts.maximumMempoolAge || 1000;
 
     // Handle submission addresses (used to detect foreign root submissions)
     if (opts.keys && (opts.keys || {}).transactions_submission_keys) {
@@ -574,7 +575,8 @@ async function sync(opts = {}) {
         // Check current time
         const { mempoolTransactions,
             oldestTransactionAge,
-            reads } = await structs.getMempoolTransactions(opts.mempool, opts.maximumMempoolAge);
+            reads } = await structs.getMempoolTransactions(opts.mempool,
+                maximumMempoolAge);
 
         // Reads Check UTXOs, this is just to check if any of these UTXOs are somehow magically spent already..
         for (var readIndex = 0; readIndex < reads.length; readIndex++) {
@@ -585,7 +587,7 @@ async function sync(opts = {}) {
         // If certain number of transactions reached in pool, or mempool age has hit maximum
         if (mempoolTransactions.length > 0 &&
             (mempoolTransactions.length > (opts.minimumTransactionVolume || 100)
-            || oldestTransactionAge <= (currentTime - (opts.maximumMempoolAge || 1000)))) {
+            || oldestTransactionAge <= (currentTime - maximumMempoolAge))) {
 
           logger.log('Mempool submission process started');
 

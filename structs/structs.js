@@ -1658,11 +1658,12 @@ function resolveIfPromise(v) {
 // Get Mempool Transactions
 // Ensure the selected transactions are under the limit
 // Ensure the transactions selected are ordered by unix timestamp
-const getMempoolTransactions2 = (mempool, mempoolAge, maximumPoolSize) => new Promise((resolve, reject) => {
+// This could be done with a local db, as to not run out of memory during construction
+const getMempoolTransactions = (mempool, mempoolAge, maximumStreamSize = 2000) => new Promise((resolve, reject) => {
   // Types
   types.TypeDB(mempool);
   types.TypeNumber(mempoolAge);
-  types.TypeNumber(maximumPoolSize);
+  types.TypeNumber(maximumStreamSize);
 
   // Start Time
   const maximumAge = _utils.unixtime() - mempoolAge;
@@ -1671,10 +1672,9 @@ const getMempoolTransactions2 = (mempool, mempoolAge, maximumPoolSize) => new Pr
   let transactions = []; // transactions array
   let reads = []; // utxo's to grab
   let oldestTransactionAge = 0; // oldest tx hash
-  let requiredTransactionHashes = {}; // hash => bool
 
   // Handle Data
-  const handleData = async (stream, data) => {
+  const handleData = async (stream, data, dependancy) => {
     try {
       // If it's the commitment entry, ignore it
       if (data.key === interfaces.FuelDBKeys.commitment) { return; }
@@ -1682,6 +1682,7 @@ const getMempoolTransactions2 = (mempool, mempoolAge, maximumPoolSize) => new Pr
       // Decode entry, get age,
       const value = _utils.RLP.decode(data.value);
       const transactionAge = parseInt(value[5], 16);
+      const requiredTransactionHashes = value[7]; // hash => bool
 
       // Tx age is newer than maximum age, than don't include it
       if (transactionAge >= maximumAge) { return; }
@@ -1700,12 +1701,15 @@ const getMempoolTransactions2 = (mempool, mempoolAge, maximumPoolSize) => new Pr
       // Required tx hashes
       for (var i = 0; i < requiredTransactionHashes.length; i++) {
         const mempoolKey = interfaces.FuelDBKeys.mempoolTransaction
-            + txHash.toLowerCase().slice(2);
-        await handleData(stream, { key: mempoolKey, value: await mempool.get(mempoolKey) });
+            + requiredTransactionHashes[i].toLowerCase().slice(2);
+        await handleData(stream, {
+          key: mempoolKey,
+          value: await mempool.get(mempoolKey),
+        }, true); // is a required dependancy
       }
 
-      // Readable pause
-      if (transactions.length >= maximumPoolSize) {
+      // Stop streaming if we are over the 2k limit
+      if (transactions.length >= maximumStreamSize && !dependancy) {
         stream.destroy();
       }
     } catch (error) {
@@ -1717,18 +1721,18 @@ const getMempoolTransactions2 = (mempool, mempoolAge, maximumPoolSize) => new Pr
   resolveIfPromise(mempool.createReadStream())
   .then(stream => stream
     .on('error', reject)
-    .on('data', row => handleData(stream, row))
+    .on('data', data => handleData(stream, data, false)) // not a dependancy
     .on('end', () => resolve({
       mempoolTransactions: transactions
-        .sort((a, b) => _utils.big(a[5]).gt(_utils.big(b))),
+        .sort((a, b) => _utils.big(a[5]).gt(_utils.big(b))), // organize by timestamp
       oldestTransactionAge,
       reads,
-    }))
+    })))
   .catch(reject);
 });
 
 // Get Mempool Transactions
-const getMempoolTransactions = (db, limit = 10000) => new Promise((resolve, reject) => {
+const getMempoolTransactionsOld = (db, limit = 10000) => new Promise((resolve, reject) => {
   let transactions = [];
   let reads = [];
   let oldestTransactionAge = 0;
@@ -1793,7 +1797,9 @@ function mempoolToRoots(proposedTip, submissionProducer,
   // organize by unixtime here..
 
   // Placement of Transactions Across Roots
-  for (var mempoolIndex = 0; mempoolIndex < mempoolTransactions.length; mempoolIndex++) {
+  for (var mempoolIndex = 0;
+    mempoolIndex < mempoolTransactions.length;
+    mempoolIndex++) {
 
     // Mempool Transaction
     const mempoolTransactionHashKey = mempoolTransactions[mempoolIndex].key;
