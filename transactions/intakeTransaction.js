@@ -159,6 +159,10 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
     const zero = big(0);
     const SpentOutputHex = '0x1';
 
+    // We take the current time at the very begining of execusion.
+    // Could a tx be older than another, yet be dependant on it, should be??
+    const _time = Math.floor((new Date()).getTime() / 1000);
+
     // Changable Vars
     let ins = {};
     let outs = {};
@@ -171,6 +175,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
     let isHTLC = false;
     let recoveredWitnesses = [];
     let inputHashes = [];
+    let requiredTransactionHashes = [];
     let writes = [];
     let accountWrites = [];
     let accountSpendWrites = [];
@@ -469,6 +474,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
           ])); // needs to metadata
         } else {
           inputHashes.push(input.utxoID.toLowerCase());
+          requiredTransactionHashes.push(output.proof.transactionHashId);
           metadata.push(serializeRLP([
             output.proof.transactionHashId, // this is to determine future placement
             output.proof.outputIndex, // store critical metadata details,
@@ -478,6 +484,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       }
 
       // Owner / Amount etc..
+      // const txHashID = output.proof.transactionHashId;
       const owner = output.proof._ownerAddress;
       const amount = output.proof.amount;
       const tokenID = String(output.proof.tokenID.toNumber());
@@ -557,7 +564,6 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
         });
       }
     }
-    const _time = Math.floor((new Date()).getTime() / 1000);
     const unixtime = big(_time).toHexString();
 
     // In keys and out keys
@@ -586,6 +592,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       transaction, // the entire tx submission
       unixtime,
       inputHashes,
+      requiredTransactionHashes, // required mempool transaction hashes
     ]);
 
     // We assume if it's mysql, they are all the same DB for now..

@@ -574,7 +574,7 @@ async function sync(opts = {}) {
         // Check current time
         const { mempoolTransactions,
             oldestTransactionAge,
-            reads } = await structs.getMempoolTransactions(opts.mempool, 100);
+            reads } = await structs.getMempoolTransactions(opts.mempool, opts.maximumMempoolAge);
 
         // Reads Check UTXOs, this is just to check if any of these UTXOs are somehow magically spent already..
         for (var readIndex = 0; readIndex < reads.length; readIndex++) {

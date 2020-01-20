@@ -1650,6 +1650,83 @@ async function latestFraudLog(opts = {}) {
   }
 }
 
+// Utility Method
+function resolveIfPromise(v) {
+  return v.then ? v : Promise.resolve(v);
+}
+
+// Get Mempool Transactions
+// Ensure the selected transactions are under the limit
+// Ensure the transactions selected are ordered by unix timestamp
+const getMempoolTransactions2 = (mempool, mempoolAge, maximumPoolSize) => new Promise((resolve, reject) => {
+  // Types
+  types.TypeDB(mempool);
+  types.TypeNumber(mempoolAge);
+  types.TypeNumber(maximumPoolSize);
+
+  // Start Time
+  const maximumAge = _utils.unixtime() - mempoolAge;
+
+  // Transactions
+  let transactions = []; // transactions array
+  let reads = []; // utxo's to grab
+  let oldestTransactionAge = 0; // oldest tx hash
+  let requiredTransactionHashes = {}; // hash => bool
+
+  // Handle Data
+  const handleData = async (stream, data) => {
+    try {
+      // If it's the commitment entry, ignore it
+      if (data.key === interfaces.FuelDBKeys.commitment) { return; }
+
+      // Decode entry, get age,
+      const value = _utils.RLP.decode(data.value);
+      const transactionAge = parseInt(value[5], 16);
+
+      // Tx age is newer than maximum age, than don't include it
+      if (transactionAge >= maximumAge) { return; }
+
+      // Add the utxo to the reads
+      reads = reads.concat(value[6]);
+
+      // Reset oldest age
+      if (transactionAge < oldestTransactionAge || oldestTransactionAge === 0) {
+        oldestTransactionAge = transactionAge;
+      }
+
+      // Add to hashes array
+      transactions.push({ key: data.key, value });
+
+      // Required tx hashes
+      for (var i = 0; i < requiredTransactionHashes.length; i++) {
+        const mempoolKey = interfaces.FuelDBKeys.mempoolTransaction
+            + txHash.toLowerCase().slice(2);
+        await handleData(stream, { key: mempoolKey, value: await mempool.get(mempoolKey) });
+      }
+
+      // Readable pause
+      if (transactions.length >= maximumPoolSize) {
+        stream.destroy();
+      }
+    } catch (error) {
+      reject(error);
+    }
+  };
+
+  // Resolve stream
+  resolveIfPromise(mempool.createReadStream())
+  .then(stream => stream
+    .on('error', reject)
+    .on('data', row => handleData(stream, row))
+    .on('end', () => resolve({
+      mempoolTransactions: transactions
+        .sort((a, b) => _utils.big(a[5]).gt(_utils.big(b))),
+      oldestTransactionAge,
+      reads,
+    }))
+  .catch(reject);
+});
+
 // Get Mempool Transactions
 const getMempoolTransactions = (db, limit = 10000) => new Promise((resolve, reject) => {
   let transactions = [];
@@ -1699,11 +1776,10 @@ const getMempoolTransactions = (db, limit = 10000) => new Promise((resolve, reje
 
 // Organize mempool transactions into root blocks
 function mempoolToRoots(proposedTip, submissionProducer,
-    mempoolTransactions, checkUTXOs) {
+    mempoolTransactions) {
   types.TypeBigNumber(proposedTip);
   types.TypeAddress(submissionProducer);
   types.TypeArray(mempoolTransactions);
-  types.TypeArray(checkUTXOs);
 
   // Define alterable variables
   let placement = {}; // transactionHashId => { transactionRootIndex, transactionIndex },
@@ -1757,7 +1833,8 @@ function mempoolToRoots(proposedTip, submissionProducer,
           const transactionHashId = data[0];
           const outputIndex = data[1];
           const utxoId = data[2];
-          const utxoDB = checkUTXOs[interfaces.FuelDBKeys.UTXO + utxoId.slice(2)] || null;
+          const utxoDB = checkUTXOs[interfaces.FuelDBKeys.UTXO
+              + utxoId.slice(2)] || null;
           let utxo_blockNum = proposedTip;
           let utxo_rootIndex = null;
           let utxo_txIndex = null;
