@@ -2341,7 +2341,7 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await walletaa.sync();
     console.log('wallet a balance', await walletaa.balance(erc20Token.address));
 
-    for (var i = 0; i < 50; i++) { // test at 500
+    for (var i = 0; i < 1000; i++) { // test at 500
       await walletaa.transfer(1, erc20Token.address, accounts[2].address);
     }
 

@@ -115,9 +115,10 @@ test('test syncing sequence', async t => {
       faucet_key: env.accounts[0].privateKey, // not needed for sync..
       fraud_commitment_key: env.accounts[0].privateKey,
       transactions_submission_keys: [
-        env.accounts[0].privateKey,
-        env.accounts[0].privateKey,
-        env.accounts[0].privateKey,
+        env.accounts[1].privateKey,
+        env.accounts[1].privateKey,
+        // env.accounts[2].privateKey,
+        // env.accounts[1].privateKey,
       ],
     };
 
@@ -145,9 +146,9 @@ test('test syncing sequence', async t => {
       contract,
       keys,
       cycleInterval: 1,
-      maximumMempoolAge: 10000, // _utils.minutes(1), // might be 10
-      waitTime: 1000,
-      hardStop: _utils.big(3),
+      maximumMempoolAge: _utils.minutes(1), // might be 10
+      waitTime: 10,
+      hardStop: _utils.big(5),
     });
   } catch (error) {
     console.error(error);

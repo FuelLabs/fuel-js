@@ -593,6 +593,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       unixtime,
       inputHashes,
       requiredTransactionHashes, // required mempool transaction hashes
+      big((new Date()).getTime()).toHexString(),
     ]);
 
     // We assume if it's mysql, they are all the same DB for now..

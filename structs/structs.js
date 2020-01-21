@@ -1655,135 +1655,120 @@ function resolveIfPromise(v) {
   return v.then ? v : Promise.resolve(v);
 }
 
-// Get Mempool Transactions
-// Ensure the selected transactions are under the limit
-// Ensure the transactions selected are ordered by unix timestamp
-// This could be done with a local db, as to not run out of memory during construction
-const getMempoolTransactions = (mempool, mempoolAge, maximumStreamSize = 2000) => new Promise((resolve, reject) => {
-  // Types
-  types.TypeDB(mempool);
-  types.TypeNumber(mempoolAge);
-  types.TypeNumber(maximumStreamSize);
+const toArr = require('../utils/toArray');
 
-  // Start Time
-  const maximumAge = _utils.unixtime() - mempoolAge;
+const getMempoolTransactions = async (mempool,
+  mempoolAge,
+  maximumStreamSize = 2000) => {
+  try {
+    // Types
+    types.TypeDB(mempool);
+    types.TypeNumber(mempoolAge);
+    types.TypeNumber(maximumStreamSize);
 
-  // Transactions
-  let transactions = []; // transactions array
-  let reads = []; // utxo's to grab
-  let oldestTransactionAge = 0; // oldest tx hash
+    // Start Time
+    const maximumAge = _utils.unixtime() - mempoolAge;
 
-  // Handle Data
-  const handleData = async (stream, data, dependancy) => {
-    try {
+    // Transactions
+    let includedTransactions = {}; // tx hash => bool
+    let toBeIncluded = [];
+    let reads = []; // utxo's to grab
+    let promises = [];
+    let oldestTransactionAge = 0; // oldest tx hash
+
+    // Filter for transaciton data
+    const transform = data => {
       // If it's the commitment entry, ignore it
-      if (data.key === interfaces.FuelDBKeys.commitment) { return; }
+      if (data.key === interfaces.FuelDBKeys.commitment) { return null; }
+
+      // Included in previous blocks, ignore
+      if (data.dependancy === true && data.value === null) { return null; }
 
       // Decode entry, get age,
       const value = _utils.RLP.decode(data.value);
-      const transactionAge = parseInt(value[5], 16);
+      const created = parseInt(value[5], 16);
       const requiredTransactionHashes = value[7]; // hash => bool
+      const transactionHash = value[0];
+      const precisionTime = parseInt(value[8], 16);
+
+      // Included txs
+      if (includedTransactions[transactionHash]) { return null };
 
       // Tx age is newer than maximum age, than don't include it
-      if (transactionAge >= maximumAge) { return; }
+      if (created < maximumAge) { return null; }
 
       // Add the utxo to the reads
-      reads = reads.concat(value[6]);
+      reads.push(value[6]);
 
       // Reset oldest age
-      if (transactionAge < oldestTransactionAge || oldestTransactionAge === 0) {
-        oldestTransactionAge = transactionAge;
+      if (created < oldestTransactionAge || oldestTransactionAge === 0) {
+        oldestTransactionAge = created;
       }
 
-      // Add to hashes array
-      transactions.push({ key: data.key, value });
+      // Include this as to not be included again
+      includedTransactions[value[0]] = true;
 
-      // Required tx hashes
+      // Dependancies
       for (var i = 0; i < requiredTransactionHashes.length; i++) {
-        const mempoolKey = interfaces.FuelDBKeys.mempoolTransaction
-            + requiredTransactionHashes[i].toLowerCase().slice(2);
-        await handleData(stream, {
-          key: mempoolKey,
-          value: await mempool.get(mempoolKey),
-        }, true); // is a required dependancy
-      }
-
-      // Stop streaming if we are over the 2k limit
-      if (transactions.length >= maximumStreamSize && !dependancy) {
-        stream.destroy();
-      }
-    } catch (error) {
-      reject(error);
-    }
-  };
-
-  // Resolve stream
-  resolveIfPromise(mempool.createReadStream())
-  .then(stream => stream
-    .on('error', reject)
-    .on('data', data => handleData(stream, data, false)) // not a dependancy
-    .on('end', () => resolve({
-      mempoolTransactions: transactions
-        .sort((a, b) => _utils.big(a[5]).gt(_utils.big(b))), // organize by timestamp
-      oldestTransactionAge,
-      reads,
-    })))
-  .catch(reject);
-});
-
-// Get Mempool Transactions
-const getMempoolTransactionsOld = (db, limit = 10000) => new Promise((resolve, reject) => {
-  let transactions = [];
-  let reads = [];
-  let oldestTransactionAge = 0;
-  const readSteam = db.createReadStream();
-  (readSteam.then ? readSteam : Promise.resolve(readSteam))
-  .then((stream) => {
-    stream
-    .on('error', err => reject(err))
-    .on('data', (data) => {
-      if (data.key !== interfaces.FuelDBKeys.commitment) {
-        // Decode entry, get age,
-        const val = _utils.RLP.decode(data.value);
-        const transactionAge = parseInt(val[5], 16);
-        reads = reads.concat(val[6]);
-
-        // Reset oldest age
-        if (transactionAge < oldestTransactionAge || oldestTransactionAge === 0) {
-          oldestTransactionAge = transactionAge;
+        if (!includedTransactions[requiredTransactionHashes[i].toLowerCase()]) { // maybe use positive / continue statement here.
+          toBeIncluded.push(interfaces.FuelDBKeys.mempoolTransaction
+              + requiredTransactionHashes[i].toLowerCase().slice(2));
         }
+      }
 
-        // Add to hashes array
-        transactions.push({
-          key: data.key,
-          value: val,
+      // Return true
+      return { key: data.key, value, created, precisionTime };
+    };
+
+    console.log('Get mempool transactions');
+
+    // Transactions
+    const mempoolStream = await resolveIfPromise(mempool.createReadStream());
+    let transactions = await toArr(mempoolStream, maximumStreamSize, transform); // transactions array
+
+    // Grab all dependancies / if any
+    while (toBeIncluded.length) {
+      for (var i = 0; i < toBeIncluded.length; i++) {
+        const entry = transform({
+          key: toBeIncluded[i],
+          value: await mempool.get(toBeIncluded[i]),
+          dependancy: true,
         });
 
-        // Readable pause
-        if (transactions.length >= limit) {
-          readable.pause();
-          resolve({
-            mempoolTransactions: transactions
-              .sort((a, b) => _utils.big(a[5]).gt(_utils.big(b))),
-            oldestTransactionAge,
-            reads,
-          });
+        // Entry
+        if (entry !== null) {
+          transactions.push(entry);
         }
+
+        toBeIncluded = toBeIncluded
+          .filter(key => key !== toBeIncluded[i]);
       }
-    })
-    .on('end', () => {
-      resolve({ mempoolTransactions: transactions, oldestTransactionAge, reads });
-    });
-  })
-  .catch(reject);
-});
+    }
+
+    console.log('Txs included / txs arr',
+      Object.keys(includedTransactions).length,
+      transactions.length,
+      maximumStreamSize);
+
+    // Reurn
+    return {
+      mempoolTransactions: transactions
+        .sort((a, b) => a.precisionTime - b.precisionTime), // organize by timestamp
+      oldestTransactionAge,
+      reads,
+    };
+  } catch (error) {
+    throw new ByPassError(error);
+  }
+};
 
 // Organize mempool transactions into root blocks
 function mempoolToRoots(proposedTip, submissionProducer,
-    mempoolTransactions) {
+    mempoolTransactions, checkUTXOs) {
   types.TypeBigNumber(proposedTip);
   types.TypeAddress(submissionProducer);
   types.TypeArray(mempoolTransactions);
+  types.TypeObject(checkUTXOs);
 
   // Define alterable variables
   let placement = {}; // transactionHashId => { transactionRootIndex, transactionIndex },
@@ -1793,6 +1778,7 @@ function mempoolToRoots(proposedTip, submissionProducer,
   let currentRootSize = 0;
   let transactionIndex = 0;
   let resultRoots = [];
+  let hashes = [[]];
 
   // organize by unixtime here..
 
@@ -1823,6 +1809,7 @@ function mempoolToRoots(proposedTip, submissionProducer,
       transactionIndex = 0;
       numRoots += 1;
       roots[transactionRootIndex] = [];
+      hashes[transactionRootIndex] = [];
     }
 
     // placement map this tx hash
@@ -1830,6 +1817,9 @@ function mempoolToRoots(proposedTip, submissionProducer,
       transactionRootIndex,
       transactionIndex,
     };
+
+    // Hash key
+    hashes[transactionRootIndex].push(mempoolTransactionHashKey);
 
     // Process Into Leaf
     roots[transactionRootIndex][transactionIndex] = transactionPlacement => ({
@@ -1852,8 +1842,12 @@ function mempoolToRoots(proposedTip, submissionProducer,
             utxo_rootIndex = _utils.big(decodeUTXO[3]);
             utxo_txIndex = _utils.big(decodeUTXO[4]);
           } else {
-            utxo_rootIndex = _utils.big(transactionPlacement[transactionHashId].transactionRootIndex);
-            utxo_txIndex = _utils.big(transactionPlacement[transactionHashId].transactionRootIndex);
+            console.log('Requested hash ID', transactionHashId);
+
+            utxo_rootIndex = _utils.big(transactionPlacement[transactionHashId]
+              .transactionRootIndex);
+            utxo_txIndex = _utils.big(transactionPlacement[transactionHashId]
+              .transactionIndex);
           }
 
           return new TransactionMetadata({ // tx referenced in current block..
@@ -1887,12 +1881,11 @@ function mempoolToRoots(proposedTip, submissionProducer,
   for (var rootIndex = 0; rootIndex < numRoots; rootIndex++) {
     // Resolve all Metadata across the various placements
     const leafs = roots[rootIndex]
-    .map(produceTransaction => {
-      const txData = produceTransaction(placement);
-      return new TransactionLeaf(txData);
-    });
+      .map(produceTransaction => {
+        const txData = produceTransaction(placement);
+        return new TransactionLeaf(txData);
+      });
     const transactions = new BlockTransactions(leafs);
-
     resultRoots[rootIndex] = {
       header: new TransactionRootHeader({
         producer: submissionProducer,
@@ -1901,6 +1894,7 @@ function mempoolToRoots(proposedTip, submissionProducer,
         index: _utils.big(rootIndex),
       }),
       transactions,
+      hashes: hashes[rootIndex],
     };
   }
 

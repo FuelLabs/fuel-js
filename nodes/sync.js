@@ -351,16 +351,6 @@ async function sync(opts = {}) {
                       // to ensure the safe removal of utxo store keys
                       // for now we will just pull mempool transactions from the list..
 
-                      // Remove commitments..
-                      // Use stream benifits here instead of array conversion..
-                      const commitmentTransactionHashes = (await streamToArray(await opts.commitments.createReadStream()))
-                        .map(v => v.key);
-
-                      // Remove transactions from the mempool, they have been processed into a block..
-                      await opts.mempool.batch(commitmentTransactionHashes.map(transactionHashKey => ({
-                        type: 'del', key: transactionHashKey,
-                      })));
-
                       // clear commitments
                       if (opts.commitments) {
                         await opts.commitments.clear();
@@ -572,22 +562,29 @@ async function sync(opts = {}) {
         // UTXO's related to this mempool set
         let checkUTXOs = {};
 
+        console.log('max mempool age', maximumMempoolAge);
+
         // Check current time
         const { mempoolTransactions,
             oldestTransactionAge,
             reads } = await structs.getMempoolTransactions(opts.mempool,
                 maximumMempoolAge);
 
+        console.log('Mempool tx',
+          mempoolTransactions.length, oldestTransactionAge,
+          commitment.age, currentTime - maximumMempoolAge);
+
         // Reads Check UTXOs, this is just to check if any of these UTXOs are somehow magically spent already..
         for (var readIndex = 0; readIndex < reads.length; readIndex++) {
-          const checkUTXOKey = interfaces.FuelDBKeys.UTXO + reads[readIndex].slice(2);
+          const checkUTXOKey = interfaces.FuelDBKeys.UTXO
+            + reads[readIndex].slice(2);
           checkUTXOs[checkUTXOKey] = await opts.db.get(checkUTXOKey);
         }
 
         // If certain number of transactions reached in pool, or mempool age has hit maximum
         if (mempoolTransactions.length > 0 &&
-            (mempoolTransactions.length > (opts.minimumTransactionVolume || 100)
-            || oldestTransactionAge <= (currentTime - maximumMempoolAge))) {
+            (mempoolTransactions.length > (opts.minimumTransactionVolume || 1000)
+            || commitment.age < (currentTime - maximumMempoolAge))) {
 
           logger.log('Mempool submission process started');
 
@@ -601,15 +598,6 @@ async function sync(opts = {}) {
 
           commitment = structs
             .commitmentStruct(await opts.mempool.get(interfaces.FuelDBKeys.commitment));
-
-          // Commitments
-          if (opts.commitments) {
-            await opts.commitments.batch(mempoolTransactions.map(row => ({
-              type: 'put',
-              key: row.key,
-              value: '0x0',
-            })));
-          }
 
           // Returns BytesTransactions roots for this mempool
           const roots = await structs.mempoolToRoots(
@@ -636,7 +624,8 @@ async function sync(opts = {}) {
             previousBlockHash: previousBlock[5], // 5 => block hash
             ethereumBlockNumber: ethereumBlock,
             blockHeight: commitment.blockHeight,
-            transactionRoots: roots.map(root => root.header.hash).slice(0, rootsProcessLength),
+            transactionRoots: roots.map(root => root.header.hash)
+              .slice(0, rootsProcessLength),
           });
 
           // Get number of tokens
@@ -690,15 +679,26 @@ async function sync(opts = {}) {
             // Eiher use already produced root, or deploy it
             if (!attemptRootRetrieval || attemptRootRetrieval.lte(0)) {
               try {
+                // Commitments
+                if (opts.commitments) {
+                  console.log('Root comitment hashes', root.hashes);
+                  await opts.commitments.batch(root.hashes.map(keyHash => ({
+                    type: 'put',
+                    key: keyHash,
+                    value: '0x0',
+                  })));
+                }
+
                 // Attempt submit transaction
-                await _contract.submitTransactions(root.header.merkleTreeRoot, root.transactions.encoded, {
+                await _contract.submitTransactions(root.header.merkleTreeRoot,
+                  root.transactions.encoded, {
                   // gasPrice: _utils.big(1000000000), // try this?
                   gasLimit: _utils.big(7000000), // 8 million?
                 });
 
                 // Setup commitment if transaction sent off, false for not committed to L1 chain
-                await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({},
-                    commitment, {
+                await opts.mempool.set(interfaces.FuelDBKeys.commitment,
+                    structs.commitmentRLP(Object.assign({}, commitment, {
                   roots: Object.assign(commitment.roots, {
                     [rootRecompute.hash]: false,
                   }),
