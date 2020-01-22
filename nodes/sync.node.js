@@ -71,7 +71,6 @@ async function node() {
           database: process.env.mysql_database,
           user: process.env.mysql_user,
           password: process.env.mysql_password,
-          created: true,
           table: 'mempool',
         });
         await mempool.create();

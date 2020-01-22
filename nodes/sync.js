@@ -133,7 +133,7 @@ async function sync(opts = {}) {
           // After, DB entry, Reset Low Spread, set ethereumBlock to past spread..
           useLowSpread = false;
         } catch (error) {
-          console.error(error);
+          // console.error(error);
           useLowSpread = true;
           logger.error('eth_getLogs error, attempting with lower spread...', error);
           continue;
@@ -351,6 +351,19 @@ async function sync(opts = {}) {
                       // to ensure the safe removal of utxo store keys
                       // for now we will just pull mempool transactions from the list..
 
+                      // Remove commitments..
+                      // Use stream benifits here instead of array conversion..
+                      const commitmentTransactionHashes = (await streamToArray(await opts.commitments.createReadStream()))
+                        .map(v => v.key);
+
+                      // commitmentTransactionHashes
+                      //   .map(v => console.log('Removal tx hash: 0x' + v.slice(4)));
+
+                      // Remove transactions from the mempool, they have been processed into a block..
+                      await opts.mempool.batch(commitmentTransactionHashes.map(transactionHashKey => ({
+                        type: 'del', key: transactionHashKey,
+                      })));
+
                       // clear commitments
                       if (opts.commitments) {
                         await opts.commitments.clear();
@@ -562,8 +575,6 @@ async function sync(opts = {}) {
         // UTXO's related to this mempool set
         let checkUTXOs = {};
 
-        console.log('max mempool age', maximumMempoolAge);
-
         // Check current time
         const { mempoolTransactions,
             oldestTransactionAge,
@@ -681,7 +692,7 @@ async function sync(opts = {}) {
               try {
                 // Commitments
                 if (opts.commitments) {
-                  console.log('Root comitment hashes', root.hashes);
+                  // console.log('Root comitment hashes', root.hashes);
                   await opts.commitments.batch(root.hashes.map(keyHash => ({
                     type: 'put',
                     key: keyHash,

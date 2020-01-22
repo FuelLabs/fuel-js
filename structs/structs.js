@@ -802,13 +802,12 @@ function decodeUTXORLP(entryRLP) {
 
 // Decode Deposit
 function decodeDepositRLP(entryRLP) {
+  // If not found, return null
+  if (!entryRLP) { return null; }
   TypeString(entryRLP);
 
   // RLP decode
   const entry = RLP.decode(entryRLP);
-
-  // If not found, return null
-  if (!entry) { return null; }
 
   // Return structure
   return {
@@ -1690,15 +1689,20 @@ const getMempoolTransactions = async (mempool,
       const requiredTransactionHashes = value[7]; // hash => bool
       const transactionHash = value[0];
       const precisionTime = parseInt(value[8], 16);
+      const utxoReads = value[6];
 
       // Included txs
-      if (includedTransactions[transactionHash]) { return null };
+      if (includedTransactions[transactionHash] === true) { return null };
+
+      // console.log('Created tx hash', transactionHash, created < maximumAge);
 
       // Tx age is newer than maximum age, than don't include it
-      if (created < maximumAge) { return null; }
+      if (created > maximumAge) { return null; }
 
       // Add the utxo to the reads
-      reads.push(value[6]);
+      for (var r = 0; r < utxoReads.length; r++) {
+        reads.push(utxoReads[r]);
+      }
 
       // Reset oldest age
       if (created < oldestTransactionAge || oldestTransactionAge === 0) {
@@ -1716,11 +1720,13 @@ const getMempoolTransactions = async (mempool,
         }
       }
 
+      // console.log('Get mempool tx hash', transactionHash);
+
       // Return true
       return { key: data.key, value, created, precisionTime };
     };
 
-    console.log('Get mempool transactions');
+    // console.log('Get mempool transactions');
 
     // Transactions
     const mempoolStream = await resolveIfPromise(mempool.createReadStream());
@@ -1735,6 +1741,13 @@ const getMempoolTransactions = async (mempool,
           dependancy: true,
         });
 
+        const entryDB = await mempool.get(toBeIncluded[i]);
+
+        /* console.log('To be included / was null',
+          '0x' + toBeIncluded[i].slice(4),
+            includedTransactions['0x' + toBeIncluded[i].slice(4)] === true,
+            entryDB === null, entry === null); */
+
         // Entry
         if (entry !== null) {
           transactions.push(entry);
@@ -1745,10 +1758,10 @@ const getMempoolTransactions = async (mempool,
       }
     }
 
-    console.log('Txs included / txs arr',
+    /* console.log('Txs included / txs arr',
       Object.keys(includedTransactions).length,
       transactions.length,
-      maximumStreamSize);
+      maximumStreamSize); */
 
     // Reurn
     return {
@@ -1782,6 +1795,8 @@ function mempoolToRoots(proposedTip, submissionProducer,
 
   // organize by unixtime here..
 
+  // mempoolTransactions.map(v => console.log(v.precisionTime));
+
   // Placement of Transactions Across Roots
   for (var mempoolIndex = 0;
     mempoolIndex < mempoolTransactions.length;
@@ -1811,6 +1826,8 @@ function mempoolToRoots(proposedTip, submissionProducer,
       roots[transactionRootIndex] = [];
       hashes[transactionRootIndex] = [];
     }
+
+    // console.log('Plecement tx hash', transactionHash, transactionRootIndex, transactionIndex);
 
     // placement map this tx hash
     placement[transactionHash] = {
@@ -1842,7 +1859,7 @@ function mempoolToRoots(proposedTip, submissionProducer,
             utxo_rootIndex = _utils.big(decodeUTXO[3]);
             utxo_txIndex = _utils.big(decodeUTXO[4]);
           } else {
-            console.log('Requested hash ID', transactionHashId);
+            // console.log('Requested hash ID', transactionHashId);
 
             utxo_rootIndex = _utils.big(transactionPlacement[transactionHashId]
               .transactionRootIndex);

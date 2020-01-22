@@ -117,7 +117,7 @@ test('test syncing sequence', async t => {
       transactions_submission_keys: [
         env.accounts[1].privateKey,
         env.accounts[1].privateKey,
-        // env.accounts[2].privateKey,
+        env.accounts[2].privateKey,
         // env.accounts[1].privateKey,
       ],
     };
@@ -147,7 +147,7 @@ test('test syncing sequence', async t => {
       keys,
       cycleInterval: 1,
       maximumMempoolAge: _utils.minutes(1), // might be 10
-      waitTime: 10,
+      waitTime: 100,
       hardStop: _utils.big(5),
     });
   } catch (error) {

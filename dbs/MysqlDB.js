@@ -25,7 +25,6 @@ function MysqlDB(opts) {
   delete options.batchVolume;
   delete options.indexValue;
   delete options.useQuery;
-  delete options.created;
 
   // add Table name property..
   this.table = table;

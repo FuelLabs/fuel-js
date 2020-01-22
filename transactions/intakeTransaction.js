@@ -582,6 +582,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       errors.assert(ins[outKeys[tokenIDKey]].eq(outs[outKeys[tokenIDKey]]), `Invalid inputs not equal to outputs, token ID ${inKeys[tokenIDKey]}`);
     }
 
+    // console.log('Intake tx hash', unsignedTransaction.hash.toLowerCase());
+
     const mempoolKey = FuelDBKeys.mempoolTransaction
         + unsignedTransaction.hash.toLowerCase().slice(2);
     const mempoolEntry = RLP.encode([
