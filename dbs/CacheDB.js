@@ -17,13 +17,13 @@ function CacheDB(cacheDB, storageDB) {
 
   this.storage = cacheDB.storage || {};
   this.storageDB = storageDB;
-  this.set = this.put = (key, value) => new Promise((resolve, reject) => storageDB.set(key, value)
-    .then(() => cacheDB.set(key, value))
+  this.put = (key, value) => new Promise((resolve, reject) => storageDB.put(key, value)
+    .then(() => cacheDB.put(key, value))
     .then(resolve)
     .catch(reject));
   this.get = key => cacheDB.get(key);
-  this.remove = this.del = key => new Promise((resolve, reject) => storageDB.remove(key)
-    .then(() => cacheDB.remove(key))
+  this.del = key => new Promise((resolve, reject) => storageDB.del(key)
+    .then(() => cacheDB.del(key))
     .then(resolve)
     .catch(reject));
   this.batch = (opts) => Promise.all([cacheDB.batch(opts), storageDB.batch(opts)])

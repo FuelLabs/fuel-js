@@ -582,8 +582,6 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       errors.assert(ins[outKeys[tokenIDKey]].eq(outs[outKeys[tokenIDKey]]), `Invalid inputs not equal to outputs, token ID ${inKeys[tokenIDKey]}`);
     }
 
-    // console.log('Intake tx hash', unsignedTransaction.hash.toLowerCase());
-
     const mempoolKey = FuelDBKeys.mempoolTransaction
         + unsignedTransaction.hash.toLowerCase().slice(2);
     const mempoolEntry = RLP.encode([
@@ -612,7 +610,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
           value: mempoolEntry,
           created: _time,
           table: mempool.table,
-        }]));
+        }])); // , { transact: true }
     } else {
       // Account writes, this can be made more efficient with a single connection
       if (accounts) {
@@ -623,7 +621,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       await db.batch(writes);
 
       // Notate tx in mempool, if this fails it can be healed later..
-      await mempool.set(mempoolKey, mempoolEntry);
+      await mempool.put(mempoolKey, mempoolEntry);
     }
 
     // Inserted success.

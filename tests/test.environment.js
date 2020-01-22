@@ -231,7 +231,11 @@ const constructFuel = async (producerAddress, accountIndex, params) => {
     const contract = new Contract(receipt.contractAddress, FuelInterface.abi, new providers.Web3Provider(provider));
 
     // Create a new instance of the Contract with a Signer, which allows
-    return { contract: contract.connect(wallets[accountIndex || 0]), blockNumber: big(receipt.blockNumber), receipt };
+    return {
+      contract: contract.connect(wallets[accountIndex || 0]),
+      blockNumber: big(receipt.blockNumber),
+      receipt
+    };
   } catch (error) {
     throw new ByPassError(error);
   }
@@ -1609,12 +1613,12 @@ async function simulatedContract(contract, remoteDB, mempoolDB, noIntake, localD
     console.log('double spend submitted!');
 
     console.log('Holding until double spend block reverts');
-    let holdUntilTip = true;
-    while (holdUntilTip) {
-      if ((await contract.blockTip()).lte(2)) {
-        holdUntilTip = false;
-      }
-      await wait(5000);
+    let lastFraudBlock = null;
+    while (!lastFraudBlock) {
+      const val = await remoteDB
+        .get(interfaces.FuelDBKeys.lastEthereumFraudBlock);
+      if (val) { lastFraudBlock = val; }
+      await _utils.wait(1000);
     }
     console.log('Begining sequence again post revert..');
 
@@ -2148,7 +2152,7 @@ async function simulatedContract(contract, remoteDB, mempoolDB, noIntake, localD
         _ignoreFrom: true,
         _post: post(remoteDB, mempoolDB, accountsDB, faucetDB),
       });
-      const { balance, transfer, deposit, withdraw, withdrawals } = wallet2;
+      const { balance, transfer, deposit, retrieve, withdraw, withdrawals } = wallet2;
 
       const bal = await balance(wallet2.tokens.fakeDai);
 
@@ -2236,7 +2240,6 @@ async function simulatedContract(contract, remoteDB, mempoolDB, noIntake, localD
       // Wallet 2
       _t.equal(wallet3FakeDaiBalance.toNumber(), 222, 'wallet 3 balance post fakeDai');
 
-      /*
       console.log('Attempting fake dai and ether withdrawls.');
 
       const withdrawlOfEther = await withdraw(28,
@@ -2246,10 +2249,12 @@ async function simulatedContract(contract, remoteDB, mempoolDB, noIntake, localD
 
       console.log('Waiting for finalization delay..');
 
-      await increaseBlocks((await contract.FINALIZATION_DELAY()).toNumber());
+      await increaseBlocks((await contract.FINALIZATION_DELAY())
+        .add(10).toNumber());
 
-      await retrive(wallet2.tokens.ether);
-      */
+      await _utils.time(10000);
+
+      await retrieve(wallet2.tokens.ether);
     }
 
     return contract;
@@ -2488,12 +2493,12 @@ async function simulatedWalletUsage(contract, remoteDB, mempoolDB, noIntake, loc
     await transfer(1, wallet2.tokens.fakeDai, wallet3.address);
     await transfer(4, wallet2.tokens.fakeDai, wallet3.address);
 
-    console.log('Waiting for tip 1');
+    console.log('Waiting for retrival utxos');
 
     console.log('Retrieval started');
 
-    await retrieve(wallet2.tokens.ether, 0);
-    await retrieve(wallet2.tokens.fakeDai, 0);
+    await retrieve(wallet2.tokens.ether, 0, { wait: true });
+    await retrieve(wallet2.tokens.fakeDai, 0, { wait: true });
 
     console.log('Retrieval completed');
 

@@ -681,9 +681,17 @@ function Wallet({
       }
 
       // Withdrawal
-      const utxo = await __post(`${_api}get`, {
+      let utxo = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.withdrawal + withdrawal.utxoProof.hash.slice(2),
       });
+
+      // Wait for utxo
+      while (opts.wait && !(utxo || [])[1]) {
+        utxo = await __post(`${_api}get`, {
+          key: interfaces.FuelDBKeys.withdrawal + withdrawal.utxoProof.hash.slice(2),
+        });
+        await _utils.wait(1000);
+      }
 
       // No block
       if (!(utxo || [])[1]) {

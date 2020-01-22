@@ -16,16 +16,16 @@ function SimulationDB({ cache, storage }) {
 
   this.storage = cache.storage || {};
   this.opts = [];
-  this.set = this.put = (key, value) => {
+  this.put = (key, value) => {
     this.opts.push({ type: 'put', key, value });
-    return cache.set(key, value);
+    return cache.put(key, value);
   };
   this.get = key => cache.get(key)
     .then(cached => !cached ? storage.get(key) : Promise.resolve(cached))
     .catch(error => Promise.reject(error));
-  this.remove = this.del = key => {
+  this.del = key => {
     this.opts.push({ type: 'del', key });
-    return cache.remove(key);
+    return cache.del(key);
   };
   this.clear = () => {
     this.opts = [];

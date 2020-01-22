@@ -588,28 +588,28 @@ function parseTransaction({ transactionLeaf, transactionIndex, db, block,
           // console.log('DB out key / utxo id', dbKey, '0x' + dbKey.slice(4));
 
           // UTXO in DB
-          promises.push(db.set(dbKey,
+          promises.push(db.put(dbKey,
             utxoProof.rlp()));
 
           // Store utxo for historical purposes
           if (transactions) {
-            promises.push(db.set(FuelDBKeys.storage + dbKey.slice(2),
+            promises.push(db.put(FuelDBKeys.storage + dbKey.slice(2),
               utxoProof.rlp()));
           }
 
           // Associate these accounts with this utxo..
           if (accounts) {
-            promises.push(accounts.set(dbKey,
+            promises.push(accounts.put(dbKey,
               String(output._ownerAddress).toLowerCase()));
 
             // Establish relationship between this tx and the utxo owner
             if (transactions) {
               // Store historical relationship
-              promises.push(accounts.set(FuelDBKeys.storage + dbKey.slice(2),
+              promises.push(accounts.put(FuelDBKeys.storage + dbKey.slice(2),
                 String(output._ownerAddress).toLowerCase()));
 
               // Store transaction relationship to account
-              promises.push(accounts.set(FuelDBKeys.transaction + transactionHashId.slice(2),
+              promises.push(accounts.put(FuelDBKeys.transaction + transactionHashId.slice(2),
                 String(output._ownerAddress).toLowerCase()));
             }
           }
@@ -624,7 +624,7 @@ function parseTransaction({ transactionLeaf, transactionIndex, db, block,
 
       // If transaction storage is activated, store the leaf, values, root and index.
       if (transactions) {
-        promises.push(db.set(FuelDBKeys.transaction + transactionHashId.slice(2),
+        promises.push(db.put(FuelDBKeys.transaction + transactionHashId.slice(2),
           RLP.encode([
             transactionLeaf, // db leaf
             _utils.serializeRLP(block.values), // value
@@ -738,12 +738,12 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
 
           // Removal of DB
           if (entry) {
-            await db.remove(FuelDBKeys.UTXO + input.utxoID.slice(2));
-            await db.remove(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
+            await db.del(FuelDBKeys.UTXO + input.utxoID.slice(2));
+            await db.del(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
 
             if (accounts) {
-              await accounts.remove(FuelDBKeys.UTXO + input.utxoID.slice(2));
-              await accounts.remove(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
+              await accounts.del(FuelDBKeys.UTXO + input.utxoID.slice(2));
+              await accounts.del(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
             }
           }
           break;
@@ -759,10 +759,10 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
               FuelConstants.FraudCode_TransactionInputDepositZero);
 
             // Remove Deposit
-            await db.remove(FuelDBKeys.deposit + input.depositHashID.toLowerCase().slice(2));
+            await db.del(FuelDBKeys.deposit + input.depositHashID.toLowerCase().slice(2));
 
             if (accounts) {
-              await accounts.remove(FuelDBKeys.deposit + input.depositHashID.toLowerCase().slice(2));
+              await accounts.del(FuelDBKeys.deposit + input.depositHashID.toLowerCase().slice(2));
             }
           }
           break;
@@ -778,12 +778,12 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
             }
 
             // Remove Deposit
-            await db.remove(FuelDBKeys.UTXO + input.utxoID.slice(2));
-            await db.remove(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
+            await db.del(FuelDBKeys.UTXO + input.utxoID.slice(2));
+            await db.del(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
 
             if (accounts) {
-              await accounts.remove(FuelDBKeys.UTXO + input.utxoID.slice(2));
-              await accounts.remove(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
+              await accounts.del(FuelDBKeys.UTXO + input.utxoID.slice(2));
+              await accounts.del(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
             }
           }
           break;
@@ -793,12 +793,12 @@ async function validateTransaction({ parsedTransaction, db, accounts, block,
           entry = !invalidInput ? await getUTXO(db, input.utxoID) : null;
 
           if (entry) {
-            await db.remove(FuelDBKeys.UTXO + input.utxoID.slice(2));
-            await db.remove(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
+            await db.del(FuelDBKeys.UTXO + input.utxoID.slice(2));
+            await db.del(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
 
             if (accounts) {
-              await accounts.remove(FuelDBKeys.UTXO + input.utxoID.slice(2));
-              await accounts.remove(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
+              await accounts.del(FuelDBKeys.UTXO + input.utxoID.slice(2));
+              await accounts.del(FuelDBKeys.mempool + FuelDBKeys.UTXO.slice(2) + input.utxoID.slice(2));
             }
           }
           break;
@@ -1093,7 +1093,10 @@ async function isInvalidInputReference({ invalidInput, db, rpc, numTokens, contr
     }
 
     // get Merkle Proof of Transaction in Question
-    const merkleProof = new TransactionMerkleProof({ transactionLeafs: leafs.map(v => new FillProof(v)), transactionIndex });
+    const merkleProof = new TransactionMerkleProof({
+      transactionLeafs: leafs.map(v => new FillProof(v)),
+      transactionIndex,
+    });
 
     // FraudCode_TransactionHashZero
     if (eq(merkleProof.transactionHash, emptyBytes32)) {

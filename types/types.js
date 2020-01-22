@@ -39,9 +39,8 @@ const TypeObject = v => {
     throw new TypeError(new Error(`Invalid value ${v} not type Object`));
   }
 };
-
 const TypeDB = v => {
-  if (typeof v !== 'object' || !v.set || !v.get || !v.remove) {
+  if (typeof v !== 'object' || !v.put || !v.get || !v.del) {
     throw new TypeError(new Error(`Invalid value ${v} not type DB`));
   }
 };

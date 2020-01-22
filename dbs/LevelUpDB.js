@@ -19,7 +19,7 @@ function LevelUpDB(name, clear = false, nolock = false) {
   };
 
   // Wrapper Methods
-  this.set = this.put = (key, value, noDoubleEntry) => new Promise((resolve, reject) => {
+  this.put = (key, value, noDoubleEntry) => new Promise((resolve, reject) => {
     if (noDoubleEntry) {
       db.get(key)
       .then(v => v !== null
@@ -35,7 +35,7 @@ function LevelUpDB(name, clear = false, nolock = false) {
   this.get = key => db.get(key)
     .then(result => Promise.resolve(result.toString()))
     .catch(error => Promise.resolve(null));
-  this.remove = this.del = key => db.del(key);
+  this.del = key => db.del(key);
   this.batch = (opts) => db.batch(opts);
   this.createReadStream = opts => db.createReadStream(opts);
   this.clear = () => db.clear();

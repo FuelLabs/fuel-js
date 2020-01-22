@@ -17,7 +17,7 @@ function MemoryDB() {
 
   var storage = this.storage = {};
   this.storageDB = db;
-  this.set = this.put = (key, value) => new Promise((resolve, reject) => db.put(key, value)
+  this.put = (key, value) => new Promise((resolve, reject) => db.put(key, value)
     .then(() => {
       storage[key] = value;
       return Promise.resolve();
@@ -27,7 +27,7 @@ function MemoryDB() {
   this.get = key => new Promise((resolve, reject) => db.get(key, { asBuffer: false })
     .then(resolve)
     .catch(() => resolve(null)));
-  this.remove = this.del = key => new Promise((resolve, reject) => db.del(key, { asBuffer: false })
+  this.del = key => new Promise((resolve, reject) => db.del(key, { asBuffer: false })
     .then(() => {
       delete storage[key];
       return Promise.resolve();

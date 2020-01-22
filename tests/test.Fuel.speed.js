@@ -93,7 +93,7 @@ async function test() {
   let parallelWrites = [];
   console.time('LevelUpDB: 71000 Writes Parallel');
   for (var i = 0; i < 71000; i++) {
-    parallelWrites.push(db1.set('deposit_' + i, utils.hexlify(utils.randomBytes(120))));
+    parallelWrites.push(db1.put('deposit_' + i, utils.hexlify(utils.randomBytes(120))));
   }
   await Promise.all(parallelWrites);
   console.timeEnd('LevelUpDB: 71000 Writes Parallel');
@@ -121,7 +121,7 @@ async function test() {
   let parallelWrites2 = [];
   console.time('MemoryDB: 71000 Writes Parallel');
   for (var i = 0; i < 71000; i++) {
-    parallelWrites2.push(db2.set('deposit_' + i, utils.hexlify(utils.randomBytes(120))));
+    parallelWrites2.push(db2.put('deposit_' + i, utils.hexlify(utils.randomBytes(120))));
   }
   await Promise.all(parallelWrites2);
   console.log(`MemoryDB: wrote ${Object.keys(db2.storage).length} records`);
@@ -141,7 +141,7 @@ async function test() {
   let parallelWrites5 = [];
   console.time('SimulationDB: 71000 Writes Parallel');
   for (var i = 0; i < 71000; i++) {
-    parallelWrites5.push(db5.set('deposit_' + i, utils.hexlify(utils.randomBytes(120))));
+    parallelWrites5.push(db5.put('deposit_' + i, utils.hexlify(utils.randomBytes(120))));
   }
   await Promise.all(parallelWrites5);
   console.log(`SimulationDB: wrote ${Object.keys(db2.storage).length} records`);

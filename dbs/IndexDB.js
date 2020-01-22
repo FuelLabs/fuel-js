@@ -17,7 +17,7 @@ function IndexDB(name) {
   };
 
   // Wrapper Methods
-  this.set = this.put = (key, value, noDoubleEntry) => new Promise((resolve, reject) => {
+  this.put = (key, value, noDoubleEntry) => new Promise((resolve, reject) => {
     if (noDoubleEntry) {
       db.get(key, { asBuffer: false })
       .then(v => v !== null
@@ -33,7 +33,7 @@ function IndexDB(name) {
   this.get = key => new Promise((resolve, reject) => db.get(key, { asBuffer: false })
     .then(resolve)
     .catch(() => resolve(null)));
-  this.remove = this.del = key => new Promise((resolve, reject) => db.del(key, { asBuffer: false })
+  this.del = key => new Promise((resolve, reject) => db.del(key, { asBuffer: false })
     .then(resolve)
     .catch(() => Promise.resolve()));
   this.batch = opts => db.batch(opts);

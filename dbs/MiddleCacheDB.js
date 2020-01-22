@@ -66,12 +66,12 @@ function MiddleCacheDB(cacheDB, middleCacheDB, storageDB) {
       }
     });
   });
-  this.set = this.put = (key, value) => new Promise((resolve, reject) => cacheDB.put(key, value)
+  this.put = (key, value) => new Promise((resolve, reject) => cacheDB.put(key, value)
     .then(() => middleCacheDB.put(key, '0x1'))
     .then(resolve)
     .catch(reject));
   this.get = key => cacheDB.get(key);
-  this.remove = this.del = key => new Promise((resolve, reject) => cacheDB.del(key)
+  this.del = key => new Promise((resolve, reject) => cacheDB.del(key)
     .then(() => middleCacheDB.put(key, '0x1'))
     .then(resolve)
     .catch(reject));

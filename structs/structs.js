@@ -1196,8 +1196,8 @@ function TransactionMerkleProof({ transactionLeafs, transactionIndex }) {
 
   this.leftish = leftish;
   this.oppositeLeafHash = oppositeLeafHash;
+  this.transactionHash = oppositeLeafHash;
   this.proof = proof;
-  this.transactionHash = this.proof[0] || null;
   this.types = [
     'bytes32',
     'bytes32[]',

@@ -146,9 +146,9 @@ test('test syncing sequence', async t => {
       contract,
       keys,
       cycleInterval: 1,
-      maximumMempoolAge: _utils.minutes(1), // might be 10
+      maximumMempoolAge: 20, // _utils.minutes(1), // might be 10
       waitTime: 100,
-      hardStop: _utils.big(5),
+      hardStop: _utils.big(16),
     });
   } catch (error) {
     console.error(error);

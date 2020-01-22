@@ -87,17 +87,6 @@ async function sync(opts = {}) {
           // Logger
           logger.log(`[Fuel Sync] ${(new Date())} Ethereum Block Last Synced: ${ethereumBlock.toNumber()} | Ethereum Fraud Block: ${ethereumFraudBlock.toNumber()} | Gas Limit: ${_gasLimit.toNumber()} | Block Producer: ${blockProducer} | Side Chain Block Tip: ${_utils.big(blockTipRLP || 0).toNumber()} | Queued Commitment Height: ${commitment.blockHeight} Roots: ${Object.keys(commitment.roots)}`);
 
-          /*
-          if ((opts.accounts || {}).supports.middleCache) {
-            await opts.accounts.process(opts.remoteVolume || 2); // send to storage
-          }
-          if (blockTipRLP && (opts.db || {}).supports.middleCache) {
-            await opts.db.process(opts.remoteVolume || 2
-                , key => key === interfaces.FuelDBKeys.blockTip); // send to storage, no block tip update
-            await opts.db.storage.set(interfaces.FuelDBKeys.blockTip, blockTipRLP);
-          }
-          */
-
           // Reset cycle to zero
           cycle = 0;
         }
@@ -113,8 +102,8 @@ async function sync(opts = {}) {
         try {
           // Check spread for most recent ethereum block..
           if (toBlock.gte(ethereumHeight)) {
-            toBlock = ethereumHeight; // set to last recorded etheruem block number
             ethereumHeight = _utils.big(await opts.rpc('eth_blockNumber'));
+            toBlock = ethereumHeight; // set to last recorded etheruem block number
           }
 
           // Get logs from the conract..
@@ -144,17 +133,17 @@ async function sync(opts = {}) {
           const rawLog = fuelContractLogs[logIndex];
           const log = interfaces.FuelEventsInterface.parseLog(rawLog);
 
-          switch (log.name) {
+          switch ((log || {}).name) {
             case 'TokenIndex':
-              await opts.db.set(interfaces.FuelDBKeys.token
+              await opts.db.put(interfaces.FuelDBKeys.token
                   + log.values.index.sub(1).toHexString().slice(2), _utils.RLP.encode([
                 log.values.token,
               ]));
-              await opts.db.set(String(interfaces.FuelDBKeys.tokenID
+              await opts.db.put(String(interfaces.FuelDBKeys.tokenID
                   + log.values.token.slice(2)).toLowerCase(), _utils.RLP.encode([
                 log.values.index.sub(1).toHexString(),
               ]));
-              await opts.db.set(interfaces.FuelDBKeys.numTokens,
+              await opts.db.put(interfaces.FuelDBKeys.numTokens,
                   _utils.RLP.encode( log.values.index.toHexString() ));
               break;
 
@@ -172,7 +161,7 @@ async function sync(opts = {}) {
               const deposit_key = interfaces.FuelDBKeys.deposit
                 + depositHashID.toLowerCase().slice(2);
 
-              await opts.db.set(deposit_key,
+              await opts.db.put(deposit_key,
                 _utils.RLP.encode([
                   log.values.account,
                   log.values.token,
@@ -183,12 +172,12 @@ async function sync(opts = {}) {
 
               // Account is just a list of UTXO keys..
               if (opts.accounts) {
-                await opts.accounts.set(deposit_key, String(log.values.account).toLowerCase());
+                await opts.accounts.put(deposit_key, String(log.values.account).toLowerCase());
               }
               break;
 
             case 'TransactionsSubmitted':
-              await opts.db.set(interfaces.FuelDBKeys.transactionRoot
+              await opts.db.put(interfaces.FuelDBKeys.transactionRoot
                   + log.values.transactionRoot.slice(2), _utils.RLP.encode([
                 log.values.producer,
                 log.values.merkleTreeRoot,
@@ -210,7 +199,7 @@ async function sync(opts = {}) {
               // Note this might produce dead roots, but thats okay..
               if (opts.mempool && (opts.keys || {}).block_production_key) {
                 if (typeof commitment.roots[rootHeader.hash] !== "undefined") {
-                  await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
+                  await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
                     roots: Object.assign(commitment.roots, {
                       [rootHeader.hash]: true,
                     }),
@@ -316,7 +305,7 @@ async function sync(opts = {}) {
                     await opts.db.get(interfaces.FuelDBKeys.numTokens)));
 
                 // block and block height
-                await opts.db.set(interfaces.FuelDBKeys.block
+                await opts.db.put(interfaces.FuelDBKeys.block
                     + _utils.big(log.values.blockHeight.toNumber())
                       .toHexString().slice(2),
                     _utils.RLP.encode([
@@ -356,9 +345,6 @@ async function sync(opts = {}) {
                       const commitmentTransactionHashes = (await streamToArray(await opts.commitments.createReadStream()))
                         .map(v => v.key);
 
-                      // commitmentTransactionHashes
-                      //   .map(v => console.log('Removal tx hash: 0x' + v.slice(4)));
-
                       // Remove transactions from the mempool, they have been processed into a block..
                       await opts.mempool.batch(commitmentTransactionHashes.map(transactionHashKey => ({
                         type: 'del', key: transactionHashKey,
@@ -370,7 +356,7 @@ async function sync(opts = {}) {
                       }
 
                       // Reset commitments
-                      await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
+                      await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
                         blockHeight: _utils.big(-1),
                         transactionHashes: [],
                         roots: {},
@@ -388,7 +374,7 @@ async function sync(opts = {}) {
                   }
 
                   // block tip
-                  await opts.db.set(interfaces.FuelDBKeys.blockTip,
+                  await opts.db.put(interfaces.FuelDBKeys.blockTip,
                       _utils.RLP.encode(log.values.blockHeight.toHexString()));
 
                   // Syncings
@@ -425,6 +411,7 @@ async function sync(opts = {}) {
                         gasLimit: _gasLimit,
                       });
                       await fraudTx.wait();
+
                     } else {
                       logger.log('Fraud proof already attempted, must have failed.');
                     }
@@ -436,8 +423,8 @@ async function sync(opts = {}) {
               break;
 
             case 'WithdrawalMade':
-              // await db.remove(FuelDBKeys.withdrawal + input.utxoID.slice(2));
-              // await db.remove(FuelDBKeys.mempool + FuelDBKeys.withdrawal.slice(2) + input.utxoID.slice(2));
+              // await db.del(FuelDBKeys.withdrawal + input.utxoID.slice(2));
+              // await db.del(FuelDBKeys.mempool + FuelDBKeys.withdrawal.slice(2) + input.utxoID.slice(2));
               // Notatre recordAccounts change
               if (opts.accounts) {
                 // Token ID
@@ -457,7 +444,7 @@ async function sync(opts = {}) {
                 // Delete
                 await opts.db.del(interfaces.FuelDBKeys.withdrawal
                     + utxoProof.hash.slice(2));
-                await opts.db.set(interfaces.FuelDBKeys.storage
+                await opts.db.put(interfaces.FuelDBKeys.storage
                     + interfaces.FuelDBKeys.withdrawal.slice(2)
                     + utxoProof.hash.slice(2), utxoProof.rlp());
 
@@ -465,7 +452,7 @@ async function sync(opts = {}) {
                 await opts.accounts
                   .del(interfaces.FuelDBKeys.withdrawal + utxoProof.hash.slice(2));
                 await opts.accounts
-                  .set(interfaces.FuelDBKeys.withdrawn + utxoProof.hash.slice(2),
+                  .put(interfaces.FuelDBKeys.withdrawn + utxoProof.hash.slice(2),
                       String(log.values.account).toLowerCase());
               }
               break;
@@ -481,7 +468,7 @@ async function sync(opts = {}) {
               await opts.db.clear();
 
               // set new fraud block
-              await opts.db.set(interfaces.FuelDBKeys.lastEthereumFraudBlock, _utils.RLP.encode(
+              await opts.db.put(interfaces.FuelDBKeys.lastEthereumFraudBlock, _utils.RLP.encode(
                 _utils.big(rawLog.blockNumber).toHexString()
               ));
 
@@ -504,7 +491,7 @@ async function sync(opts = {}) {
 
         // Set block processed
         if (ethereumBlock !== null && !toBlock.add(1).eq(_toBlock)) {
-          await opts.db.set(interfaces.FuelDBKeys.ethereumBlockProcessed,
+          await opts.db.put(interfaces.FuelDBKeys.ethereumBlockProcessed,
               toBlock.add(1).toHexString());
 
           // Eth block update, post DB update
@@ -546,7 +533,7 @@ async function sync(opts = {}) {
                 });
 
                 // Push the tx to mempool
-                await opts.mempool.set(interfaces.FuelDBKeys.commitment,
+                await opts.mempool.put(interfaces.FuelDBKeys.commitment,
                     structs.commitmentRLP(Object.assign({}, commitment, {
                       transactionHash: commitTx.hash,
                     })));
@@ -581,7 +568,7 @@ async function sync(opts = {}) {
             reads } = await structs.getMempoolTransactions(opts.mempool,
                 maximumMempoolAge);
 
-        console.log('Mempool tx',
+        logger.log('Mempool tx',
           mempoolTransactions.length, oldestTransactionAge,
           commitment.age, currentTime - maximumMempoolAge);
 
@@ -600,7 +587,7 @@ async function sync(opts = {}) {
           logger.log('Mempool submission process started');
 
           // Mempool commitment
-          await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
+          await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP({
             blockHeight: (await opts.contract.blockTip()).add(1),
             roots: {},
             age: currentTime,
@@ -708,7 +695,7 @@ async function sync(opts = {}) {
                 });
 
                 // Setup commitment if transaction sent off, false for not committed to L1 chain
-                await opts.mempool.set(interfaces.FuelDBKeys.commitment,
+                await opts.mempool.put(interfaces.FuelDBKeys.commitment,
                     structs.commitmentRLP(Object.assign({}, commitment, {
                   roots: Object.assign(commitment.roots, {
                     [rootRecompute.hash]: false,
@@ -722,7 +709,7 @@ async function sync(opts = {}) {
                 logger.log(`Root submitted, roots waiting commitment ${Object.keys(commitment.roots)}`);
               } catch (submitTransactionError) {
                 // Update commitment in mempool
-                await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
+                await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
                   blockHeight: _utils.big(-1),
                 })));
 
@@ -733,7 +720,7 @@ async function sync(opts = {}) {
               }
             } else {
               // Update commitment roots, already committed
-              await opts.mempool.set(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
+              await opts.mempool.put(interfaces.FuelDBKeys.commitment, structs.commitmentRLP(Object.assign({}, commitment, {
                 roots: Object.assign(commitment.roots, {
                   [rootRecompute.hash]: true,
                 }),

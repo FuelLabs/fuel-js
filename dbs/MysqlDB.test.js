@@ -31,16 +31,16 @@ test('module test', async t => {
 
   const r1 = await db.get('hello');
 
-  await db.set('hello', 'yes');
+  await db.put('hello', 'yes');
 
   const r2 = await db.get('hello');
 
-  await db.remove('hello');
+  await db.del('hello');
 
   const r3 = await db.get('hello');
 
-  await db.set('samekey', '0xaa', true);
-  await db.set('samekey', '0xbb', true);
+  await db.put('samekey', '0xaa', true);
+  await db.put('samekey', '0xbb', true);
 
   t.equal(await dbQuery.get('samekey'), '0xbb', 'query usage check');
 
@@ -49,8 +49,8 @@ test('module test', async t => {
   t.equal(r3, null, 'remove');
   t.equal(await db.get('samekey'), '0xbb', 'same key overrite');
 
-  await db.set('dropcheck', '1');
-  await db.set('dropcheck2', '1');
+  await db.put('dropcheck', '1');
+  await db.put('dropcheck2', '1');
 
   await db.batch([
     { type: 'put', key: 'hello3', value: 'yes4' },
@@ -276,8 +276,8 @@ test('module test', async t => {
 
   await db.drop();
 
-  await db2.set('utxo1_account', '0xaa');
-  await db2.set('utxo2_account', '0xaa');
+  await db2.put('utxo1_account', '0xaa');
+  await db2.put('utxo2_account', '0xaa');
   console.log(await db2.keys('0xaa'));
 
 

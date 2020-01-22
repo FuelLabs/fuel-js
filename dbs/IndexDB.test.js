@@ -9,11 +9,11 @@ test('module test', async t => {
 
   const r1 = await db.get('hello');
 
-  await db.set('hello', 'yes');
+  await db.put('hello', 'yes');
 
   const r2 = await db.get('hello');
 
-  await db.remove('hello');
+  await db.del('hello');
 
   const r3 = await db.get('hello');
 

@@ -10,13 +10,13 @@ test('module test', async t => {
   const dbb = new MemoryDB();
   const db = new SimulationDB({ cache: dba, storage: dbb });
 
-  await db.set('a', 'b');
+  await db.put('a', 'b');
 
   t.equal(await db.get('a'), 'b', 'check a');
   t.equal(await dba.get('a'), 'b', 'check a');
   t.equal(await dbb.get('a'), null, 'check a');
 
-  await dba.set('c', 'd');
+  await dba.put('c', 'd');
 
   t.equal(await db.get('c'), 'd', 'check c');
   t.equal(await dba.get('c'), 'd', 'check c');

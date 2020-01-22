@@ -10,16 +10,16 @@ test('module test', async t => {
 
   const r1 = await db.get('hello');
 
-  await db.set('hello', 'yes');
+  await db.put('hello', 'yes');
 
   const r2 = await db.get('hello');
 
-  await db.remove('hello');
+  await db.del('hello');
 
   const r3 = await db.get('hello');
 
-  await db.set('sdfd', 'yes');
-    await db.set('sffdsfsd', '122');
+  await db.put('sdfd', 'yes');
+    await db.put('sffdsfsd', '122');
 
   console.log(await toArray(db.createReadStream()));
 

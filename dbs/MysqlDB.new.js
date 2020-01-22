@@ -122,8 +122,8 @@ function MysqlDB(opts) {
   this.pool = () => pool;
   this.create = () => transact('CREATE TABLE IF NOT EXISTS ' + table +  ' (`key` VARCHAR(128) NOT NULL, `value` VARCHAR(' + (indexValueSQL.length ? '128' : '4000') + ') NOT NULL' + createdKey + ', PRIMARY KEY (`key`)' + indexValueSQL + ' );');
   this.drop = () => transact(`DROP TABLE ${table};`);
-  this.set = this.put = (key, value, ignore = true) => transact(`${ignore === true ? `DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)}; ` + 'INSERT' : 'INSERT'} INTO ${table} (${'`'}key${'`'},${'`'}value${'`'}${insertCreatedKey}) VALUES (${mysql.escape(key)},${mysql.escape(value)}${insertCreatedValue()});`);
-  this.remove = this.del = key => transact(`DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)};`);
+  this.put = (key, value, ignore = true) => transact(`${ignore === true ? `DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)}; ` + 'INSERT' : 'INSERT'} INTO ${table} (${'`'}key${'`'},${'`'}value${'`'}${insertCreatedKey}) VALUES (${mysql.escape(key)},${mysql.escape(value)}${insertCreatedValue()});`);
+  this.del = key => transact(`DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)};`);
   this.get = key => transact(`SELECT value FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)} UNION SELECT NULL;`)
     .then(v => (v[0] || empty).value || null)
     .catch(e => Promise.reject(e));
