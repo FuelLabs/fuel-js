@@ -568,9 +568,9 @@ async function sync(opts = {}) {
             reads } = await structs.getMempoolTransactions(opts.mempool,
                 maximumMempoolAge);
 
-        logger.log('Mempool tx',
-          mempoolTransactions.length, oldestTransactionAge,
-          commitment.age, currentTime - maximumMempoolAge);
+        // logger.log('Mempool tx',
+        //  mempoolTransactions.length, oldestTransactionAge,
+        //  commitment.age, currentTime - maximumMempoolAge);
 
         // Reads Check UTXOs, this is just to check if any of these UTXOs are somehow magically spent already..
         for (var readIndex = 0; readIndex < reads.length; readIndex++) {

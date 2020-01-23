@@ -51,8 +51,8 @@ contract ERC20 {
 contract FuelConstants {
     // CONSTANTS
     uint256 constant public BOND_SIZE = .1 ether; // required for block commitment
-    uint256 constant public FINALIZATION_DELAY = 5000; // 7 days / 12; //  ~ 1 weeks at 12 second block times
-    uint256 constant public SUBMISSION_DELAY = 100; // uint256(2 days) / 12; //  ~ 2 day (should be 2 days) in Ethereum Blocks
+    uint256 constant public FINALIZATION_DELAY = 7 days / 12; //  ~ 1 weeks at 12 second block times
+    uint256 constant public SUBMISSION_DELAY = uint256(2 days) / 12; //  ~ 2 day (should be 2 days) in Ethereum Blocks
     uint256 constant public CLOSING_DELAY = uint256(90 days) / 12; // (should be 2 months)
     uint256 constant public MAX_TRANSACTIONS_SIZE = 58823;
     uint256 constant public TRANSACTION_ROOTS_MAX = 256;
