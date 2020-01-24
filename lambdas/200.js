@@ -1,3 +1,3 @@
 module.exports = async (req, res) => {
-  res.status(200).send({ message: 'cors ok' });
+  res.status(200).send({ message: 'cors ok' }); // for cors options req.
 }

@@ -9,6 +9,7 @@ const FuelBytecode = require('./Fuel.code.js');
 const FakeDaiBytecode = require('./FakeDai.code.js');
 const { getReceipt } = require('../blocks/processBlock');
 const write = require('write');
+const oldConfig = require('../config/config');
 
 // Deploy with Block Producer etc..
 // This will setup the contract / token / mint and then transfer to faucet
@@ -28,7 +29,14 @@ const rpc = interfaces.FuelRPC({ web3Provider });
 // Deployment of Network / Faucet
 async function deploy() {
   try {
-    console.log('Deployment sequence started.');
+    const __chain_id = process.env.chain_id || '3'; // default to ropsten..
+    const __network = oldConfig.networks[__chain_id];
+
+    if (!__network) {
+      throw new Error('Invalid chain ID or network not found in old configuration..');
+    }
+
+    console.log(`Fuel deployment sequence started on Chain ID ${__chain_id} "${__network}".`);
 
     // Fuel Factory
     const FuelFactory = new ContractFactory(interfaces.FuelInterface.abi,
@@ -104,42 +112,47 @@ async function deploy() {
     });
     console.log('Deposit Hash', depositHashID, 'Deposit RLP data', depositRLP);
 
+    const __addresses = Object.assign({}, oldConfig.addresses, {
+      [__network]: {
+        fuel: fuelContract.address,
+        fakeDai: fakeDaiContract.address,
+        ether: '0x0000000000000000000000000000000000000000',
+      },
+    });
+    const __faucet = Object.assign({}, oldConfig.faucet, {
+      [__network]: {
+        key: `${interfaces.FuelDBKeys.deposit}${depositHashID.slice(2)}`,
+        value: `${depositRLP}`,
+        depositHashID: `${depositHashID}`,
+        ethereumBlockNumber: `${_utils.big(depositReceipt.blockNumber).toHexString()}`,
+        token: `${String(fakeDaiContract.address).toLowerCase()}`,
+        account: `${String(faucetProducer.address).toLowerCase()}`,
+      },
+    });
+    const __ids = Object.assign({}, oldConfig.ids, {
+      [__network]: {
+        '0x0000000000000000000000000000000000000000': '0',
+        [`${String(fakeDaiContract.address).toLowerCase()}`]: '1',
+      },
+    });
+
     console.log('Writting details to ./config/config.js file..');
     await write('./config/config.js', `
 // Tokens
-const addresses = {
-  ropsten: {
-    fuel: "${fuelContract.address}",
-    ether: '0x0000000000000000000000000000000000000000',
-    fakeDai: "${fakeDaiContract.address}",
-  },
-};
+const addresses = ${JSON.stringify(__addresses, null, 2)};
 
 // Faucet
-const faucet = {
-  ropsten: {
-    key: "${interfaces.FuelDBKeys.deposit}${depositHashID.slice(2)}",
-    value: "${depositRLP}",
-    depositHashID: "${depositHashID}",
-    ethereumBlockNumber: "${_utils.big(depositReceipt.blockNumber).toHexString()}",
-    token: "${String(fakeDaiContract.address).toLowerCase()}",
-    account: "${String(faucetProducer.address).toLowerCase()}",
-  },
-};
+const faucet = ${JSON.stringify(__faucet, null, 2)};
 
 // Networks
 const networks = {
   '3': 'ropsten',
+  '5': 'gorli',
   '10': 'local',
 };
 
 // Ids
-const ids = {
-  ropsten: {
-    '0x0000000000000000000000000000000000000000': '0',
-    "${String(fakeDaiContract.address).toLowerCase()}": '1',
-  },
-};
+const ids = ${JSON.stringify(__ids, null, 2)};
 
 module.exports = {
   addresses,

@@ -6,19 +6,16 @@ const replaceAll = function (str, find, replace) {
   return str.replace(new RegExp(find.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), replace);
 };
 
-// Pooled transactional Mysql DB Keystore in the level api format..
+// Pooled query or transactional Mysql DB Keystore in the level api format..
 // Has a unique ignore (double key prevention) setting, and batch multi-key GET!
 function MysqlDB(opts) {
   types.TypeObject(opts);
   const options = Object.assign({
     multipleStatements: true,
     debug:  false,
-    // flags: '-FOUND_ROWS,IGNORE_SPACE',
-    // ssl: { ca: fs.readFileSync(__dirname + '/mysql-ca.crt') },
   }, opts);
   const table = opts.table || 'keyvalues';
   const batchVolume = opts.batchVolume || 3500;
-  const useQuery = opts.useQuery || false;
   const indexValueSQL = opts.indexValue ? ', INDEX (`value`)' : ''; // allows for a more relational push model inside the keyvalue store db
   // dual would only be used for special relational cases ie mongo or mysql..
   delete options.table;
@@ -45,18 +42,21 @@ function MysqlDB(opts) {
     multiTableBatch: true, // added
   };
 
-  const transact = this.transact = query => new Promise((resolve, reject) => {
-    pool.getConnection(function(connectionError, conn) {
-      if (connectionError) { conn.release(); return reject(connectionError); }
+  const _query = this._query = (query, transact) => new Promise((resolve, reject) => {
+    pool.getConnection((connectionError, conn) => {
+      if (connectionError) {
+        conn.release();
+        return reject(connectionError);
+      }
 
-      // Use just query not transaction
-      if (useQuery === true) {
-        conn.query(query, function (queryError, results) {
+      if (!transact) {
+        conn.query(query, (queryError, results) => {
+          conn.release();
+
           if (queryError) {
             return reject(queryError);
           }
 
-          conn.release();
           return resolve(results);
         });
       } else {
@@ -101,18 +101,18 @@ function MysqlDB(opts) {
 
   const empty = {};
   this.pool = () => pool;
-  this.create = () => transact('CREATE TABLE IF NOT EXISTS ' + table +  ' (`key` VARCHAR(128) NOT NULL, `value` VARCHAR(' + (indexValueSQL.length ? '128' : '4000') + ') NOT NULL' + ', PRIMARY KEY (`key`)' + indexValueSQL + ' );');
-  this.drop = () => transact(`DROP TABLE ${table};`);
-  this.put = (key, value, ignore = true) => transact(`${ignore === true ? `DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)}; ` + 'INSERT' : 'INSERT'} INTO ${table} (${'`'}key${'`'},${'`'}value${'`'}) VALUES (${mysql.escape(key)}, ${mysql.escape(value)});`);
-  this.del = key => transact(`DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)};`);
-  this.get = key => transact(`SELECT value FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)} UNION SELECT NULL;`)
+  this.create = () => _query('CREATE TABLE IF NOT EXISTS ' + table +  ' (`key` VARCHAR(128) NOT NULL, `value` VARCHAR(' + (indexValueSQL.length ? '128' : '4000') + ') NOT NULL' + ', PRIMARY KEY (`key`)' + indexValueSQL + ' );');
+  this.drop = () => _query(`DROP TABLE ${table};`);
+  this.put = (key, value, ignore = true, transact = false) => _query(`${ignore === true ? `DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)}; ` + 'INSERT' : 'INSERT'} INTO ${table} (${'`'}key${'`'},${'`'}value${'`'}) VALUES (${mysql.escape(key)}, ${mysql.escape(value)});`, transact);
+  this.del = (key, transact = false) => _query(`DELETE FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)};`, transact);
+  this.get = (key, transact = false) => _query(`SELECT value FROM ${table} WHERE ${'`'}key${'`'} = ${mysql.escape(key)} UNION SELECT NULL;`, transact)
     .then(v => (v[0] || empty).value || null)
     .catch(e => Promise.reject(e));
-  this.keys = value => transact(`SELECT ${'`'}key${'`'} FROM ${table} WHERE ${'`'}value${'`'} = ${mysql.escape(value)};`)
+  this.keys = value => _query(`SELECT ${'`'}key${'`'} FROM ${table} WHERE ${'`'}value${'`'} = ${mysql.escape(value)};`)
     .then(results => results.map(v => v.key || null))
     .catch(e => Promise.reject(e));
-  this.clear = () => transact(`TRUNCATE TABLE ${table};`);
-  var batch = this.batch = async (_arr, results = [], initCount = null) => {
+  this.clear = (transact = false) => _query(`TRUNCATE TABLE ${table};`, transact);
+  const batch = this.batch = async (_arr, transact = false, results = [], initCount = null) => {
     try {
       // MUST Be right filter..
       const hasGet = _arr.filter(v => v.type === 'get').length > 0;
@@ -205,8 +205,8 @@ function MysqlDB(opts) {
          .reduce((acc, tableName) => replaceAll(acc, `DELETE FROM ${tableName} WHERE ();`, ''), _sqlQuery);
 
       // Tx Results
-      const transactionResults = await transact(preSQLQuery + sqlQuery);
-      return await batch(arr.slice(len), results.concat(transactionResults), initCount);
+      const _queryionResults = await _query(preSQLQuery + sqlQuery, transact);
+      return await batch(arr.slice(len), transact, results.concat(_queryionResults), initCount);
     } catch (error) {
       throw new ByPassError(error);
     }

@@ -40,6 +40,8 @@ module.exports = cors(async (req, res) => {
       const address = String(data.address).toLowerCase();
       const timeId = big(Math.round(unixtime() / 600)).toHexString(); // once an hour..
 
+      // data.chain_id = 3 or 5 (ropsten or gorli), than select db..
+
       TypeHex(data.address, 20);
 
       try {
@@ -47,13 +49,13 @@ module.exports = cors(async (req, res) => {
         await remote.batch([
           { type: 'put', table: remote.table, key: FuelDBKeys.ip + ip.slice(2) + timeId.slice(2), value: '0x1', ignore: false },
           { type: 'put', table: requests.table, key: FuelDBKeys.ip + ip.slice(2), value: data.address },
-        ]);
+        ], true);
 
         // send out result
         await send(res, 200, { error: null, result: '0x1' });
         return;
       } catch (error) {
-        send(res, 400, { error: 'Too many requests, can only request per IP every 10 mins.', result: null });
+        send(res, 400, { error: 'Too many requests, can only request fake Dai every 10 mins per IP.', result: null });
         return;
       }
     }

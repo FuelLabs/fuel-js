@@ -22,7 +22,7 @@ const mempool = new MysqlDB({ // for storing tx list
   table: 'mempool',
 });
 const accounts = new MysqlDB({ // for storing remotly for lambda processing
-  host: process.env.mysql_host, // "SG-fuel3-1564-master.servers.mongodirector.com",
+  host: process.env.mysql_host,
   port: process.env.mysql_port,
   database: process.env.mysql_database,
   user: process.env.mysql_user,
@@ -42,6 +42,7 @@ module.exports = cors(async (req, res) => {
 
     if (req.method !== 'OPTIONS') {
       const data = await json(req);
+      // data.chain_id = 3 or 5 (ropsten or gorli), than select db..
 
       // Intake Tx
       const result = await intakeTransaction({

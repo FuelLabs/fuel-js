@@ -41,6 +41,7 @@ test('module test', async t => {
 
   await db.put('samekey', '0xaa', true);
   await db.put('samekey', '0xbb', true);
+  await db.put('samekey', '0xbb', true, true);
 
   t.equal(await dbQuery.get('samekey'), '0xbb', 'query usage check');
 
@@ -80,6 +81,16 @@ test('module test', async t => {
     ]);
   } catch (error) {
     t.equal(typeof error, 'object', 'throw while transacting');
+  }
+
+  try {
+    await db.batch([
+      { type: 'put', key: 'hello3', value: 'yes4' },
+      { type: 'del', key: 'hello6' },
+      { type: 'put', key: 'hello3', value: 'yes', ignore: false },
+    ], true);
+  } catch (error) {
+    t.equal(typeof error, 'object', 'throw while transacting Activated!');
   }
 
 
@@ -224,7 +235,7 @@ test('module test', async t => {
   t.equal(db2.table, 'accounts_test', 'table name b');
 
   t.equal(await db.get('johnny'), 'valll', 'multi table test');
-  t.equal(await db2.get('test84'), 'val199', 'multi table test');
+  t.equal(await db2.get('test84', true), 'val199', 'multi table test');
   t.equal(await db2.get('test22'), null, 'multi table test');
   t.equal(await db.get('talk'), 'walk', 'multi table test');
 
@@ -239,10 +250,22 @@ test('module test', async t => {
     { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll' },
   ]);
 
+  // try transacitonally..
+  await db.batch([
+    { type: 'put', key: 'talk', value: 'walk' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val122' },
+    { type: 'put', table: 'accounts_test', key: 'test22', value: 'val120' },
+    { type: 'put', table: 'accounts_test', key: 'test84', value: 'val199' },
+    { type: 'del', table: 'accounts_test', key: 'test22' },
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll2' },
+    { type: 'del', key: 'johnny' }, // should defualt to testkeyvalues
+    { type: 'put', table: 'testkeyvalues', key: 'johnny', value: 'valll' },
+  ], true);
+
   t.equal(await db.get('johnny'), 'valll', 'multi table test');
   t.equal(await db2.get('test84'), 'val199', 'multi table test');
   t.equal(await db2.get('test22'), null, 'multi table test');
-  t.equal(await db.get('talk'), 'walk', 'multi table test');
+  t.equal(await db.get('talk', true), 'walk', 'multi table test');
 
   console.log(await streamToArray(await db.createReadStream()));
 

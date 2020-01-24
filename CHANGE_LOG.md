@@ -1,3 +1,22 @@
+# 0.0.6 -- new contracts
+
+1. Mempool to handle scale
+2. Better use of db transactionality in Mysql
+3. Wallet upgrades for default DB system (index for browser, mem for node)
+4. toArray cleaned up, with limit and transform optionality
+5. intakeTx updated with new transactionality setting
+6. Lambdas updated with new db setting
+7. Sync upgrades
+8. Faucet upgrades
+9. Struct cleanup old comments
+10. Multi-chain deployment scripting / configuration script setting
+11. Prepping for multi-chain support wallet / lambdas, up-next for v0.0.6
+
+# 0.0.4 -- new contracts
+
+1. Mempool adjustments
+2. Wallet cleanup
+
 # 0.0.3 -- new contracts
 
 1. Merklization adjustments

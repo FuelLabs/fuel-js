@@ -1,6 +1,6 @@
 {
   "name": "fuel-core",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Essential javascript architecture for the Fuel side chain",
   "main": "index.js",
   "scripts": {
@@ -17,9 +17,12 @@
     "test-sync-inspect": "NODE_ENV=testing node --expose-gc --inspect=9224 ./nodes/sync.test.js",
     "test-sync-prof": "NODE_ENV=testing providerServer=True node --prof ./nodes/sync.test.js",
     "node-ganache": "NODE_ENV=production node ./nodes/ganache.node.js",
-    "node-faucet": "NODE_ENV=production node ./nodes/faucet.node",
-    "node-verifier": "NODE_ENV=production verifier=1 node ./nodes/sync.node",
-    "node-sync": "NODE_ENV=production node ./nodes/sync.node",
+    "node-sync": "NODE_ENV=production chain_id=3 node ./nodes/sync.node",
+    "node-faucet": "NODE_ENV=production chain_id=3 node ./nodes/faucet.node",
+    "node-verifier": "NODE_ENV=production chain_id=3 verifier=1 node ./nodes/sync.node",
+    "node-sync-gorli": "NODE_ENV=production chain_id=5 node ./nodes/sync.node",
+    "node-faucet-gorli": "NODE_ENV=production chain_id=5 node ./nodes/faucet.node",
+    "node-verifier-gorli": "NODE_ENV=production chain_id=5 verifier=1 node ./nodes/sync.node",
     "test-browser": "parcel browser/index.html",
     "reset": "node config/reset.js",
     "show-accounts": "node config/accounts.js",
@@ -38,10 +41,12 @@
   },
   "author": "Nick Dodson <nick.dodson@fuel.sh>",
   "license": "Apache-2.0",
+  "browserslist": [
+    "last 1 Chrome versions"
+  ],
   "devDependencies": {
     "fs-readfile-promise": "^3.0.1",
     "ganache-core": "^2.9.1-beta.0",
-    "regenerator-runtime": "^0.13.3",
     "solc": "^0.5.12",
     "tap-mocha-reporter": "^5.0.0",
     "write": "^2.0.0",
@@ -56,6 +61,7 @@
   "dependencies": {
     "axios": "^0.19.1",
     "bn.js": "^5.1.1",
+    "browser-or-node": "^1.2.1",
     "ethers": "^4.0.42",
     "ethjs-provider-http": "^0.1.6",
     "ethjs-rpc": "^0.2.0",

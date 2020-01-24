@@ -610,7 +610,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
           value: mempoolEntry,
           created: _time,
           table: mempool.table,
-        }])); // , { transact: true }
+        }]), true);
     } else {
       // Account writes, this can be made more efficient with a single connection
       if (accounts) {
@@ -618,10 +618,10 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       }
 
       // Attempt writes into results
-      await db.batch(writes);
+      await db.batch(writes, true);
 
       // Notate tx in mempool, if this fails it can be healed later..
-      await mempool.put(mempoolKey, mempoolEntry);
+      await mempool.put(mempoolKey, mempoolEntry, true, true);
     }
 
     // Inserted success.

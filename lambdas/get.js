@@ -13,7 +13,6 @@ const db = new MysqlDB({
   user: process.env.mysql_user,
   password: process.env.mysql_password,
   table: 'keyvalues',
-  useQuery: true,
 });
 
 // Request Dispersal!
@@ -27,6 +26,8 @@ module.exports = cors(async (req, res) => {
 
     if (req.method !== 'OPTIONS') {
       const data = await json(req);
+
+      // data.chain_id = 3 or 5 (ropsten or gorli), than select db..
 
       // Enforce the block number in hex
       TypeHex(data.key);

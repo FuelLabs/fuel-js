@@ -8,7 +8,9 @@ const errors = require('../errors/errors');
 const { Contract, SigningKey } = require('ethers');
 const { parseTransactions } = require('../blocks/parseTransactions');
 const { transactionsFromReceipt } = require('../blocks/processBlock');
+const dbs = require('../dbs');
 const axios = require('axios');
+const jsEnv = require('browser-or-node');
 
 // Wraps Axios or a Post method, does the RLP decoding..
 const postDecoder = method => (url, args) => method(url, args)
@@ -38,7 +40,7 @@ function Wallet({
 
   // Type paper
   types.TypeObject(signer);
-  types.TypeDB(db);
+  if (typeof db !== "undefined") { types.TypeDB(db); }
   if (typeof provider !== "undefined") { types.TypeObject(provider); }
   if (typeof _addresses !== "undefined") { types.TypeObject(_addresses); }
   if (typeof _ids !== "undefined") { types.TypeObject(_ids); }
@@ -48,7 +50,8 @@ function Wallet({
 
   // DB for Wallet
   const _provider = this.provider = provider;
-  const _rpc = this.rpc = rpc || (_provider ? FuelRPC({ web3Provider: _provider }) : null);
+  const _rpc = this.rpc = rpc
+    || (_provider ? FuelRPC({ web3Provider: _provider }) : null);
   const _getReceipt = _provider ? (async txhash => {
     try {
       // Timeout
@@ -92,8 +95,13 @@ function Wallet({
   // Post
   this.post = __post;
 
-  // Object Properties
-  this.db = db;
+  // Create a defualt DB based upon the environment of exeuction
+  const _defaultDB = jsEnv.isBrowser
+    ? new dbs.Index()
+    : new dbs.Memory();
+
+  // More dbs
+  const _db = this.db = !db ? _defaultDB : db;
   this.chainId = String(chainId || '3'); // Ropsten by defaiult..
   this.address = signer.address;
   const network = this.network = networks[this.chainId];
@@ -136,7 +144,7 @@ function Wallet({
         throw new Error('Invalid token does not exist in Fuel.');
       }
 
-      db.createReadStream()
+      _db.createReadStream()
       .on('data', row => {
         if (row.key.indexOf(interfaces.FuelDBKeys.UTXO) === 0
           || row.key.indexOf(FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)) === 0) {
@@ -246,11 +254,12 @@ function Wallet({
       types.TypeObject(opts);
 
       // Clear DB
-      await db.clear();
+      await _db.clear();
 
       // API Accounts
       const results = await __post(`${_api}account`, {
         address: signer.address,
+        // chain_id: '3',
       });
 
       // if no results / stop routine.
@@ -263,17 +272,17 @@ function Wallet({
       // Load synced DB into wallet..
       for (let resultIndex = 0; resultIndex < keys.length; resultIndex++) {
         if (keys[resultIndex].indexOf(interfaces.FuelDBKeys.mempool) === 0) {
-          await db.put('0x' + keys[resultIndex].slice(4), values[resultIndex]);
+          await _db.put('0x' + keys[resultIndex].slice(4), values[resultIndex]);
         } else {
-          await db.put(keys[resultIndex], values[resultIndex]);
+          await _db.put(keys[resultIndex], values[resultIndex]);
         }
       }
 
       // Account for spends during sync..
       for (let resultIndex = 0; resultIndex < keys.length; resultIndex++) {
         if (keys[resultIndex].indexOf(interfaces.FuelDBKeys.mempoolSpend) === 0) {
-          await db.del(interfaces.FuelDBKeys.UTXO + keys[resultIndex].slice(4));
-          await db.del(interfaces.FuelDBKeys.Deposit + keys[resultIndex].slice(4));
+          await _db.del(interfaces.FuelDBKeys.UTXO + keys[resultIndex].slice(4));
+          await _db.del(interfaces.FuelDBKeys.Deposit + keys[resultIndex].slice(4));
         }
       }
 
@@ -294,6 +303,7 @@ function Wallet({
       // this will faucet the initial amount
       const result = await __post(`${_api}faucet`, {
         address: signer.address,
+        // chain_id: '3',
       });
 
       // Process
@@ -329,6 +339,7 @@ function Wallet({
       // Get block number from API
       const result = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.blockTip,
+        // chain_id: '3',
       });
 
       // Block Number from API
@@ -346,6 +357,7 @@ function Wallet({
       // Get block number from API
       const result = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.tokenID + String(token).toLowerCase().slice(2),
+        // chain_id: '3',
       });
 
       // Block Number from API
@@ -418,7 +430,7 @@ function Wallet({
       });
 
       // add deposit to db
-      await db.put(interfaces.FuelDBKeys.Deposit + depositHashID.slice(2), _utils.RLP.encode([
+      await _db.put(interfaces.FuelDBKeys.Deposit + depositHashID.slice(2), _utils.RLP.encode([
         signer.address,
         token,
         depositReceipt.blockNumber,
@@ -431,6 +443,7 @@ function Wallet({
       while (!depositUTXOSynced) {
         depositUTXOSynced = ((await __post(`${_api}get`, {
           key: interfaces.FuelDBKeys.Deposit + depositHashID.slice(2),
+          // chain_id: '3',
         })) || [])[1]; // the actual utxo, null if not available
 
         if (_utils.unixtime() > timeout) {
@@ -540,6 +553,7 @@ function Wallet({
         transaction: unsignedTransaction.rlp([
           new structs.TransactionWitness(structs.constructWitness(unsignedTransaction, signer))
         ]),
+        // chain_id: '3',
       });
 
       if (!result) {
@@ -558,7 +572,7 @@ function Wallet({
           owner: recipient,
         });
 
-        await db.put(interfaces.FuelDBKeys.withdrawal
+        await _db.put(interfaces.FuelDBKeys.withdrawal
             + primaryOutputProof.hash.slice(2), primaryOutputProof.rlp());
       }
 
@@ -576,7 +590,7 @@ function Wallet({
             owner: 0,
           });
 
-          await db.put(interfaces.FuelDBKeys.withdrawal
+          await _db.put(interfaces.FuelDBKeys.withdrawal
               + entry.hash.slice(2), entry.rlp());
         } else if (opts.htlc) {
           entry = new structs.UTXOProof({
@@ -591,7 +605,7 @@ function Wallet({
             returnWitnessIndex: opts.returnWitnessIndex || 0,
           });
 
-          await db.put(interfaces.FuelDBKeys.HTLC
+          await _db.put(interfaces.FuelDBKeys.HTLC
               + entry.hash.slice(2), entry.rlp());
         } else {
           // Change UTXO
@@ -604,7 +618,7 @@ function Wallet({
             tokenID,
           });
 
-          await db.put(interfaces.FuelDBKeys.UTXO
+          await _db.put(interfaces.FuelDBKeys.UTXO
               + entry.hash.slice(2), entry.rlp());
         }
       }
@@ -622,12 +636,12 @@ function Wallet({
           owner: 0,
         });
 
-        await db.put(interfaces.FuelDBKeys.UTXO
+        await _db.put(interfaces.FuelDBKeys.UTXO
             + changeUTXO.hash.slice(2), changeUTXO.rlp());
       }
 
       // delete the inputs from the db
-      await db.batch(inputBatch.map(v => ({
+      await _db.batch(inputBatch.map(v => ({
         type: 'del',
         key: v.key,
       })));
@@ -683,12 +697,14 @@ function Wallet({
       // Withdrawal
       let utxo = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.withdrawal + withdrawal.utxoProof.hash.slice(2),
+        // chain_id: '3',
       });
 
       // Wait for utxo
       while (opts.wait && !(utxo || [])[1]) {
         utxo = await __post(`${_api}get`, {
           key: interfaces.FuelDBKeys.withdrawal + withdrawal.utxoProof.hash.slice(2),
+          // chain_id: '3',
         });
         await _utils.wait(1000);
       }
@@ -706,6 +722,7 @@ function Wallet({
       // Get Data for the retrieval..
       const block = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.block + _utils.big(blockNumber.toNumber()).toHexString().slice(2),
+        // chain_id: '3',
       });
       const blockTransactionRootHashes = block[4];
 
@@ -713,6 +730,7 @@ function Wallet({
       const transactionRootHash = blockTransactionRootHashes[transactionRootIndex];
       const transactionRoot = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.transactionRoot + transactionRootHash.slice(2),
+        // chain_id: '3',
       });
 
       // Root Ethereum Tx hash
@@ -769,7 +787,7 @@ function Wallet({
       }
 
       // Remove if success
-      await this.db.del(withdrawal.key);
+      await _db.del(withdrawal.key);
 
       // This will get the funds back to the user..
       return proofReceipt;

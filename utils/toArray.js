@@ -1,4 +1,4 @@
-module.exports = function (stream, limit = 2000, transform, done) {
+module.exports = function (stream, limit = null, transform = null, done) {
   if (!stream) {
     // no arguments, meaning stream = this
     stream = this
@@ -6,6 +6,11 @@ module.exports = function (stream, limit = 2000, transform, done) {
     // stream = this, callback passed
     done = stream
     stream = this
+  }
+
+  // Handle empty transform
+  if (transform === null) {
+    transform = v => v;
   }
 
   var deferred
@@ -21,13 +26,14 @@ module.exports = function (stream, limit = 2000, transform, done) {
     stream.on('close', onClose)
 
     function onData(doc) {
-      if (arr.length > limit) {
+      if (limit !== null && arr.length >= limit) {
         stream.destroy();
-      } else {
-        const _doc = transform(doc);
-        if (_doc !== null) {
-          arr.push(_doc);
-        }
+        return;
+      }
+
+      const _doc = transform(doc);
+      if (_doc !== null) {
+        arr.push(_doc);
       }
     }
 

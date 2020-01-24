@@ -8,6 +8,9 @@ const { RLP } = require('../utils/utils');
 
 const cors = microCors({ allowMethods: ['POST', 'OPTIONS'] });
 
+// Here we would do two DB copies, one for each of the networks
+// Gorli / ropsten.. than based upon network ID fed in via the call
+// It would select the approporiate network
 const db = new MysqlDB({ // for storing remotly for lambda processing
   host: process.env.mysql_host,
   port: parseInt(process.env.mysql_port, 10),
@@ -15,17 +18,15 @@ const db = new MysqlDB({ // for storing remotly for lambda processing
   user: process.env.mysql_user,
   password: process.env.mysql_password,
   table: 'keyvalues',
-  useQuery: true,
 });
 const accounts = new MysqlDB({ // for storing remotly for lambda processing
-  host: process.env.mysql_host, // "SG-fuel3-1564-master.servers.mongodirector.com",
+  host: process.env.mysql_host,
   port: process.env.mysql_port,
   database: process.env.mysql_database,
   user: process.env.mysql_user,
   password: process.env.mysql_password,
   table: 'accounts', // key / value table..
   indexValue: true,
-  useQuery: true,
 });
 
 // Request Dispersal!
@@ -39,6 +40,8 @@ module.exports = cors(async (req, res) => {
 
     if (req.method !== 'OPTIONS') {
       const data = await json(req);
+
+      // data.chain_id = 3 or 5 (ropsten or gorli), than select db..
 
       // Enforce the block number in hex
       TypeHex(data.address, 20);

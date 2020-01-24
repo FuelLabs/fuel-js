@@ -1,14 +1,15 @@
-require('regenerator-runtime');
+// require('regenerator-runtime');
 import { Wallet, utils, dbs } from "../index";
 
 const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
-const { faucet, transfer, sync, tokens, balance } = new Wallet({
+const { faucet, transfer, sync, tokens, balance, db } = new Wallet({
   signer,
-  db: new dbs.Memory(),
-  api: 'https://fuel-lambda.now.sh/',
+  // api: 'https://fuel-lambda.now.sh/',
 });
 
 (async ()=>{
+
+  console.log(db);
 
   console.time('Faucet');
   await faucet(); // get 100^18 fakeDai
