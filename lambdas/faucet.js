@@ -6,21 +6,22 @@ const MysqlDB = require('../dbs/MysqlDB');
 const { FuelDBKeys } = require('../interfaces/interfaces');
 const cors = microCors({ allowMethods: ['POST', 'OPTIONS'] });
 const { unixtime, big, ipToHex } = require('../utils/utils');
+const env = require('../config/process');
 
 const remote = new MysqlDB({ // for storing remotly for lambda processing
-  host: process.env.mysql_host,
-  port: parseInt(process.env.mysql_port, 10),
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'keyvalues',
 });
 const requests = new MysqlDB({ // for storing remotly for lambda processing
-  host: process.env.mysql_host,
-  port: parseInt(process.env.mysql_port, 10),
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'faucet_requests',
 });
 
@@ -40,7 +41,7 @@ module.exports = cors(async (req, res) => {
       const address = String(data.address).toLowerCase();
       const timeId = big(Math.round(unixtime() / 600)).toHexString(); // once an hour..
 
-      // data.chain_id = 3 or 5 (ropsten or gorli), than select db..
+      // data.chain_id = 3 or 5 (ropsten or goerli), than select db..
 
       TypeHex(data.address, 20);
 

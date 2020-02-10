@@ -3,15 +3,16 @@ const microCors = require('micro-cors');
 const { TypeHex } = require('../types/types');
 const MysqlDB = require('../dbs/MysqlDB');
 const { FuelDBKeys } = require('../interfaces/interfaces');
+const env = require('../config/process');
 
 const cors = microCors({ allowMethods: ['GET', 'PUT', 'POST', 'OPTIONS'] });
 
 const db = new MysqlDB({
-  host: process.env.mysql_host,
-  port: parseInt(process.env.mysql_port, 10),
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'keyvalues',
 });
 
@@ -27,7 +28,7 @@ module.exports = cors(async (req, res) => {
     if (req.method !== 'OPTIONS') {
       const data = await json(req);
 
-      // data.chain_id = 3 or 5 (ropsten or gorli), than select db..
+      // data.chain_id = 3 or 5 (ropsten or goerli), than select db..
 
       // Enforce the block number in hex
       TypeHex(data.key);

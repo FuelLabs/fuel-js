@@ -23,6 +23,7 @@ const faucet = {
 // Networks
 const networks = {
   '3': 'ropsten',
+  '5': 'goerli',
   '10': 'local',
 };
 

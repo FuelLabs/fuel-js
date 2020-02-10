@@ -1,8 +1,9 @@
 const ganache = require("ganache-core");
 const { providerConfig } = require('../tests/test.environment.js');
+const env = require('../config/process');
 
 const server = ganache.server(providerConfig);
 
-server.listen(process.env.port || 3000, function(err) {
+server.listen(env.port || 3000, function(err) {
   if (err) { console.error(err); }
 });

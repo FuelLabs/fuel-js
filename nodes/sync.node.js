@@ -8,18 +8,19 @@ const MysqlDB = require('../dbs/MysqlDB');
 const HTTPProvider = require('ethjs-provider-http');
 const { FuelContract, FuelRPC, FuelDBKeys } = require('../interfaces/interfaces');
 const config = require('../config/config');
+const env = require('../config/process');
 let Sentry = null;
 
-// CLI strategy is simply to move process.env into a CLI flag based object..
+// CLI strategy is simply to move env into a CLI flag based object..
 
 // Sentry Error Reporting
-if (process.env.sentry) {
+if (env.sentry) {
   Sentry = require('@sentry/node');
-  Sentry.init({ dsn: process.env.sentry });
+  Sentry.init({ dsn: env.sentry });
 }
 
 // memwatch.on('stats', console.log);
-if (process.env.memwatch) {
+if (env.memwatch) {
   const memwatch = require('node-memwatch');
   memwatch.on('leak', console.log);
   memwatch.on('stats', console.log);
@@ -49,38 +50,38 @@ async function node() {
     const local = new LevelUpDB('./dbcache', false, true); // for local caching..
 
     // Mysql Mempool / Accounts are supported
-    if (process.env.mysql_host && !process.env.verifier) {
+    if (env.mysql_host && !env.verifier) {
       remote = new MysqlDB({ // for storing remotly for lambda processing
-        host: process.env.mysql_host,
-        port: parseInt(process.env.mysql_port, 10),
-        database: process.env.mysql_database,
-        user: process.env.mysql_user,
-        password: process.env.mysql_password,
+        host: env.mysql_host,
+        port: parseInt(env.mysql_port, 10),
+        database: env.mysql_database,
+        user: env.mysql_user,
+        password: env.mysql_password,
       });
       await remote.create();
       db = new CacheDB(local, remote);
 
-      if (process.env.reset) {
+      if (env.reset) {
         await db.clear();
       }
 
-      if (!process.env.verifier) {
+      if (!env.verifier) {
         mempool = new MysqlDB({ // for storing mempool transaction data
-          host: process.env.mysql_host,
-          port: parseInt(process.env.mysql_port, 10),
-          database: process.env.mysql_database,
-          user: process.env.mysql_user,
-          password: process.env.mysql_password,
+          host: env.mysql_host,
+          port: parseInt(env.mysql_port, 10),
+          database: env.mysql_database,
+          user: env.mysql_user,
+          password: env.mysql_password,
           table: 'mempool',
         });
         await mempool.create();
 
         commitments = new MysqlDB({ // for storing mempool transaction data
-          host: process.env.mysql_host,
-          port: parseInt(process.env.mysql_port, 10),
-          database: process.env.mysql_database,
-          user: process.env.mysql_user,
-          password: process.env.mysql_password,
+          host: env.mysql_host,
+          port: parseInt(env.mysql_port, 10),
+          database: env.mysql_database,
+          user: env.mysql_user,
+          password: env.mysql_password,
           table: 'commitments',
         });
         await commitments.create();
@@ -90,18 +91,18 @@ async function node() {
         // await commitments.clear();
 
         const accountsRemote = new MysqlDB({ // for storing remote for lambda processing
-          host: process.env.mysql_host,
-          port: process.env.mysql_port,
-          database: process.env.mysql_database,
-          user: process.env.mysql_user,
-          password: process.env.mysql_password,
+          host: env.mysql_host,
+          port: env.mysql_port,
+          database: env.mysql_database,
+          user: env.mysql_user,
+          password: env.mysql_password,
           table: 'accounts',
           indexValue: true, // secondary index
         });
         await accountsRemote.create();
         accounts = accountsRemote;
 
-        if (process.env.reset) {
+        if (env.reset) {
           await commitments.clear();
           await mempool.clear();
           await accounts.clear();
@@ -112,22 +113,22 @@ async function node() {
     }
 
     // Web3 Provider..
-    const web3Provider = new HTTPProvider(process.env.web3_provider);
+    const web3Provider = new HTTPProvider(env.web3_provider);
 
     // Fuel Contract
     const contract = FuelContract({
-      address: config.addresses[config.networks[process.env.chain_id || 3]].fuel, // live fuel contract
+      address: config.addresses[config.networks[env.chain_id || 3]].fuel, // live fuel contract
       web3Provider,
     });
 
     // Private Keys for Various Aspects of Production
-    const keys = !process.env.verifier ? {
-      block_production_key: process.env.block_production_key,
-      faucet_key: process.env.faucet_key, // not needed for sync..
-      fraud_commitment_key: process.env.fraud_commitment_key,
-      transactions_submission_keys: (process.env.transactions_submission_keys || '').split(',').map(v => v.trim()),
+    const keys = !env.verifier ? {
+      block_production_key: env.block_production_key,
+      faucet_key: env.faucet_key, // not needed for sync..
+      fraud_commitment_key: env.fraud_commitment_key,
+      transactions_submission_keys: (env.transactions_submission_keys || '').split(',').map(v => v.trim()),
     } : {
-      fraud_commitment_key: process.env.fraud_commitment_key,
+      fraud_commitment_key: env.fraud_commitment_key,
     };
 
     // Fuel RPC
@@ -135,8 +136,8 @@ async function node() {
       web3Provider,
     });
 
-    const gasLimit = process.env.gasLimit
-      ? _utils.big(process.env.gasLimit) : _utils.big(4000000);
+    const gasLimit = env.gasLimit
+      ? _utils.big(env.gasLimit) : _utils.big(4000000);
 
     // Sync sequence which just keeps looping and syncing..
     await sync({

@@ -64,12 +64,17 @@
   ],
   "env": {
     "NODE_ENV": "production",
-    "mysql_host": "@mysql_host",
-    "mysql_port": "@mysql_port",
-    "mysql_database": "@mysql_database",
-    "mysql_user": "@mysql_user",
-    "mysql_password": "@mysql_password",
-    "web3_provider": "@web3_provider",
-    "chain_id": "@chain_id"
+    "goerli_mysql_host": "@goerli_mysql_host",
+    "goerli_mysql_port": "@goerli_mysql_port",
+    "goerli_mysql_database": "@goerli_mysql_database",
+    "goerli_mysql_user": "@goerli_mysql_user",
+    "goerli_mysql_password": "@goerli_mysql_password",
+    "goerli_web3_provider": "@goerli_web3_provider",
+    "ropsten_mysql_host": "@ropsten_mysql_host",
+    "ropsten_mysql_port": "@ropsten_mysql_port",
+    "ropsten_mysql_database": "@ropsten_mysql_database",
+    "ropsten_mysql_user": "@ropsten_mysql_user",
+    "ropsten_mysql_password": "@ropsten_mysql_password",
+    "ropsten_web3_provider": "@ropsten_web3_provider",
   }
 }

@@ -14,6 +14,9 @@ flamegraph.html
 dist
 .cache
 /old
+id_rsa
+~/id_rsa
+~/.ssh
 dbaccounts
 dbaccounts_middle
 dbspendableInputs

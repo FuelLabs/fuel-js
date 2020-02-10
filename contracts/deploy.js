@@ -10,26 +10,27 @@ const FakeDaiBytecode = require('./FakeDai.code.js');
 const { getReceipt } = require('../blocks/processBlock');
 const write = require('write');
 const oldConfig = require('../config/config');
+const env = require('../config/process');
 
 // Deploy with Block Producer etc..
 // This will setup the contract / token / mint and then transfer to faucet
 // then produce the first faucet tx woot.
 
-types.TypeHex(process.env.block_production_key, 32);
-types.TypeHex(process.env.faucet_key, 32);
+types.TypeHex(env.block_production_key, 32);
+types.TypeHex(env.faucet_key, 32);
 
-const web3Provider = new HTTPProvider(process.env.web3_provider);
-const blockProducer = new Wallet(process.env.block_production_key,
+const web3Provider = new HTTPProvider(env.web3_provider);
+const blockProducer = new Wallet(env.block_production_key,
   new providers.Web3Provider(web3Provider));
-const faucetProducer = new Wallet(process.env.faucet_key,
+const faucetProducer = new Wallet(env.faucet_key,
   new providers.Web3Provider(web3Provider));
-const faucetSigner = new utils.SigningKey(process.env.faucet_key);
+const faucetSigner = new utils.SigningKey(env.faucet_key);
 const rpc = interfaces.FuelRPC({ web3Provider });
 
 // Deployment of Network / Faucet
 async function deploy() {
   try {
-    const __chain_id = process.env.chain_id || '3'; // default to ropsten..
+    const __chain_id = env.chain_id || '3'; // default to ropsten..
     const __network = oldConfig.networks[__chain_id];
 
     if (!__network) {
@@ -68,7 +69,7 @@ async function deploy() {
 
     // Notice we pass in "Hello World" as the parameter to the constructor
     const fakeDaiContract = await FakeDaiFactory.deploy(faucetProducer.address);
-    await fakeDaiContract.deployed(_utils.big(3) || process.env.chain_id);
+    await fakeDaiContract.deployed(_utils.big(3) || env.chain_id);
     console.log('FakeDai contract deployed to', fakeDaiContract.address);
 
     // Mint stuff..
@@ -147,7 +148,7 @@ const faucet = ${JSON.stringify(__faucet, null, 2)};
 // Networks
 const networks = {
   '3': 'ropsten',
-  '5': 'gorli',
+  '5': 'goerli',
   '10': 'local',
 };
 

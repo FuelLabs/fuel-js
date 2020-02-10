@@ -9,12 +9,13 @@ const CacheDB = require('../dbs/CacheDB');
 const MiddleCacheDB = require('../dbs/MiddleCacheDB');
 const MysqlDB = require('../dbs/MysqlDB');
 const env = require('../tests/test.environment');
+const processEnv = require('../config/process');
 let Sentry = null;
 
 // Sentry Error Reporting
-if (process.env.sentry) {
+if (processEnv.sentry) {
   Sentry = require('@sentry/node');
-  Sentry.init({ dsn: process.env.sentry });
+  Sentry.init({ dsn: processEnv.sentry });
 }
 
 // Test verify block header
@@ -33,46 +34,46 @@ test('test syncing sequence', async t => {
     // const localMiddle = new LevelUpDB('./dbcache_middle_test', false, true); // for local caching..
 
     // Mysql Mempool / Accounts are supported
-    if (process.env.mysql_host && !process.env.nomysql) {
+    if (processEnv.mysql_host && !processEnv.nomysql) {
       remote = new MysqlDB({ // for storing remotly for lambda processing
-        host: process.env.mysql_host,
-        port: parseInt(process.env.mysql_port, 10),
-        database: process.env.mysql_database,
-        user: process.env.mysql_user,
-        password: process.env.mysql_password,
+        host: processEnv.mysql_host,
+        port: parseInt(processEnv.mysql_port, 10),
+        database: processEnv.mysql_database,
+        user: processEnv.mysql_user,
+        password: processEnv.mysql_password,
         table: 'keyvalues_test',
       });
       await remote.create();
       db = new CacheDB(local, remote);
       // db = new CacheDB(local, remote);
 
-      if (!process.env.verifier) {
+      if (!processEnv.verifier) {
         mempool = new MysqlDB({ // for storing mempool transaction data
-          host: process.env.mysql_host,
-          port: parseInt(process.env.mysql_port, 10),
-          database: process.env.mysql_database,
-          user: process.env.mysql_user,
-          password: process.env.mysql_password,
+          host: processEnv.mysql_host,
+          port: parseInt(processEnv.mysql_port, 10),
+          database: processEnv.mysql_database,
+          user: processEnv.mysql_user,
+          password: processEnv.mysql_password,
           table: 'mempool_test',
         });
         await mempool.create();
 
         faucet = new MysqlDB({ // for storing mempool transaction data
-          host: process.env.mysql_host,
-          port: parseInt(process.env.mysql_port, 10),
-          database: process.env.mysql_database,
-          user: process.env.mysql_user,
-          password: process.env.mysql_password,
+          host: processEnv.mysql_host,
+          port: parseInt(processEnv.mysql_port, 10),
+          database: processEnv.mysql_database,
+          user: processEnv.mysql_user,
+          password: processEnv.mysql_password,
           table: 'faucet_requests_test',
         });
         await faucet.create();
 
         commitments = new MysqlDB({ // for storing mempool transaction data
-          host: process.env.mysql_host,
-          port: parseInt(process.env.mysql_port, 10),
-          database: process.env.mysql_database,
-          user: process.env.mysql_user,
-          password: process.env.mysql_password,
+          host: processEnv.mysql_host,
+          port: parseInt(processEnv.mysql_port, 10),
+          database: processEnv.mysql_database,
+          user: processEnv.mysql_user,
+          password: processEnv.mysql_password,
           table: 'commitments_test',
         });
         await commitments.create();
@@ -80,11 +81,11 @@ test('test syncing sequence', async t => {
         // const accountsLocal = new LevelUpDB('./dbaccounts_test', false, true); // for local caching..
         // const accountsLocalMiddle = new LevelUpDB('./dbaccounts_middle_test', false, true); // for local caching..
         const accountsRemote = new MysqlDB({ // for storing remote for lambda processing
-          host: process.env.mysql_host,
-          port: process.env.mysql_port,
-          database: process.env.mysql_database,
-          user: process.env.mysql_user,
-          password: process.env.mysql_password,
+          host: processEnv.mysql_host,
+          port: processEnv.mysql_port,
+          database: processEnv.mysql_database,
+          user: processEnv.mysql_user,
+          password: processEnv.mysql_password,
           table: 'accounts_test',
           indexValue: true, // secondary index
         });
@@ -98,7 +99,7 @@ test('test syncing sequence', async t => {
       remote = db;
     }
 
-    if (process.env.reset || 1) {
+    if (processEnv.reset || 1) {
       await db.clear();
       await mempool.clear();
       await accounts.clear();

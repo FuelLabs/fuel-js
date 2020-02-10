@@ -11,71 +11,72 @@ const { parseTransactions } = require('../blocks/parseTransactions');
 const { FuelDBKeys } = require('../interfaces/interfaces');
 const config = require('../config/config');
 const faucet = require('./faucet');
+const env = require('../config/process');
 let Sentry = null;
 
 // Sentry Error Reporting
-if (process.env.sentry) {
+if (env.sentry) {
   Sentry = require('@sentry/node');
-  Sentry.init({ dsn: process.env.sentry });
+  Sentry.init({ dsn: env.sentry });
 }
 
 // memwatch.on('stats', console.log);
-if (process.env.memwatch) {
+if (env.memwatch) {
   const memwatch = require('node-memwatch');
   memwatch.on('leak', console.log);
 }
 
 // Setup DB's
 const inputs = new MysqlDB({ // for storing remotly for lambda processing
-  host: process.env.mysql_host,
-  port: parseInt(process.env.mysql_port, 10),
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'faucet_inputs',
   indexValue: false,
 });
 const requests = new MysqlDB({ // for storing remotly for lambda processing
-  host: process.env.mysql_host,
-  port: parseInt(process.env.mysql_port, 10),
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'faucet_requests',
 });
 const db = new MysqlDB({ // for storing remotly for lambda processing
-  host: process.env.mysql_host,
-  port: parseInt(process.env.mysql_port, 10),
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'keyvalues',
 });
 const mempool = new MysqlDB({ // for storing tx list
-  host: process.env.mysql_host,
-  port: parseInt(process.env.mysql_port, 10),
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'mempool',
 });
 const accounts = new MysqlDB({ // for storing remote for lambda processing
-  host: process.env.mysql_host,
-  port: process.env.mysql_port,
-  database: process.env.mysql_database,
-  user: process.env.mysql_user,
-  password: process.env.mysql_password,
+  host: env.mysql_host,
+  port: env.mysql_port,
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
   table: 'accounts',
   indexValue: true, // secondary index
 });
 
-types.TypeHex(process.env.faucet_key, 32);
+types.TypeHex(env.faucet_key, 32);
 
 // Dispersal Preferences...
-const faucetKey = new utils.SigningKey(process.env.faucet_key);
+const faucetKey = new utils.SigningKey(env.faucet_key);
 const keyAddress = faucetKey.address;
-const tokenID = process.env.faucet_token_id
-  ? _utils.big(process.env.faucet_token_id) : _utils.big(1);
+const tokenID = env.faucet_token_id
+  ? _utils.big(env.faucet_token_id) : _utils.big(1);
 
 // Logger with Sentry support
 const logger = {
@@ -99,7 +100,7 @@ async function node() {
     await inputs.create();
 
     // reset all dbs
-    if (process.env.reset) {
+    if (env.reset) {
       // requests.clear();
       // db.clear();
       // mempool.clear();
@@ -126,8 +127,8 @@ async function node() {
       accounts,
       requests,
       tokenID,
-      amount: process.env.faucet_dispersal_amount
-        ? _utils.big(process.env.faucet_dispersal_amount)
+      amount: env.faucet_dispersal_amount
+        ? _utils.big(env.faucet_dispersal_amount)
         : utils.parseEther('100'), // to disperse per account..
       signerKey: faucetKey,
       logger,
