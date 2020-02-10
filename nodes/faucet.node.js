@@ -84,13 +84,6 @@ const logger = {
   error: Sentry ? Sentry.captureException : console.error,
 };
 
-// This is produced by the deploy script in conracts..
-const initialInputEntry = {
-  type: 'put',
-  key: config.faucet.ropsten.key,
-  value: config.faucet.ropsten.value,
-};
-
 // Faucet Node
 async function node() {
   try {
@@ -98,26 +91,6 @@ async function node() {
     await db.create();
     await mempool.create();
     await inputs.create();
-
-    // reset all dbs
-    if (env.reset) {
-      // requests.clear();
-      // db.clear();
-      // mempool.clear();
-      // inputs.clear();
-    }
-
-    // console.log(await db.get(initialInputEntry.key));
-
-
-    // await inputs.del(initialInputEntry.key);
-
-    // Check that genesis exists and is not spent yet!
-    if ((await inputs.get(initialInputEntry.key)) === null) {
-      // Add genesis input for faucet
-      // await inputs.del(initialInputEntry.key);
-      // await inputs.put(initialInputEntry.key, initialInputEntry.value);
-    }
 
     // Dispersal
     await faucet({

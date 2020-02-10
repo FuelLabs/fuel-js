@@ -33,6 +33,11 @@ module.exports = cors(async (req, res) => {
       // Enforce the block number in hex
       TypeHex(data.key);
 
+      // Chain ID
+      if (data.chain_id !== '3' && data.chain_id !== '5') {
+        throw new Error('Invalid chain_id, must be 3 or 5');
+      }
+
       // Throw if key is too long
       if (data.key.length > 128) {
         throw new Error('Key is too long.');

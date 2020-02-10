@@ -76,5 +76,11 @@
     "ropsten_mysql_user": "@ropsten_mysql_user",
     "ropsten_mysql_password": "@ropsten_mysql_password",
     "ropsten_web3_provider": "@ropsten_web3_provider",
+    "local_mysql_host": "@local_mysql_host",
+    "local_mysql_port": "@local_mysql_port",
+    "local_mysql_database": "@local_mysql_database",
+    "local_mysql_user": "@local_mysql_user",
+    "local_mysql_password": "@local_mysql_password",
+    "local_web3_provider": "@local_web3_provider"
   }
 }

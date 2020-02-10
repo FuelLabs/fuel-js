@@ -43,6 +43,7 @@ web3_provider="https://.."
 const prefix = config.networks[process.env.chain_id] + '_';
 
 // Exports
+// Maybe add explicit defaults / than to network specific..
 module.exports = {
   web3_provider: process.env[prefix + 'web3_provider'],
   mysql_host: process.env[prefix + 'mysql_host'],
@@ -55,7 +56,7 @@ module.exports = {
   transactions_submission_keys: process.env.transactions_submission_keys,
   faucet_key: process.env.faucet_key,
   faucet_token_id: process.env.faucet_token_id,
-  faucet_dispersal_amount: process.env.faucet_dispersal_amount',
+  faucet_dispersal_amount: process.env.faucet_dispersal_amount,
   sentry: process.env.sentry,
   verifier: process.env.verifier,
   memwatch: process.env.memwatch,
@@ -63,3 +64,5 @@ module.exports = {
   chain_id: process.env.chain_id,
   port: process.env.port,
 };
+
+console.log(module.exports);

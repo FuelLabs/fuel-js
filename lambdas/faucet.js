@@ -45,6 +45,11 @@ module.exports = cors(async (req, res) => {
 
       TypeHex(data.address, 20);
 
+      // Chain ID
+      if (data.chain_id !== '3' && data.chain_id !== '5') {
+        throw new Error('Invalid chain_id, must be 3 or 5');
+      }
+
       try {
         // Batch writes in single tx. one pass to db
         await remote.batch([

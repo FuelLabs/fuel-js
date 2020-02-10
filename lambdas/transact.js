@@ -45,6 +45,11 @@ module.exports = cors(async (req, res) => {
       const data = await json(req);
       // data.chain_id = 3 or 5 (ropsten or goerli), than select db..
 
+      // Chain ID
+      if (data.chain_id !== '3' && data.chain_id !== '5') {
+        throw new Error('Invalid chain_id, must be 3 or 5');
+      }
+
       // Intake Tx
       const result = await intakeTransaction({
         transaction: data.transaction,

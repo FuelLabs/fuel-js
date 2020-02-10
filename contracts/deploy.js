@@ -19,6 +19,16 @@ const env = require('../config/process');
 types.TypeHex(env.block_production_key, 32);
 types.TypeHex(env.faucet_key, 32);
 
+const inputs = new MysqlDB({ // for storing remotly for lambda processing
+  host: env.mysql_host,
+  port: parseInt(env.mysql_port, 10),
+  database: env.mysql_database,
+  user: env.mysql_user,
+  password: env.mysql_password,
+  table: 'faucet_inputs',
+  indexValue: false,
+});
+
 const web3Provider = new HTTPProvider(env.web3_provider);
 const blockProducer = new Wallet(env.block_production_key,
   new providers.Web3Provider(web3Provider));
@@ -69,7 +79,7 @@ async function deploy() {
 
     // Notice we pass in "Hello World" as the parameter to the constructor
     const fakeDaiContract = await FakeDaiFactory.deploy(faucetProducer.address);
-    await fakeDaiContract.deployed(_utils.big(3) || env.chain_id);
+    await fakeDaiContract.deployed(env.chain_id || _utils.big(3));
     console.log('FakeDai contract deployed to', fakeDaiContract.address);
 
     // Mint stuff..
@@ -136,6 +146,9 @@ async function deploy() {
         [`${String(fakeDaiContract.address).toLowerCase()}`]: '1',
       },
     });
+
+    // Add to faucets inputs
+    await inputs.put(__faucet.key, __faucet.value);
 
     console.log('Writting details to ./config/config.js file..');
     await write('./config/config.js', `
