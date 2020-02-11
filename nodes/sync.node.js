@@ -47,7 +47,7 @@ async function node() {
     let accounts = null;
     let remote = null;
     let commitments = null;
-    const local = new LevelUpDB('./dbcache', false, true); // for local caching..
+    const local = new LevelUpDB('./dbcache' + '_' + env.network, false, true); // for local caching..
 
     // Mysql Mempool / Accounts are supported
     if (env.mysql_host && !env.verifier) {

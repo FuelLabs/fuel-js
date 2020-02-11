@@ -63,6 +63,6 @@ module.exports = {
   gasLimit: process.env.gasLimit,
   chain_id: process.env.chain_id,
   port: process.env.port,
+  network: config.networks[process.env.chain_id],
+  prefix,
 };
-
-console.log(module.exports);

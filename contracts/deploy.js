@@ -11,10 +11,7 @@ const { getReceipt } = require('../blocks/processBlock');
 const write = require('write');
 const oldConfig = require('../config/config');
 const env = require('../config/process');
-
-// Deploy with Block Producer etc..
-// This will setup the contract / token / mint and then transfer to faucet
-// then produce the first faucet tx woot.
+const MysqlDB = require('../dbs/MysqlDB');
 
 types.TypeHex(env.block_production_key, 32);
 types.TypeHex(env.faucet_key, 32);
@@ -40,6 +37,9 @@ const rpc = interfaces.FuelRPC({ web3Provider });
 // Deployment of Network / Faucet
 async function deploy() {
   try {
+    // Create inputs table
+    await inputs.create();
+
     const __chain_id = env.chain_id || '3'; // default to ropsten..
     const __network = oldConfig.networks[__chain_id];
 
@@ -148,7 +148,7 @@ async function deploy() {
     });
 
     // Add to faucets inputs
-    await inputs.put(__faucet.key, __faucet.value);
+    await inputs.put(__faucet[__network].key, __faucet[__network].value);
 
     console.log('Writting details to ./config/config.js file..');
     await write('./config/config.js', `
@@ -186,6 +186,3 @@ module.exports = {
 deploy()
 .then(console.log)
 .catch(console.error);
-
-// Start Sequence
-//

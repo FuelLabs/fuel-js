@@ -41,14 +41,7 @@ module.exports = cors(async (req, res) => {
       const address = String(data.address).toLowerCase();
       const timeId = big(Math.round(unixtime() / 600)).toHexString(); // once an hour..
 
-      // data.chain_id = 3 or 5 (ropsten or goerli), than select db..
-
       TypeHex(data.address, 20);
-
-      // Chain ID
-      if (data.chain_id !== '3' && data.chain_id !== '5') {
-        throw new Error('Invalid chain_id, must be 3 or 5');
-      }
 
       try {
         // Batch writes in single tx. one pass to db

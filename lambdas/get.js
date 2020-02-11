@@ -28,15 +28,8 @@ module.exports = cors(async (req, res) => {
     if (req.method !== 'OPTIONS') {
       const data = await json(req);
 
-      // data.chain_id = 3 or 5 (ropsten or goerli), than select db..
-
       // Enforce the block number in hex
       TypeHex(data.key);
-
-      // Chain ID
-      if (data.chain_id !== '3' && data.chain_id !== '5') {
-        throw new Error('Invalid chain_id, must be 3 or 5');
-      }
 
       // Throw if key is too long
       if (data.key.length > 128) {

@@ -98,15 +98,17 @@ npm install
 # then run one of the following commands
 ```
 
-- Full Sync - `npm run node-sync` runs a full node with mempool optionality with remote MySQL DB
-- Faucet - `npm run node-faucet` runs a faucet node (for fund requests/dispersal of test tokens)
-- Verifier `npm run node-verifier` runs a verifier node (no mempool or block production)
+- Full Sync - `npm run node-sync-ropsten` runs a full node with mempool optionality with remote MySQL DB
+- Faucet - `npm run node-faucet-ropsten` runs a faucet node (for fund requests/dispersal of test tokens)
+- Verifier `npm run node-verifier-ropsten` runs a verifier node (no mempool or block production)
 - Gancache `npm run node-ganache` runs a local Ganache server
+
+Note, Goerli is also supported, i.e. `npm run node-sync-goerli` etc.
 
 ## Building and Deploying
 
 - Build Fuel `npm run build-fuel` builds the Fuel.sol contracts, writes artifacts
-- Deploy Fuel `npm run deploy-fuel` deploys Fuel based on environmental configuration
+- Deploy Fuel `npm run deploy-fuel-ropsten` deploys Fuel based on environmental configuration (`npm run deploy-fuel-goerli` also supported)
 
 ## Running a Test MySQL Sync Node
 
@@ -126,14 +128,21 @@ Set these in your `~/.bashrc` or `~/.bash_profile` to operate the sync and dispe
 
 ```sh
 # Web3 HTTP Provider (string - url.. Infura or Other *Required*)
-web3_provider="https://.."
+ropsten_web3_provider="https://.."
+# goerli_web3_provider="https://.."
 
 # MySQL Database Environment (string[s] - mysql connection settings, optional for sync or verifier nodes)
-# mysql_host
-# mysql_port
-# mysql_database
-# mysql_user
-# mysql_password
+# ropsten_mysql_host
+# ropsten_mysql_port
+# ropsten_mysql_database
+# ropsten_mysql_user
+# ropsten_mysql_password
+
+# goerli_mysql_host
+# goerli_mysql_port
+# goerli_mysql_database
+# goerli_mysql_user
+# goerli_mysql_password
 
 # Keys (string - 64 byte hex)
 # block_production_key=0x..

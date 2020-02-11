@@ -29,4 +29,6 @@ const bal = async addr => utils
   const faucet_key = (new utils.SigningKey(env.faucet_key)).address;
   console.log('Faucet Key',
     faucet_key, await bal(faucet_key));
+
+  console.log(env.prefix);
 })();

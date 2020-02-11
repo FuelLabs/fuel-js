@@ -24,6 +24,8 @@ dbspendableInputs
 dbaccounts_test
 wallet_db_test
 dbcache_middle_test
+dbcache_goerli
+dbcahce_ropsten
 dbcache_test
 cachea-test
 cacheb-test

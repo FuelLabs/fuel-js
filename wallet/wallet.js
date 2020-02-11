@@ -83,8 +83,15 @@ function Wallet({
       throw new Error(error);
     }
   }) : null; // should be setup based on provider..
+
+  // More dbs
+  const _db = this.db = !db ? _defaultDB : db;
+  this.chainId = String(chainId || '3'); // ropsten is default
+  this.address = signer.address;
+  const network = this.network = networks[this.chainId];
+
   const _gasLimit = this.gasLimit = gasLimit || _utils.big('4000000'); // 4 million
-  const _api = api || 'https://api.fuel.sh/'; // APIclon\\
+  const _api = api || `https://${network}.api.fuel.sh/`;
   const __post = postDecoder(_post || axios.post);
 
   // API endpoint check
@@ -99,12 +106,6 @@ function Wallet({
   const _defaultDB = jsEnv.isBrowser
     ? new dbs.Index()
     : new dbs.Memory();
-
-  // More dbs
-  const _db = this.db = !db ? _defaultDB : db;
-  const _chain_id = this.chainId = String(chainId || '3'); // Ropsten by defaiult..
-  this.address = signer.address;
-  const network = this.network = networks[this.chainId];
 
   // get addresses
   const __addresses = (_addresses || addresses)[this.network];
@@ -260,7 +261,6 @@ function Wallet({
       // API Accounts
       const results = await __post(`${_api}account`, {
         address: signer.address,
-        chain_id: _chain_id,
       });
 
       // if no results / stop routine.
@@ -304,7 +304,6 @@ function Wallet({
       // this will faucet the initial amount
       const result = await __post(`${_api}faucet`, {
         address: signer.address,
-        chain_id: _chain_id,
       });
 
       // Process
@@ -340,7 +339,6 @@ function Wallet({
       // Get block number from API
       const result = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.blockTip,
-        chain_id: _chain_id,
       });
 
       // Block Number from API
@@ -358,7 +356,6 @@ function Wallet({
       // Get block number from API
       const result = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.tokenID + String(token).toLowerCase().slice(2),
-        chain_id: _chain_id,
       });
 
       // Block Number from API
@@ -444,7 +441,6 @@ function Wallet({
       while (!depositUTXOSynced) {
         depositUTXOSynced = ((await __post(`${_api}get`, {
           key: interfaces.FuelDBKeys.Deposit + depositHashID.slice(2),
-          chain_id: _chain_id,
         })) || [])[1]; // the actual utxo, null if not available
 
         if (_utils.unixtime() > timeout) {
@@ -554,7 +550,6 @@ function Wallet({
         transaction: unsignedTransaction.rlp([
           new structs.TransactionWitness(structs.constructWitness(unsignedTransaction, signer))
         ]),
-        chain_id: _chain_id,
       });
 
       if (!result) {
@@ -698,14 +693,12 @@ function Wallet({
       // Withdrawal
       let utxo = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.withdrawal + withdrawal.utxoProof.hash.slice(2),
-        chain_id: _chain_id,
       });
 
       // Wait for utxo
       while (opts.wait && !(utxo || [])[1]) {
         utxo = await __post(`${_api}get`, {
           key: interfaces.FuelDBKeys.withdrawal + withdrawal.utxoProof.hash.slice(2),
-          chain_id: _chain_id,
         });
         await _utils.wait(1000);
       }
@@ -723,7 +716,6 @@ function Wallet({
       // Get Data for the retrieval..
       const block = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.block + _utils.big(blockNumber.toNumber()).toHexString().slice(2),
-        chain_id: _chain_id,
       });
       const blockTransactionRootHashes = block[4];
 
@@ -731,7 +723,6 @@ function Wallet({
       const transactionRootHash = blockTransactionRootHashes[transactionRootIndex];
       const transactionRoot = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.transactionRoot + transactionRootHash.slice(2),
-        chain_id: _chain_id,
       });
 
       // Root Ethereum Tx hash

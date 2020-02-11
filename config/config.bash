@@ -4,21 +4,56 @@ now secrets rm mysql_port
 now secrets rm mysql_database
 now secrets rm mysql_user
 now secrets rm mysql_password
+
+now secrets rm ropsten_mysql_host
+now secrets rm ropsten_mysql_port
+now secrets rm ropsten_mysql_database
+now secrets rm ropsten_mysql_user
+now secrets rm ropsten_mysql_password
+
+now secrets rm goerli_mysql_host
+now secrets rm goerli_mysql_port
+now secrets rm goerli_mysql_database
+now secrets rm goerli_mysql_user
+now secrets rm goerli_mysql_password
+
+now secrets rm local_mysql_host
+now secrets rm local_mysql_port
+now secrets rm local_mysql_database
+now secrets rm local_mysql_user
+now secrets rm local_mysql_password
+
 now secrets rm block_production_key
 now secrets rm fraud_commitment_key
 now secrets rm transactions_submission_keys
 now secrets rm faucet_key
 now secrets rm faucet_token_id
+
 now secrets rm chain_id
 now secrets rm gasLimit
 
-now secrets add web3_provider $web3_provider
-now secrets add mysql_host $mysql_host
-now secrets add mysql_port $mysql_port
-now secrets add mysql_database $mysql_database
-now secrets add mysql_user $mysql_user
-now secrets add mysql_password $mysql_password
-now secrets add chain_id $chain_id
+now secrets add ropsten_web3_provider $ropsten_web3_provider
+now secrets add ropsten_mysql_host $ropsten_mysql_host
+now secrets add ropsten_mysql_port $ropsten_mysql_port
+now secrets add ropsten_mysql_database $ropsten_mysql_database
+now secrets add ropsten_mysql_user $ropsten_mysql_user
+now secrets add ropsten_mysql_password $ropsten_mysql_password
+
+now secrets add goerli_web3_provider $goerli_web3_provider
+now secrets add goerli_mysql_host $goerli_mysql_host
+now secrets add goerli_mysql_port $goerli_mysql_port
+now secrets add goerli_mysql_database $goerli_mysql_database
+now secrets add goerli_mysql_user $goerli_mysql_user
+now secrets add goerli_mysql_password $goerli_mysql_password
+
+now secrets add local_web3_provider $local_web3_provider
+now secrets add local_mysql_host $local_mysql_host
+now secrets add local_mysql_port $local_mysql_port
+now secrets add local_mysql_database $local_mysql_database
+now secrets add local_mysql_user $local_mysql_user
+now secrets add local_mysql_password $local_mysql_password
+
+# now secrets add chain_id $chain_id
 now secrets add gasLimit $gasLimit
 
 # MySQL Database Environment (string[s] - mysql connection settings, optional for sync or verifier nodes)
