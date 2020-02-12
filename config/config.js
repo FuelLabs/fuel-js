@@ -2,9 +2,9 @@
 // Tokens
 const addresses = {
   "ropsten": {
-    "fuel": "0x1138E213210e48AE15615f817f2B8D43AC5AB199",
-    "ether": "0x0000000000000000000000000000000000000000",
-    "fakeDai": "0x399495Ae981C67822506b459658247dc55EE6d9a"
+    "fuel": "0x2FA75F4a4F86b84E9568B4bf20a6B5466d5Bd9c1",
+    "fakeDai": "0x3945df0b0776FA4cc42F2dD19aa4bf4DEe5b493b",
+    "ether": "0x0000000000000000000000000000000000000000"
   },
   "goerli": {
     "fuel": "0x11f449629fCB4F9A6d2e9a25dA596941CD5f109F",
@@ -16,11 +16,11 @@ const addresses = {
 // Faucet
 const faucet = {
   "ropsten": {
-    "key": "0x051429c7d5a0205b345a1893aef3c4ed0e6de4e2de7fb73daea21e551456f9e7c9",
-    "value": "0xf8419499b722ccd2d6baf0325bf9524bc2e5d3411330b394399495ae981c67822506b459658247dc55ee6d9a836d9af2019102f050fe938943acc45f65568000000000",
-    "depositHashID": "0x1429c7d5a0205b345a1893aef3c4ed0e6de4e2de7fb73daea21e551456f9e7c9",
-    "ethereumBlockNumber": "0x6d9af2",
-    "token": "0x399495ae981c67822506b459658247dc55ee6d9a",
+    "key": "0x05aa1908545e5bfd163641f91f9d307cd41fab5c723fe26bf261a91bc65b32af20",
+    "value": "0xf8419499b722ccd2d6baf0325bf9524bc2e5d3411330b3943945df0b0776fa4cc42f2dd19aa4bf4dee5b493b836f9c46019102f050fe938943acc45f65568000000000",
+    "depositHashID": "0xaa1908545e5bfd163641f91f9d307cd41fab5c723fe26bf261a91bc65b32af20",
+    "ethereumBlockNumber": "0x6f9c46",
+    "token": "0x3945df0b0776fa4cc42f2dd19aa4bf4dee5b493b",
     "account": "0x99b722ccd2d6baf0325bf9524bc2e5d3411330b3"
   },
   "goerli": {
@@ -44,7 +44,7 @@ const networks = {
 const ids = {
   "ropsten": {
     "0x0000000000000000000000000000000000000000": "0",
-    "0x399495ae981c67822506b459658247dc55ee6d9a": "1"
+    "0x3945df0b0776fa4cc42f2dd19aa4bf4dee5b493b": "1"
   },
   "goerli": {
     "0x0000000000000000000000000000000000000000": "0",

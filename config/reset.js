@@ -4,8 +4,6 @@ const env = require('./process');
 // Clear all Databases
 async function clear() {
   try {
-
-  
     const remote = new MysqlDB({ // for storing remotly for lambda processing
       host: env.mysql_host,
       port: parseInt(env.mysql_port, 10),

@@ -32,6 +32,13 @@ now secrets rm faucet_token_id
 now secrets rm chain_id
 now secrets rm gasLimit
 
+now secrets add web3_provider $ropsten_web3_provider
+now secrets add mysql_host $ropsten_mysql_host
+now secrets add mysql_port $ropsten_mysql_port
+now secrets add mysql_database $ropsten_mysql_database
+now secrets add mysql_user $ropsten_mysql_user
+now secrets add mysql_password $ropsten_mysql_password
+
 now secrets add ropsten_web3_provider $ropsten_web3_provider
 now secrets add ropsten_mysql_host $ropsten_mysql_host
 now secrets add ropsten_mysql_port $ropsten_mysql_port

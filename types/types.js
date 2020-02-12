@@ -15,7 +15,7 @@ const TypeBoolean = v => {
 };
 const TypeNetwork = v => {
   if ((typeof v !== 'number' || typeof v !== 'string')
-  && (String(v) !== '1' && String(v) !== '3' && String(v) !== '10')) {
+  && (String(v) !== '1' && String(v) !== '3' && String(v) !== '5' && String(v) !== '10')) {
     throw new TypeError(new Error(`Invalid network chain identifier ${v}, must be 1 for mainnet or 3 for ropsten.`));
   }
 };

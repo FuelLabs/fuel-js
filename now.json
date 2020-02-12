@@ -70,17 +70,17 @@
     "goerli_mysql_user": "@goerli_mysql_user",
     "goerli_mysql_password": "@goerli_mysql_password",
     "goerli_web3_provider": "@goerli_web3_provider",
+    "mysql_host": "@ropsten_mysql_host",
+    "mysql_port": "@ropsten_mysql_port",
+    "mysql_database": "@ropsten_mysql_database",
+    "mysql_user": "@ropsten_mysql_user",
+    "mysql_password": "@ropsten_mysql_password",
+    "web3_provider": "@ropsten_web3_provider",
     "ropsten_mysql_host": "@ropsten_mysql_host",
     "ropsten_mysql_port": "@ropsten_mysql_port",
     "ropsten_mysql_database": "@ropsten_mysql_database",
     "ropsten_mysql_user": "@ropsten_mysql_user",
     "ropsten_mysql_password": "@ropsten_mysql_password",
-    "ropsten_web3_provider": "@ropsten_web3_provider",
-    "local_mysql_host": "@local_mysql_host",
-    "local_mysql_port": "@local_mysql_port",
-    "local_mysql_database": "@local_mysql_database",
-    "local_mysql_user": "@local_mysql_user",
-    "local_mysql_password": "@local_mysql_password",
-    "local_web3_provider": "@local_web3_provider"
+    "ropsten_web3_provider": "@ropsten_web3_provider"
   }
 }

@@ -30,6 +30,7 @@ function Wallet({
     chainId,
     api,
     rpc,
+    network,
     _addresses,
     _ids,
     _post,
@@ -84,14 +85,29 @@ function Wallet({
     }
   }) : null; // should be setup based on provider..
 
+  // Chain ID, chainId overrides network
+  const ___chain_id = network === 'ropsten'
+    ? '3'
+    : (network === 'goerli' ? '5' : '3'); // default to ropsten..
+  this.chainId = String(chainId || ___chain_id); // ropsten is default
+
+  // Check chain id..
+  if (this.chainId !== '3' && this.chainId !== '5') {
+    throw new Error(`The chainId must be either 3 or 5 (ropsten or goerli) got ${this.chainId}.`);
+  }
+
+  // Create a defualt DB based upon the environment of exeuction
+  const _defaultDB = jsEnv.isBrowser
+    ? new dbs.Index()
+    : new dbs.Memory();
+
   // More dbs
   const _db = this.db = !db ? _defaultDB : db;
-  this.chainId = String(chainId || '3'); // ropsten is default
   this.address = signer.address;
-  const network = this.network = networks[this.chainId];
+  const __network = this.network = networks[this.chainId];
 
   const _gasLimit = this.gasLimit = gasLimit || _utils.big('4000000'); // 4 million
-  const _api = api || `https://${network}.api.fuel.sh/`;
+  const _api = api || `https://${__network}.api.fuel.sh/`;
   const __post = postDecoder(_post || axios.post);
 
   // API endpoint check
@@ -101,11 +117,6 @@ function Wallet({
 
   // Post
   this.post = __post;
-
-  // Create a defualt DB based upon the environment of exeuction
-  const _defaultDB = jsEnv.isBrowser
-    ? new dbs.Index()
-    : new dbs.Memory();
 
   // get addresses
   const __addresses = (_addresses || addresses)[this.network];
