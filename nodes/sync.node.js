@@ -150,6 +150,7 @@ async function node() {
       contract,
       keys,
       gasLimit,
+      confirmationBlocks: 10, // wait for 10 conf blocks ahead before procesing..s
       cycleInterval: 15,
       waitTime: 1000,
       maximumMempoolAge: _utils.minutes(10),

@@ -100,6 +100,18 @@ async function sync(opts = {}) {
 
         // Attempt to eth_getLogs from contract..
         try {
+          // This section is new, wait for confirmations before resetting new block
+          // Check current height
+          const __currentHeight = _utils.big(await opts.rpc('eth_blockNumber'));
+
+          // Network info
+          logger.log(`Fuel: Network height: ${__currentHeight.toNumber()} | To Block Target: ${toBlock.toNumber()} | Height Target: ${ethereumHeight.toNumber()}`);
+
+          // Waiting for blocks to process, stay 10 blocks back
+          if (ethereumHeight.gte(__currentHeight.sub(opts.confirmationBlocks || 0))) {
+            continue;
+          }
+
           // Check spread for most recent ethereum block..
           if (toBlock.gte(ethereumHeight)) {
             ethereumHeight = _utils.big(await opts.rpc('eth_blockNumber'));
