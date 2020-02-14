@@ -104,8 +104,8 @@ async function sync(opts = {}) {
           // Check current height
           const __currentHeight = _utils.big(await opts.rpc('eth_blockNumber'));
 
-          // Network info
-          logger.log(`Fuel: Network height: ${__currentHeight.toNumber()} | To Block Target: ${toBlock.toNumber()} | Height Target: ${ethereumHeight.toNumber()}`);
+          // Network info, comment out after
+          // logger.log(`Fuel: Network height: ${__currentHeight.toNumber()} | To Block Target: ${toBlock.toNumber()} | Height Target: ${ethereumHeight.toNumber()}`);
 
           // Waiting for blocks to process, stay 10 blocks back
           if (ethereumHeight.gte(__currentHeight.sub(opts.confirmationBlocks || 0))) {

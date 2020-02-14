@@ -13,19 +13,19 @@ npm install --save fuel-core
 ## Usage
 
 ```js
-import { Wallet, utils, dbs } from "fuel-core";
+import { Wallet, utils } from "fuel-core";
 
-const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
-const { faucet, transfer, tokens } = new Wallet({ signer, db: new dbs.Index() });
+const { faucet, transfer, tokens, balance, address } = new Wallet({
+   signer: new utils.SigningKey(utils.randomBytes(32)),
+});
 
 (async ()=>{
+  await faucet();
 
-  await faucet(); // get 100^18 fakeDai
+  await transfer(500, tokens.fakeDai, address);
 
-  await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
-
-})()
-
+  console.log(await balance(tokens.fakeDai));
+})();
 ```
 
 ## Deposit / Withdraw
