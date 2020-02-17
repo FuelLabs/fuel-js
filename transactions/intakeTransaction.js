@@ -30,6 +30,7 @@ const {
   TypeDB,
   TypeHex,
   TypeBoolean,
+  TypeObject,
 } = require('../types/types');
 
 const {
@@ -141,7 +142,7 @@ function bigGT(val, greaterThan, message = '') {
 const emptyRLP = RLP.encode('0x0');
 
 // intake transaction to the mempool
-async function intakeTransaction({ transaction, db, mempool, accounts, force, batchAll }) {
+async function intakeTransaction({ transaction, db, mempool, accounts, force, batchAll, pubnub }) {
   try {
     TypeHex(transaction);
     TypeDB(db);
@@ -152,6 +153,9 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       if (batchAll && (!db.supports.mysql || !mempool.supports.mysql || !accounts.supports.mysql)) {
         throw new Error('Batch all on, but mysql not activated!');
       }
+    }
+    if (typeof pubnub !== 'undefined') {
+      TypeObject(pubnub);
     }
     TypeBoolean(force || false); // accept without considering fees
     errors.assert(transaction.length > 100 && transaction.length < 1200, 'Invalid transaction byte length');
@@ -546,6 +550,23 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
             ? FuelDBKeys.UTXO.slice(2)
             : FuelDBKeys.withdrawal.slice(2))
         + utxoProof.hash.toLowerCase().slice(2);
+
+      // if pubnub is available
+      if (pubnub) {
+        try {
+          await pubnub.publish({
+            channel: String('0x'
+              + String(process.env.chain_id) // chain id
+              + utxoProof._ownerAddress.slice(2)).toLowerCase(), // owner address
+            message: {
+            	title: output_key,
+            	description: utxoProof.rlp(),
+            },
+          });
+        } catch (error) {
+          console.error(error);
+        }
+      }
 
       writes.push({
         type: 'put',

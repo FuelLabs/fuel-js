@@ -11,6 +11,7 @@ const { transactionsFromReceipt } = require('../blocks/processBlock');
 const dbs = require('../dbs');
 const axios = require('axios');
 const jsEnv = require('browser-or-node');
+const PubNub = require('pubnub');
 
 // Wraps Axios or a Post method, does the RLP decoding..
 const postDecoder = method => (url, args) => method(url, args)
@@ -89,7 +90,7 @@ function Wallet({
   const ___chain_id = network === 'ropsten'
     ? '3'
     : (network === 'goerli' ? '5' : '3'); // default to ropsten..
-  this.chainId = String(chainId || ___chain_id); // ropsten is default
+  const __chainId = this.chainId = String(chainId || ___chain_id); // ropsten is default
 
   // Check chain id..
   if (this.chainId !== '3' && this.chainId !== '5') {
@@ -127,6 +128,54 @@ function Wallet({
 
   // Check network chain id ropsten
   types.TypeNetwork(this.chainId);
+
+  // uuid
+  const uuid = PubNub.generateUUID();
+
+  // Listen
+  const listen = this.listen = async cb => {
+    try {
+      if (typeof cb !== 'undefined') {
+        types.TypeFunction(cb);
+      }
+
+      const pubnub = new PubNub({
+        subscribeKey: "sub-c-11502102-5035-11ea-814d-0ecb550e9de2",
+        uuid,
+        ssl: true, // option to turn that off?
+      });
+
+      pubnub.addListener({
+        message: async msg => {
+          try {
+            const result = {
+              key: msg.message.title,
+              value: msg.message.description,
+            };
+
+            if (cb) {
+              cb(null, result);
+            }
+
+            await _db.put(result.key, result.value);
+          } catch (error) {
+            cb(error, null);
+          }
+        },
+        error: msg => {
+          cb(msg, null);
+        },
+      });
+
+      return pubnub.subscribe({
+        channels: [
+          String('0x' + __chainId + signer.address.slice(2)).toLowerCase(),
+        ],
+      });
+    } catch (error) {
+      throw new errors.ByPassError(error);
+    }
+  };
 
   // Get all available inputs in the wallet
   const inputs = this.inputs = token => new Promise(async (resolve, reject) => {

@@ -54,6 +54,18 @@ const { deposit, balance, withdraw, retrieve } = new Wallet({
 
 ```
 
+## Push Updates (coming in version 0.0.8)
+
+```js
+const { listen } = new Wallet(...);
+
+(async ()=>{
+
+  await listen(/* callback */); // a cb can be added here, results are { key: , value: } objects.
+
+})();
+```
+
 ## Syncing
 
 ```js
@@ -75,7 +87,8 @@ new Wallet({
   signer, // [Object] ethers Signer object
   provider, // [Object] web3 provider object
   db: new dbs.Memory(), // [Object] database object
-  chainId: '3' // [String | Number] '3' Ropsten (only supported)
+  chainId: '3' // [String | Number] '3' Ropsten or '5' Goerli (only supported)
+  // alternative: [String] network: 'ropsten' // or 'goerli'
 });
 ```
 
@@ -170,6 +183,10 @@ ropsten_web3_provider="https://.."
 
 # Gas Limit (string - hex)
 # gasLimit=0x..
+
+# PubNub
+# pubnub_publisher_key=
+# pubnub_subscriber_key=
 ```
 
 ## Help out

@@ -81,6 +81,9 @@
     "ropsten_mysql_database": "@ropsten_mysql_database",
     "ropsten_mysql_user": "@ropsten_mysql_user",
     "ropsten_mysql_password": "@ropsten_mysql_password",
-    "ropsten_web3_provider": "@ropsten_web3_provider"
+    "ropsten_web3_provider": "@ropsten_web3_provider",
+    "pubnub_publisher_key": "@pubnub_publisher_key",
+    "pubnub_subscriber_key": "@pubnub_subscriber_key",
+    "pubnub_uuid": "@pubnub_uuid"
   }
 }

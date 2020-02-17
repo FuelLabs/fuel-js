@@ -1,6 +1,6 @@
 {
   "name": "fuel-core",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Essential javascript architecture for the Fuel side chain",
   "main": "index.js",
   "scripts": {
@@ -63,6 +63,7 @@
     "@sentry/node": "^5.10.2",
     "level": "^6.0.0",
     "leveldown": "^5.4.1",
+    "pubnub": "^4.27.3",
     "rimraf": "^3.0.0"
   },
   "dependencies": {

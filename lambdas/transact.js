@@ -4,7 +4,22 @@ const { intakeTransaction } = require('../transactions/intakeTransaction');
 const MysqlDB = require('../dbs/MysqlDB');
 const env = require('../config/process');
 
+// Microcors
 const cors = microCors({ allowMethods: ['POST', 'OPTIONS'] });
+
+// Pubnub inclusion
+let pubnub = null;
+if (env.pubnub_publisher_key) {
+  // require module
+  const PubNub = require('pubnub');
+
+  // Pubnub
+  pubnub = new PubNub({
+    publishKey: env.pubnub_publisher_key,
+    subscribeKey: env.pubnub_subscriber_key,
+    uuid: env.pubnub_uuid,
+  });
+}
 
 const remote = new MysqlDB({ // for storing remotly for lambda processing
   host: env.mysql_host,
@@ -51,6 +66,7 @@ module.exports = cors(async (req, res) => {
         mempool,
         accounts,
         batchAll: true,
+        pubnub,
       });
 
       // send out result

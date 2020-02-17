@@ -2,12 +2,16 @@
 import { Wallet, utils, dbs } from "../index";
 
 const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secure entropy generation..
-const { faucet, transfer, sync, tokens, balance, db } = new Wallet({
+const { faucet, transfer, sync, tokens, balance, db, listen } = new Wallet({
   signer,
+  db: new dbs.Memory(),
+  api: 'https://fuel-lambda.fuellabs.now.sh/'
   // network: "goerli",
 });
 
 (async ()=> {
+
+  await listen(console.log);
 
   console.time('Faucet');
   await faucet(); // get 100^18 fakeDai
@@ -17,9 +21,11 @@ const { faucet, transfer, sync, tokens, balance, db } = new Wallet({
   await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
   console.timeEnd('Transfer');
 
+  console.log('Pre-sync balance', await balance(tokens.fakeDai));
+
   await sync();
 
-  console.log(await balance(tokens.fakeDai));
+  console.log('Post-sync balance', await balance(tokens.fakeDai));
 
 })();
 

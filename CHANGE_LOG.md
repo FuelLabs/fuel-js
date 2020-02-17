@@ -1,3 +1,10 @@
+# 0.0.8 -- Pubnub
+1. Primitive pubnub support for listeners
+
+# 0.0.7 -- goerli support
+1. Goerli Support
+2. Wallet DB defaults
+
 # 0.0.6 -- new contracts
 
 1. Mempool to handle scale
