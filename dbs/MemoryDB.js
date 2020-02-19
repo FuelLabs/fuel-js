@@ -17,6 +17,9 @@ function MemoryDB() {
 
   var storage = this.storage = {};
   this.storageDB = db;
+  this.storageGet = () => {
+    return storage;
+  };
   this.put = (key, value) => new Promise((resolve, reject) => db.put(key, value)
     .then(() => {
       storage[key] = value;

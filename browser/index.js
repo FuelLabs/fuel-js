@@ -5,27 +5,45 @@ const signer = new utils.SigningKey(utils.randomBytes(32)); // warning: not secu
 const { faucet, transfer, sync, tokens, balance, db, listen } = new Wallet({
   signer,
   db: new dbs.Memory(),
-  api: 'https://fuel-lambda.fuellabs.now.sh/'
-  // network: "goerli",
+  api: 'https://fuel-lambda.fuellabs.now.sh/',
+  // api: 'https://fuel-lambda.fuellabs.now.sh/'
+  //network: "goerli",
 });
 
 (async ()=> {
+  console.log('Pre-faucet balance', utils.formatEther(await balance(tokens.fakeDai)));
 
-  await listen(console.log);
+  await listen(async () => {
+    try {
+      console.log('Listen balance', utils.formatEther(await balance(tokens.fakeDai)));
+    } catch (error) {
+      console.error(error);
+    }
+  });
 
-  console.time('Faucet');
-  await faucet(); // get 100^18 fakeDai
-  console.timeEnd('Faucet');
+  setTimeout(async () => {
+    console.time('Faucet');
+    await faucet(); // get 100^18 fakeDai
+    console.timeEnd('Faucet');
 
-  console.time('Transfer');
-  await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
-  console.timeEnd('Transfer');
+    console.time('Transfer');
+    await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
+    console.timeEnd('Transfer');
 
-  console.log('Pre-sync balance', await balance(tokens.fakeDai));
+    console.log('Post-transfer balance', utils.formatEther(await balance(tokens.fakeDai)));
 
-  await sync();
+    console.time('Transfer');
+    await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
+    console.timeEnd('Transfer');
 
-  console.log('Post-sync balance', await balance(tokens.fakeDai));
+    console.time('Transfer');
+    await transfer(500, tokens.fakeDai, signer.address); // send 500^1 fakeDai
+    console.timeEnd('Transfer');
+
+    // await sync();
+
+    console.log('Post-sync balance', utils.formatEther(await balance(tokens.fakeDai)));
+  }, 1000);
 
 })();
 

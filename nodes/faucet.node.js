@@ -84,6 +84,20 @@ const logger = {
   error: Sentry ? Sentry.captureException : console.error,
 };
 
+// Pubnub inclusion
+let pubnub = null;
+if (env.pubnub_publisher_key) {
+  // require module
+  const PubNub = require('pubnub');
+
+  // Pubnub
+  pubnub = new PubNub({
+    publishKey: env.pubnub_publisher_key,
+    subscribeKey: env.pubnub_subscriber_key,
+    uuid: env.pubnub_uuid,
+  });
+}
+
 // Faucet Node
 async function node() {
   try {
@@ -100,6 +114,7 @@ async function node() {
       accounts,
       requests,
       tokenID,
+      pubnub,
       amount: env.faucet_dispersal_amount
         ? _utils.big(env.faucet_dispersal_amount)
         : utils.parseEther('100'), // to disperse per account..

@@ -102,6 +102,9 @@ function Wallet({
     ? new dbs.Index()
     : new dbs.Memory();
 
+  // To keep track of internal spends during listening / sync
+  const _internalSpendsDB = new dbs.Memory();
+
   // More dbs
   const _db = this.db = !db ? _defaultDB : db;
   this.address = signer.address;
@@ -132,6 +135,9 @@ function Wallet({
   // uuid
   const uuid = PubNub.generateUUID();
 
+  // CB, empty callback method
+  let __cb = () => {};
+
   // Listen
   const listen = this.listen = async cb => {
     try {
@@ -139,10 +145,13 @@ function Wallet({
         types.TypeFunction(cb);
       }
 
+      // Set global cb
+      __cb = cb;
+
       const pubnub = new PubNub({
         subscribeKey: "sub-c-11502102-5035-11ea-814d-0ecb550e9de2",
         uuid,
-        ssl: true, // option to turn that off?
+        // ssl: true, // option to turn that off?
       });
 
       pubnub.addListener({
@@ -151,19 +160,21 @@ function Wallet({
             const result = {
               key: msg.message.title,
               value: msg.message.description,
+              _transfer: true,
             };
 
-            if (cb) {
-              cb(null, result);
-            }
-
+            // If the key has not been spend already, add it to the db.
             await _db.put(result.key, result.value);
+
+            if (cb) {
+              __cb(null, result);
+            }
           } catch (error) {
-            cb(error, null);
+            __cb(error, null);
           }
         },
         error: msg => {
-          cb(msg, null);
+          __cb(msg, null);
         },
       });
 
@@ -344,6 +355,11 @@ function Wallet({
         if (keys[resultIndex].indexOf(interfaces.FuelDBKeys.mempoolSpend) === 0) {
           await _db.del(interfaces.FuelDBKeys.UTXO + keys[resultIndex].slice(4));
           await _db.del(interfaces.FuelDBKeys.Deposit + keys[resultIndex].slice(4));
+
+          await _internalSpendsDB.put(interfaces.FuelDBKeys.UTXO + keys[resultIndex].slice(4), '0x01');
+          await _internalSpendsDB.put(interfaces.FuelDBKeys.Deposit + keys[resultIndex].slice(4), '0x01');
+          await _internalSpendsDB.put(keys[resultIndex], '0x01');
+          await _internalSpendsDB.put(keys[resultIndex], '0x01');
         }
       }
 
@@ -487,14 +503,17 @@ function Wallet({
         ethereumBlockNumber: _utils.big(depositReceipt.blockNumber),
       });
 
-      // add deposit to db
-      await _db.put(interfaces.FuelDBKeys.Deposit + depositHashID.slice(2), _utils.RLP.encode([
+      const _key = interfaces.FuelDBKeys.Deposit + depositHashID.slice(2);
+      const _value = _utils.RLP.encode([
         signer.address,
         token,
         depositReceipt.blockNumber,
         _utils.big(tokenID.toNumber()).toHexString(),
         am.toHexString(),
-      ]));
+      ]);
+
+      // add deposit to db
+      await _db.put(_key, _value);
 
       let depositUTXOSynced = null;
       const timeout = _utils.unixtime() + (opts.timeout || _utils.minutes(5));
@@ -508,7 +527,12 @@ function Wallet({
         }
       }
 
-      // we must wait for this to be synced with the node..
+      // Make callback for the tx
+      __cb(null, {
+        key: _key,
+        value: _value,
+        _deposit: true,
+      });
 
       // Return positive result..
       return {
@@ -605,6 +629,13 @@ function Wallet({
         ] : []).concat([ primaryOutput ]),
       });
 
+      // delete the inputs from the db
+      await _internalSpendsDB.batch(inputBatch.map(v => ({
+        type: 'put',
+        key: v.key,
+        value: '0x01',
+      })));
+
       // Return Transfer..
       const result = await __post(`${_api}transact`, {
         transaction: unsignedTransaction.rlp([
@@ -628,7 +659,7 @@ function Wallet({
           owner: recipient,
         });
 
-        await _db.put(interfaces.FuelDBKeys.withdrawal
+        await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.withdrawal
             + primaryOutputProof.hash.slice(2), primaryOutputProof.rlp());
       }
 
@@ -680,6 +711,12 @@ function Wallet({
       }
       */
 
+      // delete the inputs from the db
+      await _db.batch(inputBatch.map(v => ({
+        type: 'del',
+        key: v.key,
+      })));
+
       // Put DB
       if (hasChange) {
         // Change UTXO
@@ -692,15 +729,25 @@ function Wallet({
           owner: 0,
         });
 
-        await _db.put(interfaces.FuelDBKeys.UTXO
+        await _db.put(FuelDBKeys.mempool
+            + interfaces.FuelDBKeys.UTXO.slice(2)
             + changeUTXO.hash.slice(2), changeUTXO.rlp());
+
+        // Event
+        __cb(null, {
+          key: FuelDBKeys.mempool
+              + interfaces.FuelDBKeys.UTXO.slice(2)
+              + changeUTXO.hash.slice(2),
+          value: changeUTXO.rlp(),
+          _transfer: true,
+          _change: true,
+        });
       }
 
-      // delete the inputs from the db
-      await _db.batch(inputBatch.map(v => ({
-        type: 'del',
-        key: v.key,
-      })));
+      // Make callback for the tx
+      __cb(null, {
+        _transfer: true,
+      });
 
       // Return
       return {
@@ -840,6 +887,11 @@ function Wallet({
 
       // Remove if success
       await _db.del(withdrawal.key);
+
+      // Make callback for the tx
+      __cb(null, {
+        _retrieve: true,
+      });
 
       // This will get the funds back to the user..
       return proofReceipt;

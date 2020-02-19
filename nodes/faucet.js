@@ -13,7 +13,7 @@ const utxoDBKeyLength = interfaces.FuelDBKeys.UTXO.length;
 
 // Sync DB to Chain
 async function faucet({ db, mempool, requests, accounts, spendableInputs,
-  tokenID, logger, amount, signerKey }) {
+  tokenID, logger, amount, signerKey, pubnub }) {
 
   // Check Types
   types.TypeDB(db);
@@ -22,6 +22,11 @@ async function faucet({ db, mempool, requests, accounts, spendableInputs,
   types.TypeDB(accounts);
   types.TypeDB(spendableInputs);
   types.TypeObject(signerKey);
+
+  // pubnub
+  if (typeof pubnub !== 'undefined') {
+    types.TypeObject(pubnub);
+  }
 
   // Loger Handling
   if (!logger) {
@@ -164,6 +169,7 @@ async function faucet({ db, mempool, requests, accounts, spendableInputs,
             accounts: accounts,
             force: true, // accept without considering fees..
             batchAll: true,
+            pubnub,
           });
         } catch (error) {
           console.log(error);

@@ -46,7 +46,7 @@ module.exports = cors(async (req, res) => {
       try {
         // Batch writes in single tx. one pass to db
         await remote.batch([
-          { type: 'put', table: remote.table, key: FuelDBKeys.ip + ip.slice(2) + timeId.slice(2), value: '0x1', ignore: false },
+          { type: 'put', table: remote.table, key: FuelDBKeys.ip + ip.slice(2) + timeId.slice(2), value: '0x1' }, // , ignore: false },
           { type: 'put', table: requests.table, key: FuelDBKeys.ip + ip.slice(2), value: data.address },
         ], true);
 

@@ -15,16 +15,18 @@ npm install --save fuel-core
 ```js
 import { Wallet, utils } from "fuel-core";
 
-const { faucet, transfer, tokens, balance, address } = new Wallet({
+const { faucet, transfer, listen, tokens, balance, address } = new Wallet({
    signer: new utils.SigningKey(utils.randomBytes(32)),
 });
 
-(async ()=>{
+(async () => {
+  await listen(async () => {
+    console.log('Balance: ', utils.formatEther(await balance(tokens.fakeDai)));
+  });
+
   await faucet();
 
   await transfer(500, tokens.fakeDai, address);
-
-  console.log(await balance(tokens.fakeDai));
 })();
 ```
 
@@ -54,14 +56,15 @@ const { deposit, balance, withdraw, retrieve } = new Wallet({
 
 ```
 
-## Push Updates (coming in version 0.0.8)
+## Incoming Transaction Listener
 
 ```js
 const { listen } = new Wallet(...);
 
 (async ()=>{
 
-  await listen(/* callback */); // a cb can be added here, results are { key: , value: } objects.
+  // a cb can be added here, results are { key: , value: } objects.
+  await listen(/* callback */);
 
 })();
 ```
