@@ -4,6 +4,16 @@
 
 Essential JavaScript architecture for the Fuel side chain.
 
+# Features:
+- A complete optimistic rollup side-chain implementation in JS
+- Extremely cheap ERC20 and Ether transactions (under **3840k wei per transaction**)
+- Pre-cleared instant finality transfers (**1.4 to .8 seconds on average**)
+- Multi-network testnet support in **Goerli** and **Ropsten**
+- Live pubsub support for instant balance updates
+- **Works with any ERC20 token** (simply deposit to use)
+- Supports **HTLC's for instant atomic swaps**
+- Completely open-source under **Apache 2.0**
+
 ## Install
 
 ```sh
@@ -56,7 +66,7 @@ const { deposit, balance, withdraw, retrieve } = new Wallet({
 
 ```
 
-## Incoming Transaction Listener
+## Listener Support
 
 ```js
 const { listen } = new Wallet(...);
@@ -64,6 +74,7 @@ const { listen } = new Wallet(...);
 (async ()=>{
 
   // a cb can be added here, results are { key: , value: } objects.
+  // fires for all wallet events and incoming transactions
   await listen(/* callback */);
 
 })();
