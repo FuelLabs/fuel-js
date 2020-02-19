@@ -4,7 +4,7 @@
 
 Essential JavaScript architecture for the Fuel side chain.
 
-# Features:
+## Features:
 - A complete optimistic rollup side-chain implementation in JS
 - Extremely cheap ERC20 and Ether transactions (under **3840k wei per transaction**)
 - Pre-cleared instant finality transfers (**1.4 to .8 seconds on average**)
