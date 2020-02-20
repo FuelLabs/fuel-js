@@ -5,14 +5,18 @@
 Essential JavaScript architecture for the Fuel side chain.
 
 ## Features:
-- A complete optimistic rollup side-chain implementation in JS
-- Extremely cheap ERC20 and Ether transactions (under **3840k wei per transaction**)
-- Pre-cleared instant transfers (**1.4 to .8 seconds on average**)
+- A ***complete optimistic rollup side-chain*** implementation in JS
+- ***Extremely cheap*** (under **3840k wei per transaction**)
+- Pre-cleared instant transactions (**1.4 to .8 seconds on average**)
 - Multi-network testnet support in **Goerli** and **Ropsten**
-- Live pubsub support for instant balance updates
+- **Meta-transactional** by default (pay fees in any ERC20)
+- Complete node, faucet and wallet implementations
+- ***Live pubsub support*** for instant balance updates
 - **Works with any ERC20 token** (simply deposit to use)
 - Supports **HTLC's for instant atomic swaps**
-- Completely open-source under **Apache 2.0**
+- Can handle ***extremely high throughput***
+- ***Censorship resistant** (enter and exit at will)
+- Completely open-source under **Apache-2.0**
 
 ## Install
 
@@ -31,7 +35,7 @@ const { faucet, transfer, listen, tokens, balance, address } = new Wallet({
 
 (async () => {
   await listen(async () => {
-    console.log('Balance: ', utils.formatEther(await balance(tokens.fakeDai)));
+    console.log(await balance(tokens.fakeDai));
   });
 
   await faucet();
