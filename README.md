@@ -6,16 +6,16 @@ Essential JavaScript architecture for the Fuel side chain.
 
 ## Features:
 - A ***complete optimistic rollup side-chain*** implementation in JS
-- ***Extremely cheap*** (under **3840k wei per transaction**)
+- ***Extremely cheap*** (under **3840 wei per transaction**)
 - Pre-cleared instant transactions (**1.4 to .8 seconds on average**)
 - Multi-network testnet support in **Goerli** and **Ropsten**
 - **Meta-transactional** by default (pay fees in any ERC20)
 - Complete node, faucet and wallet implementations
 - ***Live pubsub support*** for instant balance updates
-- **Works with any ERC20 token** (simply deposit to use)
+- ***Works with any ERC20 token*** (simply deposit to use)
 - Supports **HTLC's for instant atomic swaps**
-- Can handle ***extremely high throughput***
-- ***Censorship resistant** (enter and exit at will)
+- ***High throughput capability*** (surge approx. 10k tps, on-chain 250tps)
+- ***Censorship resistant*** (enter and exit at will)
 - Completely open-source under **Apache-2.0**
 
 ## Install
