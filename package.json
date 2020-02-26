@@ -1,6 +1,6 @@
 {
   "name": "fuel-core",
-  "version": "0.0.9",
+  "version": "0.1.0",
   "description": "Essential javascript architecture for the Fuel side chain",
   "main": "index.js",
   "scripts": {

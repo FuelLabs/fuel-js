@@ -1,3 +1,10 @@
+# 0.1.0 -- Small fixes
+1. Accounting fixes when sending funds to your own address
+2. Spends better accounted for under success / failure in wallet
+
+# 0.0.9 -- Small Fixes
+1. Small fixes related to wallet interface
+
 # 0.0.8 -- Pubnub
 1. Primitive pubnub support for listeners
 

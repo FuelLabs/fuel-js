@@ -102,9 +102,6 @@ function Wallet({
     ? new dbs.Index()
     : new dbs.Memory();
 
-  // To keep track of internal spends during listening / sync
-  const _internalSpendsDB = new dbs.Memory();
-
   // More dbs
   const _db = this.db = !db ? _defaultDB : db;
   this.address = signer.address;
@@ -248,7 +245,8 @@ function Wallet({
             }
 
             // Push Decoded Row.
-            result.spendableInputs.push({ input, amount: decoded.proof.amount, key: row.key });
+            result.spendableInputs.push({ input,
+                amount: decoded.proof.amount, key: row.key });
             result.rows.push({ key: row.key, value: row.value, decoded,
               amount: decoded.proof.amount, input, utxoProof });
           }
@@ -355,11 +353,6 @@ function Wallet({
         if (keys[resultIndex].indexOf(interfaces.FuelDBKeys.mempoolSpend) === 0) {
           await _db.del(interfaces.FuelDBKeys.UTXO + keys[resultIndex].slice(4));
           await _db.del(interfaces.FuelDBKeys.Deposit + keys[resultIndex].slice(4));
-
-          await _internalSpendsDB.put(interfaces.FuelDBKeys.UTXO + keys[resultIndex].slice(4), '0x01');
-          await _internalSpendsDB.put(interfaces.FuelDBKeys.Deposit + keys[resultIndex].slice(4), '0x01');
-          await _internalSpendsDB.put(keys[resultIndex], '0x01');
-          await _internalSpendsDB.put(keys[resultIndex], '0x01');
         }
       }
 
@@ -630,21 +623,31 @@ function Wallet({
       });
 
       // delete the inputs from the db
-      await _internalSpendsDB.batch(inputBatch.map(v => ({
-        type: 'put',
+      await _db.batch(inputBatch.map(v => ({
+        type: 'del',
         key: v.key,
-        value: '0x01',
       })));
 
-      // Return Transfer..
-      const result = await __post(`${_api}transact`, {
-        transaction: unsignedTransaction.rlp([
-          new structs.TransactionWitness(structs.constructWitness(unsignedTransaction, signer))
-        ]),
-      });
+      try {
+        // Return Transfer..
+        const result = await __post(`${_api}transact`, {
+          transaction: unsignedTransaction.rlp([
+            new structs.TransactionWitness(structs.constructWitness(unsignedTransaction, signer))
+          ]),
+        });
 
-      if (!result) {
-        throw new Error('Problem while transacting with API.');
+        if (!result) {
+          throw new Error('Problem while transacting with API.');
+        }
+      } catch (txError) {
+        // add back inputs into db
+        await _db.batch(inputBatch.map(v => ({
+          type: 'put',
+          key: v.key,
+          value: v.value,
+        })));
+
+        throw new ByPassError(txError);
       }
 
       // Record withdrawl locally
@@ -664,8 +667,8 @@ function Wallet({
       }
 
       // If we send to ourselves.
-      /*
-      if (String(primaryOutput.owner).toLowerCase() === String(signer.address).toLowerCase()) {
+      if (String(primaryOutput.owner)
+        .toLowerCase() === String(signer.address).toLowerCase()) {
         if (opts.withdraw) {
           // Change UTXO
           const entry = new structs.UTXOProof({
@@ -677,7 +680,7 @@ function Wallet({
             owner: 0,
           });
 
-          await _db.put(interfaces.FuelDBKeys.withdrawal
+          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.withdrawal
               + entry.hash.slice(2), entry.rlp());
         } else if (opts.htlc) {
           entry = new structs.UTXOProof({
@@ -692,7 +695,7 @@ function Wallet({
             returnWitnessIndex: opts.returnWitnessIndex || 0,
           });
 
-          await _db.put(interfaces.FuelDBKeys.HTLC
+          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.HTLC
               + entry.hash.slice(2), entry.rlp());
         } else {
           // Change UTXO
@@ -705,17 +708,10 @@ function Wallet({
             tokenID,
           });
 
-          await _db.put(interfaces.FuelDBKeys.UTXO
+          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO
               + entry.hash.slice(2), entry.rlp());
         }
       }
-      */
-
-      // delete the inputs from the db
-      await _db.batch(inputBatch.map(v => ({
-        type: 'del',
-        key: v.key,
-      })));
 
       // Put DB
       if (hasChange) {
