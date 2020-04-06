@@ -252,7 +252,7 @@ function Wallet({
           }
         }
 
-        if (row.key.indexOf(interfaces.FuelDBKeys.Deposit) === 0) {
+        if (row.key.indexOf(interfaces.FuelDBKeys.deposit) === 0) {
           const decoded = structs.decodeDepositRLP(row.value);
 
           if (String(decoded.proof.token).toLowerCase() === String(token).toLowerCase()) {
@@ -352,7 +352,7 @@ function Wallet({
       for (let resultIndex = 0; resultIndex < keys.length; resultIndex++) {
         if (keys[resultIndex].indexOf(interfaces.FuelDBKeys.mempoolSpend) === 0) {
           await _db.del(interfaces.FuelDBKeys.UTXO + keys[resultIndex].slice(4));
-          await _db.del(interfaces.FuelDBKeys.Deposit + keys[resultIndex].slice(4));
+          await _db.del(interfaces.FuelDBKeys.deposit + keys[resultIndex].slice(4));
         }
       }
 
@@ -496,7 +496,7 @@ function Wallet({
         ethereumBlockNumber: _utils.big(depositReceipt.blockNumber),
       });
 
-      const _key = interfaces.FuelDBKeys.Deposit + depositHashID.slice(2);
+      const _key = interfaces.FuelDBKeys.deposit + depositHashID.slice(2);
       const _value = _utils.RLP.encode([
         signer.address,
         token,
@@ -512,7 +512,7 @@ function Wallet({
       const timeout = _utils.unixtime() + (opts.timeout || _utils.minutes(5));
       while (!depositUTXOSynced) {
         depositUTXOSynced = ((await __post(`${_api}get`, {
-          key: interfaces.FuelDBKeys.Deposit + depositHashID.slice(2),
+          key: interfaces.FuelDBKeys.deposit + depositHashID.slice(2),
         })) || [])[1]; // the actual utxo, null if not available
 
         if (_utils.unixtime() > timeout) {
@@ -530,7 +530,7 @@ function Wallet({
       // Return positive result..
       return {
         depositHashID,
-        key: interfaces.FuelDBKeys.Deposit + depositHashID.slice(2),
+        key: interfaces.FuelDBKeys.deposit + depositHashID.slice(2),
         account: signer.address,
         token,
         ethereumBlockNumber: _utils.big(depositReceipt.blockNumber),

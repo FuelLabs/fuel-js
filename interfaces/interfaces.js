@@ -372,7 +372,6 @@ const FuelDBKeys = {
   block: '0x03',
   transactionRoot: '0x04',
   deposit: '0x05',
-  Deposit: '0x05',
   UTXO: '0x06',
   blockTip: '0x07',
   account: '0x08',
