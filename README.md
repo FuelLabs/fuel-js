@@ -49,11 +49,11 @@ const { faucet, transfer, listen, tokens, balance, address } = new Wallet({
 ## Deposit / Withdraw
 
 ```js
-import { Wallet, utils, dbs } from "fuel-core";
+import { Wallet, utils, providers, dbs } from "fuel-core";
 
 const { deposit, balance, withdraw, retrieve, tokens } = new Wallet({
   signer: utils.SigningKey(utils.randomBytes(32)),
-  provider: window.web3.currentProvider,
+  provider: new providers.Web3Provider(window.web3.currentProvider),
   db: new dbs.Index(),
   chainId: 3, // default is 3 Ropsten (only supported)
 });

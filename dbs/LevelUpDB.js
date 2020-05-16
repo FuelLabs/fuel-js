@@ -39,6 +39,7 @@ function LevelUpDB(name, clear = false, nolock = false) {
   this.batch = (opts) => db.batch(opts);
   this.createReadStream = opts => db.createReadStream(opts);
   this.clear = () => db.clear();
+  this.close = () => db.close();
 }
 
 module.exports = LevelUpDB;

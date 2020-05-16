@@ -5,7 +5,7 @@ const { FuelDBKeys, FuelInterface, ERC20Interface, FuelRPC } = require('../inter
 const interfaces = require('../interfaces/interfaces');
 const { addresses, networks, ids } = require('../config/config');
 const errors = require('../errors/errors');
-const { Contract, SigningKey } = require('ethers');
+const ethers = require('ethers');
 const { parseTransactions } = require('../blocks/parseTransactions');
 const { transactionsFromReceipt } = require('../blocks/processBlock');
 const dbs = require('../dbs');
@@ -52,9 +52,15 @@ function Wallet({
 
   // DB for Wallet
   const _provider = this.provider = provider;
-  const _rpc = this.rpc = rpc
-    || (_provider ? FuelRPC({ web3Provider: _provider }) : null);
-  const _getReceipt = _provider ? (async txhash => {
+  const _rpc = null; /* this.rpc = rpc
+    || (_provider ? FuelRPC({ web3Provider: _provider }) : null);*/
+
+  let __fuel = this.__fuel = null;
+  let __wallet = null;
+
+  const _getReceipt = () => {};
+
+  /*_provider ? (async txhash => {
     try {
       // Timeout
       const timeout = _receiptTimeout || 100000; // 100 seconds
@@ -85,16 +91,19 @@ function Wallet({
       throw new Error(error);
     }
   }) : null; // should be setup based on provider..
+  */
 
   // Chain ID, chainId overrides network
   const ___chain_id = network === 'ropsten'
     ? '3'
-    : (network === 'goerli' ? '5' : '3'); // default to ropsten..
+    : (network === 'goerli' ? '5' : (network === 'rinkeby' ? '4' : '3')); // default to ropsten..
   const __chainId = this.chainId = String(chainId || ___chain_id); // ropsten is default
 
+  // console.log(this.chainId !== '3' && this.chainId !== '4' && this.chainId !== '5');
+
   // Check chain id..
-  if (this.chainId !== '3' && this.chainId !== '5') {
-    throw new Error(`The chainId must be either 3 or 5 (ropsten or goerli) got ${this.chainId}.`);
+  if (this.chainId !== '3' && this.chainId !== '4' && this.chainId !== '5') {
+    throw new Error(`The chainId must be either 3, 4 or 5 (ropsten, rinkeby or goerli) got ${this.chainId}.`);
   }
 
   // Create a defualt DB based upon the environment of exeuction
@@ -122,6 +131,15 @@ function Wallet({
   // get addresses
   const __addresses = (_addresses || addresses)[this.network];
   const __ids = (_ids || ids)[this.network];
+
+  // if provider is given, than continue
+  if (provider) {
+    __wallet = new ethers.Wallet(signer, provider);
+    __fuel = new ethers.Contract(__addresses['fuel'], FuelInterface, __wallet);
+
+    // console.log(__fuel.tokens(''));
+    // return;
+  }
 
   // Token addresses
   this.tokens = __addresses; // get tokens, given chain id
@@ -203,10 +221,12 @@ function Wallet({
 
       // Otherwise get the token id
       if (!_tokenID && _tokenID !== 0) {
-        _tokenID = _utils.big(await _rpc('eth_call', {
-          to: __addresses.fuel,
-          data: FuelInterface.functions.tokens.encode([token]),
-        })).toNumber();
+        if (!provider) {
+          throw new Error('You must have a web3 provider `provider` specified in order to sync');
+        }
+
+        // token id
+        _tokenID = (await __fuel.tokens(token)).toNumber();
       }
 
       if (!_tokenID) {
@@ -301,7 +321,7 @@ function Wallet({
     types.TypeAddress(token);
 
     // will calculate balance of all tokens held in the wallet
-    const { balance } = await inputs(token);
+    const { balance } = await inputs(String(token).toLowerCase());
 
     // big 0
     return balance;
@@ -329,7 +349,7 @@ function Wallet({
 
       // API Accounts
       const results = await __post(`${_api}account`, {
-        address: signer.address,
+        address: String(signer.address).toLowerCase(),
       });
 
       // if no results / stop routine.
@@ -358,6 +378,8 @@ function Wallet({
 
       return keys;
     } catch (error) {
+      console.error(error);
+
       throw new errors.ByPassError(error);
     }
   };
@@ -436,7 +458,7 @@ function Wallet({
 
   // Resolve From address
   const resolveFrom = opts => opts.from ? Promise.resolve(opts.from)
-    : (new Promise((resolve, reject) => _rpc('eth_accounts')
+    : (new Promise((resolve, reject) => _provider.getAddress()
     .then(accounts => resolve(accounts[opts.accountIndex || 0]))
     .catch(reject)));
 
@@ -449,16 +471,25 @@ function Wallet({
       types.TypeObject(opts);
 
       // RPC
-      if (!_rpc) {
+      if (!provider) {
         throw new Error('You must specify a provider for the wallet');
       }
 
       // Get from account
-      const _from = await resolveFrom(opts);
+      // const _from = await resolveFrom(opts);
       let approvalReceipt = null;
+
+      // token ethers.
+      const __token = new ethers.Contract(token, ERC20Interface, __wallet);
 
       // Handle ERC20
       if (String(token).toLowerCase() !== _utils.emptyAddress) {
+        const approveTxHash = await __token.approve(__addresses.fuel, am, {
+          gasLimit: _gasLimit.toHexString(),
+        });
+        approvalReceipt = await approveTxHash.wait(opts.confirmations || 5);
+
+        /*()
         const approveTxHash = await _rpc('eth_sendTransaction', Object.assign({
           to: token,
           value: _utils.big(0).toHexString(),
@@ -468,9 +499,16 @@ function Wallet({
         approvalReceipt = await _getReceipt(approveTxHash);
         if (_utils.big(approvalReceipt.status).eq(0)) {
           throw new Error(`While approving ERC20 Fuel transfer of token ${token} with amount ${amount} there was an error, receipt 0 status.`);
-        }
+        }*/
       }
 
+      const depositTxHash = await __fuel.deposit(signer.address, token, am, {
+        value: String(token).toLowerCase() === _utils.emptyAddress ? am.toHexString() : _utils.big(0).toHexString(),
+        gasLimit: _gasLimit.toHexString(),
+      });
+      const depositReceipt = await depositTxHash.wait(opts.confirmations || 5);
+
+      /*
       // Handle Send Transaction
       const depositTxHash = await _rpc('eth_sendTransaction', Object.assign({
         to: __addresses.fuel,
@@ -482,12 +520,17 @@ function Wallet({
       if (_utils.big(depositReceipt.status).eq(0)) {
         throw new Error(`While depositing token ${token} into Fuel with amount ${am.toHexString()} there was an error, receipt 0 status.`);
       }
+      */
+
+      const tokenID = await __fuel.tokens(token);
 
       // Get token ID
+      /*
       const tokenID = _utils.big(await _rpc('eth_call', {
         to: __addresses.fuel,
         data: FuelInterface.functions.tokens.encode([token]),
       }));
+      */
 
       // Construct Deposit Hash
       const depositHashID = structs.constructDepositHashID({
@@ -500,7 +543,7 @@ function Wallet({
       const _value = _utils.RLP.encode([
         signer.address,
         token,
-        depositReceipt.blockNumber,
+        _utils.big(depositReceipt.blockNumber).toHexString(),
         _utils.big(tokenID.toNumber()).toHexString(),
         am.toHexString(),
       ]);
@@ -508,16 +551,19 @@ function Wallet({
       // add deposit to db
       await _db.put(_key, _value);
 
+      // wait for deposit has to come in
       let depositUTXOSynced = null;
       const timeout = _utils.unixtime() + (opts.timeout || _utils.minutes(5));
       while (!depositUTXOSynced) {
         depositUTXOSynced = ((await __post(`${_api}get`, {
-          key: interfaces.FuelDBKeys.Deposit + depositHashID.slice(2),
+          key: interfaces.FuelDBKeys.deposit + depositHashID.toLowerCase().slice(2),
         })) || [])[1]; // the actual utxo, null if not available
 
         if (_utils.unixtime() > timeout) {
           throw new Error('Timeout while waiting for deposit, please sync again');
         }
+
+        await _utils.wait(100);
       }
 
       // Make callback for the tx

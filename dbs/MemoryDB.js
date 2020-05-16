@@ -58,6 +58,7 @@ function MemoryDB() {
   this.batch = (opts) => Promise.all([localBatch(opts), db.batch(opts)])
     .then(v => v[0] || [])
     .catch(err => Promise.reject(err));
+  this.close = () => db.close();
   this.createReadStream = (opts = {}) => db.createReadStream(Object.assign({
     keyAsBuffer: false,
     valueAsBuffer: false
