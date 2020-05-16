@@ -99,11 +99,11 @@ function Wallet({
 
   // Create a defualt DB based upon the environment of exeuction
   const _defaultDB = jsEnv.isBrowser
-    ? new dbs.Index()
-    : new dbs.Memory();
+    ? dbs.Index
+    : dbs.Memory;
 
   // More dbs
-  const _db = this.db = !db ? _defaultDB : db;
+  const _db = this.db = !db ? (new _defaultDB()) : db;
   this.address = signer.address;
   const __network = this.network = networks[this.chainId];
 

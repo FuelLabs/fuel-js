@@ -162,6 +162,7 @@ const faucet = ${JSON.stringify(__faucet, null, 2)};
 const networks = {
   '3': 'ropsten',
   '5': 'goerli',
+  '4': 'rinkeby',
   '10': 'local',
 };
 

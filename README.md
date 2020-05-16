@@ -2,6 +2,8 @@
 
 [![npm version](https://badge.fury.io/js/fuel-core.svg)](https://badge.fury.io/js/fuel-core)
 
+[![Gitter chat](https://badges.gitter.im/gitterHQ/gitter.png)](https://gitter.im/FuelLabs_/community)
+
 Essential JavaScript architecture for the Fuel side chain.
 
 ## Features:
@@ -49,7 +51,7 @@ const { faucet, transfer, listen, tokens, balance, address } = new Wallet({
 ```js
 import { Wallet, utils, dbs } from "fuel-core";
 
-const { deposit, balance, withdraw, retrieve } = new Wallet({
+const { deposit, balance, withdraw, retrieve, tokens } = new Wallet({
   signer: utils.SigningKey(utils.randomBytes(32)),
   provider: window.web3.currentProvider,
   db: new dbs.Index(),
@@ -58,13 +60,13 @@ const { deposit, balance, withdraw, retrieve } = new Wallet({
 
 (async ()=>{
 
-  await deposit(1000, wallet.tokens.ether /*, { from: eth_accounts[0] } */);
+  await deposit(1000, tokens.ether /*, { from: eth_accounts[0] } */);
 
-  console.log(await balance(wallet.tokens.ether));
+  console.log(await balance(tokens.ether));
 
-  await withdraw(500, wallet.tokens.ether); // make a withdrawal UTXO
+  await withdraw(500, tokens.ether); // make a withdrawal UTXO
 
-  await retrieve(wallet.tokens.ether); // wait 1 weeks, select withdrawal zero or first withdrawal in DB to retrieve [, withdrawlIndex]
+  await retrieve(tokens.ether); // wait 1 weeks, select withdrawal zero or first withdrawal in DB to retrieve [, withdrawlIndex]
 
 })()
 
@@ -225,6 +227,16 @@ We communicate via [issues](https://github.com/fuellabs/fuel-core/issues) and [p
 
 - [Changelog](CHANGE_LOG.md)
 - [License](https://raw.githubusercontent.com/fuellabs/fuel-core/master/LICENSE)
+
+## Donate
+
+Please consider donating if you think Fuel is helpful to you or that my work is valuable. I am happy if you can help us buy a cup of coffee. ❤️
+
+- [Gitcoin](https://gitcoin.co/grants/199/fuel-labs)
+
+Or just send us some *Dai*, *USDC* or *Ether*:
+
+**0x3e947a271a37Ae7B59921c57be0a3246Ee0d887C** [Etherscan](https://etherscan.io/address/0x3e947a271a37Ae7B59921c57be0a3246Ee0d887C)
 
 ## Licence
 

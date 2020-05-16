@@ -6,6 +6,8 @@ const replaceAll = function (str, find, replace) {
   return str.replace(new RegExp(find.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'g'), replace);
 };
 
+const _process = require('../config/process');
+
 // Pooled query or transactional Mysql DB Keystore in the level api format..
 // Has a unique ignore (double key prevention) setting, and batch multi-key GET!
 function MysqlDB(opts) {
@@ -14,7 +16,17 @@ function MysqlDB(opts) {
     multipleStatements: true,
     debug:  false,
   }, opts);
-  const table = opts.table || 'keyvalues';
+
+  // prefix the table name with the network, this is nasty but whatever..
+  const prefixTable = name => {
+    if (String(name).indexOf(_process.prefix) === -1) {
+      return _process.prefix + String(name);
+    }
+
+    return name;
+  };
+
+  const table = prefixTable(opts.table || 'keyvalues');
   const batchVolume = opts.batchVolume || 3500;
   const indexValueSQL = opts.indexValue ? ', INDEX (`value`)' : ''; // allows for a more relational push model inside the keyvalue store db
   // dual would only be used for special relational cases ie mongo or mysql..
@@ -117,7 +129,7 @@ function MysqlDB(opts) {
       // MUST Be right filter..
       const hasGet = _arr.filter(v => v.type === 'get').length > 0;
       const arr = hasGet ? _arr : _arr
-        .map(v => (v.table || table) + v.type + v.key)
+        .map(v => (prefixTable(v.table || table)) + v.type + v.key)
         .map((v, i, s) => s.lastIndexOf(v) === i ? i : null)
         .filter(v => v !== null)
         .map(v => _arr[v]);
@@ -148,7 +160,7 @@ function MysqlDB(opts) {
 
       for (var i = 0; i < len; i++) {
         // Get row specifed table
-        const rowTable = arr[i].table || table;
+        const rowTable = prefixTable(arr[i].table || table);
 
         // Add to tables for empty delete removals later.
         tables[rowTable] = true;
@@ -167,7 +179,7 @@ function MysqlDB(opts) {
               _sqlQuery += arr[i].ignore === false ? '' : ` OR ${delKey}`;
               sqlQuery += `,(${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
             }
-            const futurePutRowType = ((arr[i + 1] || empty).table || table)
+            const futurePutRowType = (prefixTable((arr[i + 1] || empty).table || table))
               + (arr[i + 1] || empty).type;
 
             if (futurePutRowType !== putRowType || (i + 1) === len) {
@@ -190,7 +202,7 @@ function MysqlDB(opts) {
             } else {
               sqlQuery += ` OR ${'`'}key${'`'} = ${mysql.escape(arr[i].key)}`;
             }
-            const futureDelRowType = ((arr[i + 1] || empty).table || table)
+            const futureDelRowType = (prefixTable((arr[i + 1] || empty).table || table))
               + (arr[i + 1] || empty).type;
             if (futureDelRowType !== delRowType || (i + 1) === len) {
               sqlQuery += ');';

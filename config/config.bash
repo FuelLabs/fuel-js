@@ -23,6 +23,12 @@ now secrets rm local_mysql_database
 now secrets rm local_mysql_user
 now secrets rm local_mysql_password
 
+now secrets rm rinkeby_mysql_host
+now secrets rm rinkeby_mysql_port
+now secrets rm rinkeby_mysql_database
+now secrets rm rinkeby_mysql_user
+now secrets rm rinkeby_mysql_password
+
 now secrets rm block_production_key
 now secrets rm fraud_commitment_key
 now secrets rm transactions_submission_keys
@@ -59,6 +65,13 @@ now secrets add local_mysql_port $local_mysql_port
 now secrets add local_mysql_database $local_mysql_database
 now secrets add local_mysql_user $local_mysql_user
 now secrets add local_mysql_password $local_mysql_password
+
+now secrets add rinkeby_web3_provider $rinkeby_web3_provider
+now secrets add rinkeby_mysql_host $rinkeby_mysql_host
+now secrets add rinkeby_mysql_port $rinkeby_mysql_port
+now secrets add rinkeby_mysql_database $rinkeby_mysql_database
+now secrets add rinkeby_mysql_user $rinkeby_mysql_user
+now secrets add rinkeby_mysql_password $rinkeby_mysql_password
 
 # now secrets add chain_id $chain_id
 now secrets add gasLimit $gasLimit
