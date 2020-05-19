@@ -140,9 +140,10 @@ function bigGT(val, greaterThan, message = '') {
 }
 
 const emptyRLP = RLP.encode('0x0');
+const lower = v => String(v).toLowerCase();
 
 // intake transaction to the mempool
-async function intakeTransaction({ transaction, db, mempool, accounts, force, batchAll, pubnub }) {
+async function intakeTransaction({ transaction, db, mempool, accounts, force, batchAll, swap, pubnub }) {
   try {
     TypeHex(transaction);
     TypeDB(db);
@@ -413,6 +414,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       table: accounts.table,
     }));
 
+    console.log('gets to batch reads');
+
     // Do all DB reads at once, including most recent processed blockTip and numTokens..
     const getEntries = db.supports.batchReads
       ? await db.batch(reads)
@@ -495,6 +498,16 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       const witnessReference = input.witnessReference;
       const witness = recoveredWitnesses[witnessReference] || '';
 
+      // enfoce swap outputs
+      if (swap) {
+        if (_inputIndex <= 1) {
+          errors.assert(lower(owner) === lower(swap[3]), 'Invalid first two inputs must be swap owner reserves');
+        }
+        if (_inputIndex > 1) {
+          errors.assert(lower(owner) !== lower(swap[3]), 'Invalid attempt to spend non swap inputs');
+        }
+      }
+
       // Check owner
       errors.assert(owner.toLowerCase() === witness.toLowerCase(), 'Invalid owner not witness');
 
@@ -526,6 +539,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
 
     errors.assert(Object.keys(ins).length === Object.keys(outs).length, 'In types not equal out types.');
 
+    const utxoIds = [];
+
     for (let outputIndex = 0; outputIndex < outputsLength; outputIndex++) {
       const output = outputs[outputIndex];
       const outputType = output.type;
@@ -543,6 +558,9 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
         returnWitness: output.returnWitnessIndex,
         _ownerAddress: output.owner || recoveredWitnesses[output.ownerAsWitnessIndex],
       });
+
+      // hash
+      utxoIds[outputIndex] = utxoProof.hash;
 
       // Be careful here..
       const output_key = FuelDBKeys.mempool
@@ -617,11 +635,52 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       big((new Date()).getTime()).toHexString(),
     ]);
 
+    console.log('gets to swap');
+
+    if (swap) {
+      // here we identify a swap provider spend by two witness prop
+      // owner == signer and second recovered witness == signer
+      // output type === UTXO
+      // than we database based upon swap key + tokenID
+      // only one output per tokenID..
+      const aFirst = swap[0];
+      writes.push({
+        type: 'put',
+        key: FuelDBKeys.swap,
+        value: RLP.encode([
+          swap[1],
+          swap[2],
+          aFirst ? utxoIds[2] : utxoIds[3],
+          aFirst ? utxoIds[3] : utxoIds[2],
+          swap[3],
+        ]),
+        table: db.table,
+      });
+
+      console.log('swap entry', {
+        type: 'put',
+        key: FuelDBKeys.swap,
+        value: RLP.encode([
+          swap[1],
+          swap[2],
+          aFirst ? utxoIds[2] : utxoIds[3],
+          aFirst ? utxoIds[3] : utxoIds[2],
+          swap[3],
+        ]),
+        table: db.table,
+      });
+    }
+
+    console.log('writes', writes);
+
     // We assume if it's mysql, they are all the same DB for now..
     if (batchAll) {
       // We batch all into a single set of writes and deletes.
       // We can make this more efficient (query for most, tx for spend puts)
       // Tx for spend gets of puts, but the rest can be just queries
+
+      console.log('batch all');
+
       await db.batch(accountWrites
         .concat(_accountSpendWrites)
         .concat(writes)
@@ -632,6 +691,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
           created: _time,
           table: mempool.table,
         }]), true);
+
+      console.log('done');
     } else {
       // Account writes, this can be made more efficient with a single connection
       if (accounts) {
@@ -648,7 +709,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
     // Inserted success.
     return true;
   } catch (error) {
-    throw new errors.ByPassError(error);
+    console.error(error);
+    // throw new errors.ByPassError(error);
   }
 }
 

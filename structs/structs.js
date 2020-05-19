@@ -455,6 +455,7 @@ function TransactionOutputUTXO({ amount, tokenID, owner }) {
   // Construct
   this.type = FuelOutputTypes.UTXO;
   this.amount = utils.hexStripZeros(big(amount).toHexString());
+  this.amountBig = big(amount);
 
   // is odd
   if (this.amount.length % 2) {

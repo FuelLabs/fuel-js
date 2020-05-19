@@ -389,6 +389,7 @@ const FuelDBKeys = {
   ip: '0x19',
   contract: '0x20', // for fuel contract address.
   withdrawn: '0x21',
+  swap: '0x22',
 };
 
 // Fuel Contract Instance

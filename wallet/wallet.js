@@ -99,8 +99,6 @@ function Wallet({
     : (network === 'goerli' ? '5' : (network === 'rinkeby' ? '4' : '3')); // default to ropsten..
   const __chainId = this.chainId = String(chainId || ___chain_id); // ropsten is default
 
-  // console.log(this.chainId !== '3' && this.chainId !== '4' && this.chainId !== '5');
-
   // Check chain id..
   if (this.chainId !== '3' && this.chainId !== '4' && this.chainId !== '5') {
     throw new Error(`The chainId must be either 3, 4 or 5 (ropsten, rinkeby or goerli) got ${this.chainId}.`);
@@ -136,9 +134,6 @@ function Wallet({
   if (provider) {
     __wallet = new ethers.Wallet(signer, provider);
     __fuel = new ethers.Contract(__addresses['fuel'], FuelInterface, __wallet);
-
-    // console.log(__fuel.tokens(''));
-    // return;
   }
 
   // Token addresses
@@ -378,8 +373,6 @@ function Wallet({
 
       return keys;
     } catch (error) {
-      console.error(error);
-
       throw new errors.ByPassError(error);
     }
   };
@@ -448,6 +441,8 @@ function Wallet({
       const result = await __post(`${_api}get`, {
         key: interfaces.FuelDBKeys.tokenID + String(token).toLowerCase().slice(2),
       });
+
+      console.log(result);
 
       // Block Number from API
       return _utils.big(result);
@@ -588,6 +583,220 @@ function Wallet({
     }
   };
 
+  const tokenA = _utils.big(2);
+  const tokenB = _utils.big(3);
+
+  const rate = this.rate = async (amount, tokenAAddress, tokenBAddress) => {
+    try {
+      const am = _utils.big(amount);
+      types.TypeAddress(tokenAAddress);
+      types.TypeAddress(tokenBAddress);
+
+      let [
+        reserveAAmount,
+        reserveBAmount,
+        reserveAUTXO,
+        reserveBUTXO,
+        poolOwner,
+      ] = await __post(`${_api}get`, { key: interfaces.FuelDBKeys.swap });
+
+      reserveAAmount = _utils.big(reserveAAmount);
+      reserveBAmount = _utils.big(reserveBAmount);
+
+      // Get token ID
+      const tokenAID = await this.tokenID(tokenAAddress);
+      const tokenBID = await this.tokenID(tokenBAddress);
+
+      const inputReserve = tokenAID.eq(tokenA) ? reserveAAmount : reserveBAmount;
+      const outputReserve = tokenAID.eq(tokenA) ? reserveBAmount : reserveAAmount;
+
+      // if we were swapping moon to brick (brick is output)
+      const inputAmount = am;
+      const inputAmountWithFee = inputAmount.mul(997); // input * 997;
+      const numerator = inputAmountWithFee.mul(outputReserve);
+      const denominator = (inputReserve.mul(1000)).add(inputAmountWithFee);
+      const amountToSend = numerator.div(denominator);
+
+      return amountToSend;
+    } catch (error) {
+      throw new Error(error);
+    }
+  };
+
+  const swap = this.swap = async (amount, tokenAAddress, tokenBAddress, opts = {}) => {
+    const am = _utils.big(amount);
+    types.TypeAddress(tokenAAddress);
+    types.TypeAddress(tokenBAddress);
+    types.TypeObject(opts);
+    const { spendableInputs, balance } = await this.inputs(tokenAAddress);
+
+    // get the pool/reserve details
+    let [
+      reserveAAmount,
+      reserveBAmount,
+      reserveAUTXO,
+      reserveBUTXO,
+      poolOwner,
+    ] = await __post(`${_api}get`, { key: interfaces.FuelDBKeys.swap });
+
+    // Grab the first 8
+    const inputBatch = spendableInputs
+      .filter(v => v.input.utxoID !== reserveAUTXO && v.input.utxoID !== reserveBUTXO)
+      .slice(0, 6);
+    let batchBalance = _utils.big(0);
+
+    // Calc batch balsance
+    for (let i = 0; i < inputBatch.length; i++) {
+      batchBalance = batchBalance.add(inputBatch[i].amount);
+    }
+
+    // If Amount is greater than the balance.. throw!
+    if (am.gt(balance)) {
+      throw new Error('Swap amount greater than total account balance.');
+    }
+
+    // If Amount is greater than the balance.. throw!
+    if (am.gt(batchBalance)) {
+      throw new Error('Invalid swap, amount greater than total batch balance. Do a small transfer to yourself first to compress inputs.');
+    }
+
+    // Does the tx have change!
+    const changeAmount = batchBalance.sub(amount);
+
+    // Get token ID
+    const tokenAID = await this.tokenID(tokenAAddress);
+    const tokenBID = await this.tokenID(tokenBAddress);
+
+    if (!tokenAID.eq(tokenA) && !tokenAID.eq(tokenB)) {
+      throw new Error('Invalid token A, can only be ID 2 or 3');
+    }
+
+    if (!tokenBID.eq(tokenA) && !tokenBID.eq(tokenB)) {
+      throw new Error('Invalid token B, can only be ID 2 or 3');
+    }
+
+    reserveAAmount = _utils.big(reserveAAmount);
+    reserveBAmount = _utils.big(reserveBAmount);
+
+    const inputReserve = tokenAID.eq(tokenA) ? reserveAAmount : reserveBAmount;
+    const outputReserve = tokenAID.eq(tokenA) ? reserveBAmount : reserveAAmount;
+
+    // if we were swapping moon to brick (brick is output)
+    const inputAmount = am;
+    const inputAmountWithFee = inputAmount.mul(997); // input * 997;
+    const numerator = inputAmountWithFee.mul(outputReserve);
+    const denominator = (inputReserve.mul(1000)).add(inputAmountWithFee);
+    const amountToSend = numerator.div(denominator);
+
+    const _inputs = [
+      new structs.TransactionInputUTXO({
+        utxoID: reserveAUTXO,
+        witnessReference: 1,
+      }),
+      new structs.TransactionInputUTXO({
+        utxoID: reserveBUTXO,
+        witnessReference: 1,
+      }),
+      ...inputBatch.map(v => v.input)
+    ];
+
+    const outputs = [
+      new structs.TransactionOutputUTXO({
+        amount: amountToSend,
+        owner: this.address,
+        tokenID: tokenBID,
+      }),
+      new structs.TransactionOutputUTXO({
+        amount: changeAmount,
+        owner: this.address,
+        tokenID: tokenAID,
+      }),
+      new structs.TransactionOutputUTXO({
+        amount: reserveAAmount.add(am),
+        owner: poolOwner,
+        tokenID: tokenAID,
+      }),
+      new structs.TransactionOutputUTXO({
+        amount: reserveBAmount.sub(amountToSend),
+        owner: poolOwner,
+        tokenID: tokenBID,
+      }),
+    ];
+
+    // Create unsigned tx..structs
+    const unsignedTransaction = new structs.TransactionUnsigned({
+      inputs: _inputs,
+      outputs,
+    });
+
+    // Change UTXO
+    const output0 = new structs.UTXOProof({
+      transactionHashId: unsignedTransaction.hash,
+      outputIndex: 0,
+      type: interfaces.FuelOutputTypes.UTXO,
+      owner: this.address,
+      amount: amountToSend,
+      tokenID: tokenBID,
+    });
+    await _db.put(interfaces.FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)
+        + output0.hash.slice(2), output0.rlp());
+
+    const output1 = new structs.UTXOProof({
+      transactionHashId: unsignedTransaction.hash,
+      outputIndex: 1,
+      type: interfaces.FuelOutputTypes.UTXO,
+      owner: this.address,
+      amount: changeAmount,
+      tokenID: tokenAID,
+    });
+    await _db.put(interfaces.FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)
+        + output1.hash.slice(2), output1.rlp());
+
+    // delete the inputs from the db
+    await _db.batch(inputBatch.map(v => ({
+      type: 'del',
+      key: v.key,
+    })));
+
+    try {
+      // Return Transfer..
+      const result = await __post(`${_api}swap`, {
+        transaction: unsignedTransaction.rlp([
+          new structs.TransactionWitness(structs.constructWitness(unsignedTransaction, signer))
+        ]),
+      });
+
+      if (!result) {
+        throw new Error('Problem while transacting with API.');
+      }
+
+      // Make callback for the tx
+      __cb(null, {
+        _transfer: true,
+        _swap: true,
+      });
+
+      return true;
+    } catch (txError) {
+      console.error(txError);
+
+      // remove swap utxos
+      await _db.del(interfaces.FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)
+          + output0.hash.slice(2));
+      await _db.del(interfaces.FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)
+          + output1.hash.slice(2));
+
+      // add back inputs into db
+      await _db.batch(inputBatch.map(v => ({
+        type: 'put',
+        key: v.key,
+        value: v.value,
+      })));
+
+      throw new ByPassError(txError);
+    }
+  };
+
   // Transfer
   const transfer = this.transfer = async (amount, token, recipient, opts = {}) => {
     try {
@@ -624,13 +833,6 @@ function Wallet({
 
       // Get token ID
       const tokenID = await this.tokenID(token);
-
-      /*
-      const tokenID = _utils.big(_utils.big(await _rpc('eth_call', {
-        to: __addresses.fuel,
-        data: FuelInterface.functions.tokens.encode([token]),
-      })).toNumber());
-      **/
 
       // Withdraw
       if (opts.withdraw) {
@@ -708,7 +910,7 @@ function Wallet({
           owner: recipient,
         });
 
-        await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.withdrawal
+        await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.withdrawal.slice(2)
             + primaryOutputProof.hash.slice(2), primaryOutputProof.rlp());
       }
 
@@ -726,7 +928,7 @@ function Wallet({
             owner: 0,
           });
 
-          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.withdrawal
+          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.withdrawal.slice(2)
               + entry.hash.slice(2), entry.rlp());
         } else if (opts.htlc) {
           entry = new structs.UTXOProof({
@@ -741,7 +943,7 @@ function Wallet({
             returnWitnessIndex: opts.returnWitnessIndex || 0,
           });
 
-          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.HTLC
+          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.HTLC.slice(2)
               + entry.hash.slice(2), entry.rlp());
         } else {
           // Change UTXO
@@ -754,7 +956,7 @@ function Wallet({
             tokenID,
           });
 
-          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO
+          await _db.put(FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)
               + entry.hash.slice(2), entry.rlp());
         }
       }
@@ -985,69 +1187,6 @@ function Wallet({
       throw new errors.ByPassError(error);
     }
   };
-
-  // Retrive
-  /*
-  this.listen = (callback, opts = {}) => {
-    try {
-      // Enforce types.Types
-      types.TypeFunction(callback);
-      types.TypeObject(opts);
-
-      // Setup pusher with Fuel Key.
-      if (opts.logToConsole) {
-        Pusher.logToConsole = true;
-      }
-
-      // Sign the most current UTC timestamp to prove its you..
-      const checkMessage = signMessage
-        .signMessage(_utils.big(unixtime()).toHexString() + signerKey.address);
-
-      // Pusher Client
-      var pusher = new Pusher(_pusherId, {
-        cluster: 'us2',
-        forceTLS: true,
-      });
-
-      // Channel
-      let channel = pusher.subscribe(signerKey.address);
-      channel.bind(signerKey.address, callback);
-      channel.bind('pusher:subscription_succeeded', () => callback(null, true));
-      channel.bind('pusher:subscription_error', callback);
-
-      // Return channel for more binding options.
-      return channel;
-    } catch (error) {
-      callback(new errors.ByPassError(error), null);
-    }
-  };
-  */
 }
-
-
-/*
-[
-  log.values.blockProducer,
-  log.values.previousBlockHash,
-  rawLog.blockNumber,
-  log.values.blockHeight,
-  log.values.transactionRoots,
-  block.hash,
-]
-
-[
-  log.values.producer,
-  log.values.merkleTreeRoot,
-  log.values.commitmentHash,
-  rawLog.transactionHash,
-]
-
-[
-  transactionLeaf, // db leaf
-  _utils.serializeRLP(block.values), // value
-  _utils.serializeRLP(root.values), // root
-  _utils.big(transactionIndex).toHexString(), // tx index..
-]
-*/
 
 module.exports = Wallet;

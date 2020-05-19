@@ -1,4 +1,4 @@
-const mysql = require('mysql2');
+const mysql = require('mysql');
 const { ByPassError } = require('../errors/errors');
 const types = require('../types/types');
 
@@ -7,6 +7,8 @@ const replaceAll = function (str, find, replace) {
 };
 
 const _process = require('../config/process');
+
+const emptyConn = { release: () => {} };
 
 // Pooled query or transactional Mysql DB Keystore in the level api format..
 // Has a unique ignore (double key prevention) setting, and batch multi-key GET!
@@ -57,9 +59,17 @@ function MysqlDB(opts) {
   const _query = this._query = (query, transact) => new Promise((resolve, reject) => {
     pool.getConnection((connectionError, conn) => {
       if (connectionError) {
-        conn.release();
+        // conn.release();
         return reject(connectionError);
       }
+
+      console.log(query.substring(0, 1000), transact);
+
+      console.log(query.length >= 1000 ? query.substring(1000, 2000) : '');
+
+      console.log(query.length >= 2000 ? query.substring(2000, 3000) : '');
+
+      console.log(query);
 
       if (!transact) {
         conn.query(query, (queryError, results) => {

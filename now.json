@@ -23,6 +23,15 @@
       },
       "dest": "/lambdas/transact.js"
     },
+    { "src": "/swap(.*)",
+      "methods": ["PUT", "POST", "OPTIONS"],
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
+        "Access-Control-Allow-Credentials": "true"
+      },
+      "dest": "/lambdas/swap.js"
+    },
     { "src": "/faucet(.*)",
       "methods": ["PUT", "POST", "OPTIONS"],
       "headers": {
@@ -99,6 +108,7 @@
     "ropsten_web3_provider": "@ropsten_web3_provider",
     "pubnub_publisher_key": "@pubnub_publisher_key",
     "pubnub_subscriber_key": "@pubnub_subscriber_key",
-    "pubnub_uuid": "@pubnub_uuid"
+    "pubnub_uuid": "@pubnub_uuid",
+    "swapKey": "@swapkey"
   }
 }
