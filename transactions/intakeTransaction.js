@@ -16,11 +16,11 @@ const {
   wait,
 } = require('../utils/utils');
 
-const Sentry = require('@sentry/node');
+// const Sentry = require('@sentry/node');
 // or using CommonJS
 // const Sentry = require('@sentry/node');
 
-Sentry.init({ dsn: 'https://52a1dd8ad7c041a8879e2f463c6e04b7@o395349.ingest.sentry.io/5247009' });
+// Sentry.init({ dsn: 'https://52a1dd8ad7c041a8879e2f463c6e04b7@o395349.ingest.sentry.io/5247009' });
 
 const {
   FuelInputTypes,
@@ -703,7 +703,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
     // Inserted success.
     return true;
   } catch (error) {
-    Sentry.captureException(error);
+    // Sentry.captureException(error);
     throw new errors.ByPassError(error);
   }
 }
