@@ -293,8 +293,6 @@ async function intakeSwap({
     // Construct Unsigned Tx
     const unsignedTransaction = new TransactionUnsigned({ inputs, outputs });
 
-    console.log('swap made it to transaction transfer');
-
     // Intake Tx
     const result = await intakeTransaction({
       transaction: unsignedTransaction.rlp([

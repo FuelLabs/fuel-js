@@ -420,8 +420,6 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       table: accounts.table,
     }));
 
-    console.log('gets to batch reads');
-
     // Do all DB reads at once, including most recent processed blockTip and numTokens..
     const getEntries = db.supports.batchReads
       ? await db.batch(reads)
@@ -641,8 +639,6 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       big((new Date()).getTime()).toHexString(),
     ]);
 
-    console.log('gets to swap');
-
     let swapit = [];
 
     if (swap) {
@@ -672,8 +668,6 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       // We can make this more efficient (query for most, tx for spend puts)
       // Tx for spend gets of puts, but the rest can be just queries
 
-      console.log('batch all');
-
       await db.batch(accountWrites
         .concat(_accountSpendWrites)
         .concat(writes)
@@ -685,8 +679,6 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
           created: _time,
           table: mempool.table,
         }]), true);
-
-      console.log('done');
     } else {
       // Account writes, this can be made more efficient with a single connection
       if (accounts) {

@@ -442,8 +442,6 @@ function Wallet({
         key: interfaces.FuelDBKeys.tokenID + String(token).toLowerCase().slice(2),
       });
 
-      console.log(result);
-
       // Block Number from API
       return _utils.big(result);
     } catch (error) {
@@ -778,8 +776,6 @@ function Wallet({
 
       return true;
     } catch (txError) {
-      console.error(txError);
-
       // remove swap utxos
       await _db.del(interfaces.FuelDBKeys.mempool + interfaces.FuelDBKeys.UTXO.slice(2)
           + output0.hash.slice(2));
