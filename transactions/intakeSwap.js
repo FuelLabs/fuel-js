@@ -168,28 +168,8 @@ async function intakeSwap({
     errors.assert(inputs.length >= 3, 'Must be at least three inputs');
     errors.assert(outputs.length === 4, 'Must be four outputs');
 
-    const [_aAm, _bAm, reserveAUTXO, reserveBUTXO, owner] = RLP.decode(await db.get(FuelDBKeys.swap));
-
-    let tokenAReserve = await db
-      .get(normalize(FuelDBKeys.mempool, FuelDBKeys.UTXO, reserveAUTXO));
-    tokenAReserve = tokenAReserve || await db
-      .get(normalize(FuelDBKeys.UTXO, reserveAUTXO));
-
-    let tokenBReserve = await db
-      .get(normalize(FuelDBKeys.mempool, FuelDBKeys.UTXO, reserveBUTXO));
-    tokenBReserve = tokenBReserve || await db
-      .get(normalize(FuelDBKeys.UTXO, reserveBUTXO));
-
-    errors.assert(tokenAReserve !== null && tokenBReserve !== null, 'Invalid no pool reserves');
-    errors.assert(lower(owner) === lower(signer.address), 'Owner must be signer');
-
-    // setup reserves
-    const reserves = {
-      a: decodeUTXORLP(tokenAReserve).proof,
-      b: decodeUTXORLP(tokenBReserve).proof,
-    };
-    errors.assert(reserves.a.amount.gt(big(0)), 'Pool a reserve empty');
-    errors.assert(reserves.b.amount.gt(big(0)), 'Pool b reserve empty');
+    let [reserveA, reserveB,
+      reserveAUTXO, reserveBUTXO, owner] = RLP.decode(await db.get(FuelDBKeys.swap));
 
     // inputs
 
@@ -253,8 +233,8 @@ async function intakeSwap({
     // if they want back type A, than their input is B, visa versa
     const inputToken = outputs[0].tokenID.eq(tokens.b) ? 'a' : 'b';
     const outputToken = inputToken === 'a' ? 'b' : 'a';
-    const inputReserve = reserves[inputToken].amount;
-    const outputReserve = reserves[outputToken].amount;
+    const inputReserve = big(inputToken === 'a' ? reserveA : reserveB);
+    const outputReserve = big(inputToken === 'a' ? reserveB : reserveA);
 
     errors.assert(outputs[2].amountBig.gt(inputReserve), 'input reserve amount must be greater than previous');
     errors.assert(outputs[3].amountBig.lt(outputReserve), 'output reserve amount must be less than previous');
@@ -278,7 +258,7 @@ async function intakeSwap({
     // output 2 1500 moon to pool, new moon pool input
     // output 3 502 bricks to pool, new moon pool output
 
-    errors.assert(outputs[0].amountBig.eq(amountToSend), 'invalid amount sender receiving');
+    errors.assert(outputs[0].amountBig.eq(amountToSend), `invalid amount sender receiving, got ${outputs[0].amountBig.toHexString()} should be ${amountToSend.toHexString()}`);
     errors.assert(outputs[2].amountBig.eq(inputReserve.add(inputAmount)), 'invalid input pool reserve amount');
     errors.assert(outputs[3].amountBig.eq(outputReserve.sub(amountToSend)), 'invalid output pool reserve amount');
 

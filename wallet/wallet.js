@@ -261,7 +261,7 @@ function Wallet({
 
             // Push Decoded Row.
             result.spendableInputs.push({ input,
-                amount: decoded.proof.amount, key: row.key });
+                amount: decoded.proof.amount, key: row.key, value: row.value });
             result.rows.push({ key: row.key, value: row.value, decoded,
               amount: decoded.proof.amount, input, utxoProof });
           }
@@ -679,12 +679,13 @@ function Wallet({
     const inputReserve = tokenAID.eq(tokenA) ? reserveAAmount : reserveBAmount;
     const outputReserve = tokenAID.eq(tokenA) ? reserveBAmount : reserveAAmount;
 
+
     // if we were swapping moon to brick (brick is output)
-    const inputAmount = am;
-    const inputAmountWithFee = inputAmount.mul(997); // input * 997;
+    const inputAmountWithFee = am.mul(997); // input * 997;
     const numerator = inputAmountWithFee.mul(outputReserve);
     const denominator = (inputReserve.mul(1000)).add(inputAmountWithFee);
     const amountToSend = numerator.div(denominator);
+
 
     const _inputs = [
       new structs.TransactionInputUTXO({
@@ -710,12 +711,12 @@ function Wallet({
         tokenID: tokenAID,
       }),
       new structs.TransactionOutputUTXO({
-        amount: reserveAAmount.add(am),
+        amount: inputReserve.add(am),
         owner: poolOwner,
         tokenID: tokenAID,
       }),
       new structs.TransactionOutputUTXO({
-        amount: reserveBAmount.sub(amountToSend),
+        amount: outputReserve.sub(amountToSend),
         owner: poolOwner,
         tokenID: tokenBID,
       }),
@@ -751,7 +752,7 @@ function Wallet({
         + output1.hash.slice(2), output1.rlp());
 
     // delete the inputs from the db
-    await _db.batch(inputBatch.map(v => ({
+    await _db.batch(inputBatch.concat([]).map(v => ({
       type: 'del',
       key: v.key,
     })));
@@ -789,7 +790,7 @@ function Wallet({
         value: v.value,
       })));
 
-      throw new ByPassError(txError);
+      throw new errors.ByPassError(txError);
     }
   };
 

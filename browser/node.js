@@ -24,15 +24,16 @@ const { Wallet, providers, utils, dbs } = require('../index');
     // await wallet.deposit(5000, moonTokenAddress);
     // await wallet.deposit(50000, brickTokenAddress);
 
-    console.log('moon', await wallet.balance(moonTokenAddress));
-    console.log('brick', await wallet.balance(brickTokenAddress));
+    console.log('moon', (await wallet.balance(moonTokenAddress)).toNumber());
+    console.log('brick', (await wallet.balance(brickTokenAddress)).toNumber());
 
-    console.log(await wallet.swap(5000, moonTokenAddress, brickTokenAddress));
+    console.log(await wallet.rate(50, brickTokenAddress, moonTokenAddress));
+    console.log(await wallet.swap(50, brickTokenAddress, moonTokenAddress));
 
     // await wallet.transfer(10, moonTokenAddress, wallet.address);
 
-    console.log('moon', await wallet.balance(moonTokenAddress));
-    console.log('brick', await wallet.balance(brickTokenAddress));
+    console.log('moon', (await wallet.balance(moonTokenAddress)).toNumber());
+    console.log('brick', (await wallet.balance(brickTokenAddress)).toNumber());
 
     // console.log(wallet.address);
     // console.log(await wallet.balance(brickTokenAddress));
