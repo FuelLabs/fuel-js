@@ -318,7 +318,6 @@ async function intakeSwap({
     // Inserted success.
     return true;
   } catch (error) {
-    console.error(error, true);
     throw new errors.ByPassError(error);
   }
 }

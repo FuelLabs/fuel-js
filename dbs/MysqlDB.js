@@ -186,7 +186,11 @@ function MysqlDB(opts) {
               _sqlQuery += `DELETE FROM ${rowTable} WHERE (${delKey}`;
               sqlQuery += `INSERT INTO ${rowTable}(${'`'}key${'`'},${'`'}value${'`'}) VALUES (${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
             } else {
-              _sqlQuery += arr[i].ignore === false ? '' : ` OR ${delKey}`;
+              let _or = 'OR';
+              if (_sqlQuery.trim().substr(-1, 1) === '(') {
+                _or = '';
+              }
+              _sqlQuery += arr[i].ignore === false ? '' : ` ${_or} ${delKey}`;
               sqlQuery += `,(${mysql.escape(arr[i].key)},${mysql.escape(arr[i].value)})`;
             }
             const futurePutRowType = (prefixTable((arr[i + 1] || empty).table || table))

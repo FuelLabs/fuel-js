@@ -27,7 +27,7 @@ const { Wallet, providers, utils, dbs } = require('../index');
     console.log('moon', await wallet.balance(moonTokenAddress));
     console.log('brick', await wallet.balance(brickTokenAddress));
 
-    console.log(await wallet.swap(500, moonTokenAddress, brickTokenAddress));
+    console.log(await wallet.swap(5000, moonTokenAddress, brickTokenAddress));
 
     // await wallet.transfer(10, moonTokenAddress, wallet.address);
 

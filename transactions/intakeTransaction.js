@@ -16,6 +16,12 @@ const {
   wait,
 } = require('../utils/utils');
 
+const Sentry = require('@sentry/node');
+// or using CommonJS
+// const Sentry = require('@sentry/node');
+
+Sentry.init({ dsn: 'https://52a1dd8ad7c041a8879e2f463c6e04b7@o395349.ingest.sentry.io/5247009' });
+
 const {
   FuelInputTypes,
   FuelOutputTypes,
@@ -637,6 +643,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
 
     console.log('gets to swap');
 
+    let swapit = [];
+
     if (swap) {
       // here we identify a swap provider spend by two witness prop
       // owner == signer and second recovered witness == signer
@@ -644,7 +652,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       // than we database based upon swap key + tokenID
       // only one output per tokenID..
       const aFirst = swap[0];
-      writes.push({
+      swapit[0] = {
         type: 'put',
         key: FuelDBKeys.swap,
         value: RLP.encode([
@@ -655,23 +663,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
           swap[3],
         ]),
         table: db.table,
-      });
-
-      console.log('swap entry', {
-        type: 'put',
-        key: FuelDBKeys.swap,
-        value: RLP.encode([
-          swap[1],
-          swap[2],
-          aFirst ? utxoIds[2] : utxoIds[3],
-          aFirst ? utxoIds[3] : utxoIds[2],
-          swap[3],
-        ]),
-        table: db.table,
-      });
+      };
     }
-
-    console.log('writes', writes);
 
     // We assume if it's mysql, they are all the same DB for now..
     if (batchAll) {
@@ -684,6 +677,7 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
       await db.batch(accountWrites
         .concat(_accountSpendWrites)
         .concat(writes)
+        .concat(swapit)
         .concat([{
           type: 'put',
           key: mempoolKey,
@@ -709,8 +703,8 @@ async function intakeTransaction({ transaction, db, mempool, accounts, force, ba
     // Inserted success.
     return true;
   } catch (error) {
-    console.error(error);
-    // throw new errors.ByPassError(error);
+    Sentry.captureException(error);
+    throw new errors.ByPassError(error);
   }
 }
 
