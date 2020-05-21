@@ -20,8 +20,8 @@ async function setupSwap() {
       table: 'keyvalues',
     });
 
-    const reserveAUTXO = '0x0bde18b60ca08b1941cd914e2615cfbb113e95a4ae76feb843d5df115bf92b2c';
-    const reserveBUTXO = '0x3d822b2ba72a9e1587369c60ed902b9ab445346427fb05fb6d580cd010e6e6fa';
+    const reserveAUTXO = '0x4068913e203707dc03633ad47c3cf0461aa5c025aee5720933da5464942675f7';
+    const reserveBUTXO = '0xf06e3720a72478a962200cf333a0ad0de6c7400cf9f082c4bda4f86dbbd132d1';
 
     let tokenAReserve = await db
       .get(normalize(FuelDBKeys.mempool, FuelDBKeys.UTXO, reserveAUTXO));

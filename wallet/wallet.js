@@ -581,8 +581,8 @@ function Wallet({
     }
   };
 
-  const tokenA = _utils.big(2);
-  const tokenB = _utils.big(3);
+  const tokenA = _utils.big(8);
+  const tokenB = _utils.big(7);
 
   const rate = this.rate = async (amount, tokenAAddress, tokenBAddress) => {
     try {

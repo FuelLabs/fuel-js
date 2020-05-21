@@ -63,14 +63,6 @@ function MysqlDB(opts) {
         return reject(connectionError);
       }
 
-      console.log(query.substring(0, 1000), transact);
-
-      console.log(query.length >= 1000 ? query.substring(1000, 2000) : '');
-
-      console.log(query.length >= 2000 ? query.substring(2000, 3000) : '');
-
-      console.log(query);
-
       if (!transact) {
         conn.query(query, (queryError, results) => {
           conn.release();

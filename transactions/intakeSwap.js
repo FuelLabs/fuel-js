@@ -162,7 +162,7 @@ async function intakeSwap({
     const outputs = decoded[1];
     let witnesses = decoded[2];
     let recoveredWitnesses = [];
-    let tokens = { a: big(2), b: big(3) };
+    let tokens = { a: big(8), b: big(7) };
 
     errors.assert(witnesses.length === 1, 'Must be one witness');
     errors.assert(inputs.length >= 3, 'Must be at least three inputs');
