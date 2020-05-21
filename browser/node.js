@@ -1,7 +1,7 @@
 const { Wallet, providers, utils, dbs } = require('../index');
 
 (async ()=>{
-  let privateKey = process.env.test_privateKey; // test_privateKey3
+  let privateKey = process.env.test_privateKey3; // test_privateKey3
   const wallet = new Wallet({
      signer: new utils.SigningKey(privateKey),
      provider: new providers.InfuraProvider('rinkeby', '3cfef7d48afb4f26be007e5c07260d9a'), // 'https://rinkeby.infura.io/v3/3cfef7d48afb4f26be007e5c07260d9a'),
@@ -25,16 +25,18 @@ const { Wallet, providers, utils, dbs } = require('../index');
     console.log(await wallet.tokenID(moonTokenAddress));
     console.log(await wallet.tokenID(brickTokenAddress));
 
-    // await wallet.deposit(utils.parseEther('1000000'), moonTokenAddress);
-    // await wallet.deposit(utils.parseEther('1000000'), brickTokenAddress);
+    // console.log(wallet.address);
+
+    await wallet.deposit(utils.parseEther('100'), moonTokenAddress, { confirmations: 1 });
+    await wallet.deposit(utils.parseEther('100'), moonTokenAddress, { confirmations: 1 });
+    // await wallet.deposit(utils.parseEther('10000'), brickTokenAddress);
 
     console.log('moon', (await wallet.balance(moonTokenAddress)));
     console.log('brick', (await wallet.balance(brickTokenAddress)));
 
-    // console.log(wallet.address);
 
-    // console.log(await wallet.rate(50, brickTokenAddress, moonTokenAddress));
-    // console.log(await wallet.swap(50, moonTokenAddress, brickTokenAddress));
+    // console.log(await wallet.rate(utils.parseEther('1500'), brickTokenAddress, moonTokenAddress));
+    // console.log(await wallet.swap(utils.parseEther('1500'), brickTokenAddress, moonTokenAddress));
 
     // await wallet.transfer(utils.parseEther('1000000'), moonTokenAddress, wallet.address);
     // await wallet.transfer(utils.parseEther('1000000'), brickTokenAddress, wallet.address);

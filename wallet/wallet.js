@@ -556,7 +556,7 @@ function Wallet({
           throw new Error('Timeout while waiting for deposit, please sync again');
         }
 
-        await _utils.wait(100);
+        await _utils.wait(10);
       }
 
       // Make callback for the tx
@@ -666,11 +666,11 @@ function Wallet({
     const tokenBID = await this.tokenID(tokenBAddress);
 
     if (!tokenAID.eq(tokenA) && !tokenAID.eq(tokenB)) {
-      throw new Error('Invalid token A, can only be ID 2 or 3');
+      throw new Error('Invalid token A, can only be ID 8 or 7');
     }
 
     if (!tokenBID.eq(tokenA) && !tokenBID.eq(tokenB)) {
-      throw new Error('Invalid token B, can only be ID 2 or 3');
+      throw new Error('Invalid token B, can only be ID 8 or 7');
     }
 
     reserveAAmount = _utils.big(reserveAAmount);

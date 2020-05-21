@@ -26,6 +26,20 @@ if (env.memwatch) {
   memwatch.on('stats', console.log);
 }
 
+// Pubnub inclusion
+let pubnub = null;
+if (env.pubnub_publisher_key) {
+  // require module
+  const PubNub = require('pubnub');
+
+  // Pubnub
+  pubnub = new PubNub({
+    publishKey: env.pubnub_publisher_key,
+    subscribeKey: env.pubnub_subscriber_key,
+    uuid: env.pubnub_uuid,
+  });
+}
+
 // Node routine
 async function node() {
   // Logger with Sentry support
@@ -150,7 +164,8 @@ async function node() {
       contract,
       keys,
       gasLimit,
-      confirmationBlocks: 10, // wait for 10 conf blocks ahead before procesing..s
+      pubnub,
+      confirmationBlocks: String(process.env.chain_id) === '4' ? 2 : 8, // wait for 10 conf blocks ahead before procesing..s
       cycleInterval: 15,
       waitTime: 1000,
       maximumMempoolAge: _utils.minutes(10),

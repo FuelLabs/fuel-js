@@ -172,19 +172,36 @@ async function sync(opts = {}) {
                   + log.values.token.slice(2)).toLowerCase())).pop();
               const deposit_key = interfaces.FuelDBKeys.deposit
                 + depositHashID.toLowerCase().slice(2);
+              const deposit_value = _utils.RLP.encode([
+                log.values.account,
+                log.values.token,
+                rawLog.blockNumber,
+                tokenID,
+                amount.toHexString(),
+              ]);
 
-              await opts.db.put(deposit_key,
-                _utils.RLP.encode([
-                  log.values.account,
-                  log.values.token,
-                  rawLog.blockNumber,
-                  tokenID,
-                  amount.toHexString(),
-                ]));
+              await opts.db.put(deposit_key, deposit_value);
 
               // Account is just a list of UTXO keys..
               if (opts.accounts) {
                 await opts.accounts.put(deposit_key, String(log.values.account).toLowerCase());
+              }
+
+              // if pubnub is available
+              if (opts.pubnub) {
+                try {
+                  await opts.pubnub.publish({
+                    channel: String('0x'
+                      + String(process.env.chain_id) // chain id
+                      + log.values.account.slice(2)).toLowerCase(), // owner address
+                    message: {
+                    	title: deposit_key,
+                    	description: deposit_value,
+                    },
+                  });
+                } catch (error) {
+                  console.error(error);
+                }
               }
               break;
 
