@@ -1,12 +1,13 @@
 {
-  "name": "@fuel-js/node",
+  "name": "@fuel-js/client",
   "version": "0.1.0",
   "description": "The Fuel version 1.0.0 client.",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "build": "pkg ./package.json --out-path dist && npm run addons",
+    "build": "pkg ./package.json --out-path dist && npm run addons && npm run renames",
     "addons": "cp -rf node_modules/leveldown/prebuilds dist/prebuilds",
+    "renames": "mv dist/node-macos dist/fuel-macos && mv dist/node-linux dist/fuel-linux && mv dist/node-win.exe dist/fuel-win.exe",
     "test": "node src/test"
   },
   "bin": {
@@ -35,6 +36,7 @@
     "@fuel-js/utils": "^0.1.0",
     "@fuel-js/logic": "^0.3.5",
     "@fuel-js/down": "^0.1.2",
+    "@fuel-js/mysql": "^0.1.5",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/abi": "^0.0.2",
     "chalk": "^4.1.0",

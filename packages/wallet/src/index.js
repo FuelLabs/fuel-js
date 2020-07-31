@@ -339,8 +339,6 @@ Wallet.prototype.sync = async function(opts = {}) {
       const _hash = input[5];
       let decoded = null;
 
-      console.log(input);
-
       try {
         decoded = await self._getInputByHash(_type, _isWithdraw, _hash);
       } catch (noSpendableInput) {
@@ -349,13 +347,9 @@ Wallet.prototype.sync = async function(opts = {}) {
 
       try {
         await self._get([ interface.db.spent, _type, _hash ]);
-        console.log('spent!');
         continue;
       } catch (noSpendableInput) {
-        console.log('not spent');
       }
-
-
 
       // set last syneced time
       if (_timestamp > self._lastSynced) {
