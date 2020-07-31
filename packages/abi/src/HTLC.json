@@ -1,0 +1,12 @@
+[
+  "constructor(address operator)",
+  "register(address owner,\n        address token,\n        bytes32 digest,\n        uint256 expiry,\n        uint256 amount)",
+  "balanceOf(address)",
+  "release(address owner,\n        address token,\n        bytes32 digest,\n        uint256 expiry,\n        uint256 amount,\n        bytes32 preimage)",
+  "transfer(address, uint256)",
+  "registered(bytes32 hash) view returns (bool notReleased)",
+  "locked(address token) view returns (uint256 balanceLocked)",
+  "operator() view returns (address operator)",
+  "event Registered(bytes32 indexed hash)",
+  "event Released(bytes32 indexed hash)"
+]

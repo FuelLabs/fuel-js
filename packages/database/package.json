@@ -1,0 +1,38 @@
+{
+  "name": "@fuel-js/database",
+  "version": "0.1.0",
+  "description": "The fuel-js levelup database wrapper.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node src/test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "interface"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme",
+  "devDependencies": {
+    "@fuel-js/environment": "^0.1.0",
+    "leveldown": "^5.6.0",
+    "memdown": "^5.1.0",
+    "stream-to-array": "^2.3.0"
+  },
+  "dependencies": {
+    "@fuel-js/encoding": "^0.1.0",
+    "encoding-down": "^6.3.0",
+    "levelup": "^4.4.0"
+  }
+}

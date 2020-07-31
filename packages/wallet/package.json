@@ -1,0 +1,47 @@
+{
+  "name": "@fuel-js/wallet",
+  "version": "0.3.6",
+  "description": "Common Fuel utilites.",
+  "main": "src/index.js",
+  "types": "src/index.d.ts",
+  "scripts": {
+    "start": "parcel browser/index.html",
+    "test": "node src/test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "interface"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme",
+  "devDependencies": {
+    "@fuel-js/api": "0.1.3",
+    "regenerator-runtime": "^0.13.7",
+    "@fuel-js/environment": "^0.1.0"
+  },
+  "dependencies": {
+    "@fuel-js/deployments": "^0.1.2",
+    "@fuel-js/database": "^0.1.0",
+    "@fuel-js/interface": "0.0.9",
+    "@fuel-js/protocol": "^0.2.6",
+    "@fuel-js/struct": "^0.1.5",
+    "@fuel-js/utils": "^0.1.2",
+    "bn.js": "^5.1.1",
+    "ethers": "^4.0.47",
+    "memdown": "^5.1.0",
+    "pubnub": "^4.28.4",
+    "stream-to-array": "^2.3.0"
+  }
+}

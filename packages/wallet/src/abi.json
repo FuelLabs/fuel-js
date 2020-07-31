@@ -1,0 +1,21 @@
+[
+  "transfer(address,uint256)",
+  "balanceOf(address)",
+  "deposit(address account, address token) external",
+  "commitRoot(bytes32 merkleTreeRoot, uint256 token,\n        uint256 fee, bytes transactions) external",
+  "commitBlock(uint32 minimum, bytes32 minimumHash, uint32 height, bytes32[] roots) external",
+  "commitWitness(bytes32 transactionId) external",
+  "commitAddress(address addr) external returns (uint256 id)",
+  "withdraw(bytes proof) external",
+  "funnel(address account) external view returns (address)",
+  "tokenId(address token) external view  returns (uint256 tokenId)",
+  "addressId(address owner) external view  returns (uint256 addressId)",
+  "BOND_SIZE() external view returns (uint256)",
+  "event TokenIndexed(address indexed token, uint256 indexed id)",
+  "event AddressIndexed(address indexed owner, uint256 indexed id)",
+  "event BlockCommitted(\n        address producer,\n        uint256 numTokens,\n        uint256 numAddresses,\n        bytes32 indexed previousBlockHash,\n        uint256 indexed height,\n        bytes32[] roots)",
+  "event RootCommitted(\n          bytes32 indexed root,\n          address rootProducer,\n          uint256 feeToken,\n          uint256 fee,\n          uint256 rootLength,\n          bytes32 indexed merkleTreeRoot,\n          bytes32 indexed commitmentHash)",
+  "event WitnessCommitted(\n        address indexed owner,\n        uint256 blockNumber,\n        bytes32 indexed transactionId)",
+  "event DepositMade(address indexed owner, uint32 indexed token, uint256 value)",
+  "event WithdrawalMade(\n          address indexed owner,\n          address tokenAddress,\n          uint256 amount,\n          uint32 indexed blockHeight,\n          uint32 rootIndex,\n          bytes32 indexed transactionLeafHash,\n          uint8 outputIndex,\n          uint32 transactionIndex)"
+]

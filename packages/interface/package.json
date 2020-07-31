@@ -1,0 +1,32 @@
+{
+  "name": "@fuel-js/interface",
+  "version": "0.1.0",
+  "description": "Fuel protocol interfaces.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node src/test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "protocol"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "dependencies": {
+    "@fuel-js/key": "^0.1.2"
+  },
+  "devDependencies": {
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme"
+}

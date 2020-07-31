@@ -1,0 +1,16 @@
+{
+  "caller-operator": "0x01",
+  "0x01": "caller-operator",
+  "ether-balance-underflow": "0x02",
+  "0x02": "ether-balance-underflow",
+  "balance-call": "0x03",
+  "0x03": "balance-call",
+  "balance-underflow": "0x04",
+  "0x04": "balance-underflow",
+  "invalid-hash": "0x05",
+  "0x05": "invalid-hash",
+  "ether-transfer": "0x06",
+  "0x06": "ether-transfer",
+  "transfer-call": "0x07",
+  "0x07": "transfer-call"
+}

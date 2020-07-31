@@ -1,0 +1,34 @@
+{
+  "name": "@fuel-js/utils",
+  "version": "0.1.3",
+  "description": "Common Fuel utilites.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node src/test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "interface"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme",
+  "devDependencies": {
+    "@fuel-js/environment": "0.1.0"
+  },
+  "dependencies": {
+    "bn.js": "^5.1.1",
+    "ethers": "^4.0.47"
+  }
+}

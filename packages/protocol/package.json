@@ -1,0 +1,37 @@
+{
+  "name": "@fuel-js/protocol",
+  "version": "0.2.8",
+  "description": "Fuel protocol structures and logic.",
+  "main": "src/index.js",
+  "scripts": {
+    "browser": "parcel browser/index.html",
+    "test": "node src/test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "protocol"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "dependencies": {
+    "@fuel-js/struct": "^0.1.6",
+    "@fuel-js/utils": "^0.1.1"
+  },
+  "devDependencies": {
+    "eth-sig-util": "*",
+    "regenerator-runtime": "^0.13.7",
+    "@fuel-js/environment": "^0.1.0"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme"
+}

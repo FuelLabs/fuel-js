@@ -1,0 +1,12 @@
+{
+  "calldata-size-underflow": "0x01",
+  "0x01": "calldata-size-underflow",
+  "caller": "0x02",
+  "0x02": "caller",
+  "call": "0x03",
+  "0x03": "call",
+  "calldata-size-mismatch": "0x04",
+  "0x04": "calldata-size-mismatch",
+  "caller-cold": "0x05",
+  "0x05": "caller-cold"
+}

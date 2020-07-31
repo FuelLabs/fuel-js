@@ -1,0 +1,14 @@
+[
+  "constructor(address owner, uint256 totalSupply)",
+  "transfer(address owner, uint256 amount) public returns (bool success)",
+  "transferFrom(address source, address destination, uint amount) public returns (bool success)",
+  "approve(address destination, uint256 amount) public returns (bool success)",
+  "allowance(address source, address owner) public view returns (uint256 allowance)",
+  "name() public view returns (string)",
+  "symbol() public view returns (string)",
+  "version() public view returns (string)",
+  "decimals() public view returns (string)",
+  "balanceOf(address owner) public view returns (uint256 balance)",
+  "event Approval(address indexed source, address indexed destination, uint256 amount)",
+  "event Transfer(address indexed source, address indexed destination, uint amount)"
+]

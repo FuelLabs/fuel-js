@@ -1,0 +1,28 @@
+{
+  "name": "@fuel-js/errors",
+  "version": "0.0.2",
+  "description": "The Fuel version 1.0.0 errors.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "rollups",
+    "ethereum"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme"
+}

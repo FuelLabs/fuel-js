@@ -1,0 +1,48 @@
+{
+  "name": "@fuel-js/node",
+  "version": "0.1.0",
+  "description": "The Fuel version 1.0.0 client.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "build": "pkg ./package.json --out-path dist && npm run addons",
+    "addons": "cp -rf node_modules/leveldown/prebuilds dist/prebuilds",
+    "test": "node src/test"
+  },
+  "bin": {
+    "fuel": "./src/index.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "protocol"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "dependencies": {
+    "@fuel-js/deployments": "^0.1.2",
+    "@fuel-js/interface": "^0.0.9",
+    "@fuel-js/utils": "^0.1.0",
+    "@fuel-js/logic": "^0.3.5",
+    "@fuel-js/down": "^0.1.2",
+    "@fuel-js/database": "^0.1.0",
+    "@fuel-js/abi": "^0.0.2",
+    "chalk": "^4.1.0",
+    "leveldown": "^5.6.0",
+    "meow": "^7.0.1"
+  },
+  "devDependencies": {
+    "pkg": "^4.4.9"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme"
+}

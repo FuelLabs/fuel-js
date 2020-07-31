@@ -1,0 +1,33 @@
+{
+  "name": "@fuel-js/rolled",
+  "version": "0.1.5",
+  "description": "A rolled-abi implimentation.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node src/test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "fuel"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "devDependencies": {
+    "@fuel-js/environment": "^0.1.0"
+  },
+  "dependencies": {
+    "@fuel-js/utils": "^0.1.0"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme"
+}

@@ -1,0 +1,9 @@
+dist
+node_modules
+.fueldb
+.fueldb-goerli
+.fueldb-rinkeby
+.fueldb-ropsten
+.fueldb-mainnet
+.fueldb-kovan
+.fueldb-unspecified

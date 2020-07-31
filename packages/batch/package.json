@@ -1,0 +1,38 @@
+{
+  "name": "@fuel-js/batch",
+  "version": "0.1.4",
+  "description": "A batch get utility for leveldown.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node src/test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fuellabs/fuel-js.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "fuel",
+    "js",
+    "interface"
+  ],
+  "author": "Nick Dodson <nick.dodson@fuel.sh>",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "homepage": "https://github.com/fuellabs/fuel-js#readme",
+  "devDependencies": {
+    "@fuel-js/environment": "^0.1.0",
+    "@fuel-js/database": "^0.1.0",
+    "leveldown": "^5.6.0",
+    "memdown": "^5.1.0",
+    "stream-to-array": "^2.3.0"
+  },
+  "dependencies": {
+    "@fuel-js/utils": "^0.1.0",
+    "@fuel-js/encoding": "^0.1.0"
+  }
+}
