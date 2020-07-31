@@ -14,7 +14,7 @@ This repository contains all the necessary working Fuel javascript infrastructur
 
 Please consult the SDK documentation:
 
-[docs.fuel.sh](https://docs.fuel.sh)
+[docs.fuel.sh](https://docs.fuel.sh/v1.0.0/SDK/Wallet.html)
 
 ## Install
 
