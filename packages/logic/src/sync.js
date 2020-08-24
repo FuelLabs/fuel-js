@@ -4,12 +4,20 @@ const interface = require('@fuel-js/interface');
 const process = require('./process');
 const produce = require('./produce');
 const genesis = require('./genesis');
-// const mempool = require('./mempool');
+const balance = require('./balance');
 
 async function sync(config = {}) {
   try {
     // clear db before syncing
-    if (config.clear) {
+    if (config.clear && config.prompt) {
+      // ask to clear
+      utils.assert(await config.prompt.confirm('are you sure you want to clear?'),
+        'clear-confirm');
+
+      // console log
+      config.console.log(`clearing database...`);
+
+      // clear the database
       await config.db.clear();
     }
 
@@ -24,7 +32,12 @@ async function sync(config = {}) {
       });
     }
 
-    config.console.log(`sync started on network ${config.network.name} with contract ${config.contract.address}`);
+    // sync start message
+    config.console.log(`
+  sync started on network ${config.network.name} with contract ${config.contract.address}
+    | block production : ${config.produce ? 'on' : 'off'}
+    |     archive mode : ${config.archive ? 'on' : 'off'}
+    |            state : ${JSON.stringify(state.object())}`);
 
     // Setup contract address, namely for testing / sanity checks
     await config.db.put([ interface.db.contract ], config.contract.address);
@@ -40,12 +53,13 @@ async function sync(config = {}) {
 
         // ensure blocks have enough confirmations
         if (state.properties.blockNumber().get()
-          .gt(blockNumber - config.confirmations)) {
+          .gt(blockNumber - config.confirmations) && config.block_time) {
           config.console.log(`waiting for ${config.confirmations + 1} confirmations, synced @: ${state.properties.blockNumber().get().toNumber()} network @: ${blockNumber} `);
           await utils.wait(config.block_time * (config.confirmations + 1));
           continue; // restart & check again
         }
 
+        // scraping logs
         config.console.log(`scraping logs from: ${state.properties.blockNumber().get().toNumber()} to: ${state.properties.blockNumber().get().add(1).toNumber()}`);
 
         // get logs
@@ -55,6 +69,7 @@ async function sync(config = {}) {
           address: config.contract.address,
         });
 
+        // logs detected
         config.console.log(`logs detected: ${logs.length}`);
 
         // state before new logs
@@ -62,13 +77,6 @@ async function sync(config = {}) {
 
         // go through logs
         for (const log of logs) {
-          // set unfinalized key for rewind
-          config.coder.key = key => [
-            interface.db.unfinalized,
-            log.blockNumber,
-            utils.keccak256(key)
-          ];
-
           // parse log
           const event = config.contract.interface.parseLog(log);
 
@@ -87,25 +95,41 @@ async function sync(config = {}) {
               const notWithdrawal = 0;
 
               await config.db.put([
-                interface.db.owner,
-                event.values.owner,
-                protocol.inputs.InputTypes.Deposit,
-                notWithdrawal,
-                timestamp,
-                depositHash,
-              ], depositHash);
-              await config.db.put([
-                interface.db.inputHash,
-                protocol.inputs.InputTypes.Deposit,
-                notWithdrawal,
-                depositHash
-              ], deposit);
-              await config.db.put([
                 interface.db.deposit,
                 deposit.properties.blockNumber().get(),
                 deposit.properties.token().get(),
                 deposit.properties.owner().get(),
               ], deposit);
+
+              // this data is prunable
+              if (config.archive) {
+                await balance.increase(
+                  event.values.owner,
+                  event.values.token,
+                  deposit.properties.value().get(),
+                  config);
+                await config.db.put([
+                  interface.db.inputHash,
+                  protocol.inputs.InputTypes.Deposit,
+                  notWithdrawal,
+                  depositHash
+                ], deposit);
+                await config.db.put([
+                  interface.db.owner,
+                  event.values.owner,
+                  event.values.token,
+                  timestamp,
+                  protocol.inputs.InputTypes.Deposit,
+                  notWithdrawal,
+                  depositHash,
+                ], deposit);
+                await config.db.put([
+                  interface.db.archiveHash,
+                  protocol.inputs.InputTypes.Deposit,
+                  notWithdrawal,
+                  depositHash
+                ], log.transactionHash);
+              }
               break;
 
             case 'TokenIndexed':
@@ -147,6 +171,23 @@ async function sync(config = {}) {
                 timestamp: utils.timestamp(),
                 transactionHash: log.transactionHash,
               }));
+
+              // check the block isn't fraud
+              const blockTip = await config.contract.blockTip();
+              const blockHash = await config.contract.blockCommitment(block.properties.height().get());
+
+              // checks
+              const blockGreaterThanTip = block.properties.height().get().gt(blockTip);
+              const blockHashInvalid = block.keccak256Packed() !== blockHash;
+              const blockNotGenesis = block.properties.height().get().gt(0);
+
+              // check if it's a fraudulent block
+              if ((blockGreaterThanTip || blockHashInvalid) && blockNotGenesis) {
+                config.console.log(`skipping fraudulant block ${block.properties.height().get().toNumber()} ${block.keccak256Packed()}`);
+                continue;
+              }
+
+              config.console.log(`processing block height ${block.properties.height().get().toNumber()}`);
               const { trades, transactions } = await process(block, config);
               await config.db.put([
                 interface.db.block,
@@ -163,19 +204,11 @@ async function sync(config = {}) {
               break;
 
             case 'FraudCommitted':
-              const tip = protocol.block.BlockHeader(await db.get([
+              // the new valid tip block header
+              const tip = protocol.block.BlockHeader(await config.db.get([
                 interface.db.block,
                 event.values.currentTip,
               ]));
-              if (!config.db.supports.rewindable) {
-                throw new Error('fraud committed, db not rewindable');
-              }
-              await rewind(
-                tip.properties.blockNumber().get(),
-                state.properties.blockNumber().get(),
-                config
-              );
-              state = protocol.state.State(tip.object());
 
               // block height
               config.console.log(`fraud committed @ height ${event.values.previousTip} new tip: ${event.values.currentTip}`);
@@ -202,16 +235,26 @@ async function sync(config = {}) {
                 interface.db.inputHash,
                 protocol.outputs.OutputTypes.Withdraw,
                 isWithdraw,
-                hash
+                hash,
               ]);
-              await config.db.del([
-                interface.db.owner,
-                event.values.owner,
-                protocol.outputs.OutputTypes.Withdraw,
-                isWithdraw,
-                utxo.getAddon()[0],
-                hash
-              ]);
+
+              // prunable / archive
+              if (config.archive) {
+                await balance.decrease(
+                  event.values.owner,
+                  utxo.properties.token().get(),
+                  utxo.properties.amount().get(),
+                  config);
+                await config.db.del([
+                  interface.db.owner,
+                  event.values.owner,
+                  utxo.properties.token().get(),
+                  utxo.getAddon()[0],
+                  protocol.outputs.OutputTypes.Withdraw,
+                  isWithdraw,
+                  hash,
+                ]);
+              }
               break;
 
             case 'WitnessCommitted':
@@ -226,6 +269,7 @@ async function sync(config = {}) {
           }
         }
 
+        // processed log
         config.console.log(`processed: ${logs.length} logs`);
 
         // set new etheruem block Number
@@ -237,30 +281,39 @@ async function sync(config = {}) {
 
         // if new state changes have occured, update the state, otherwise wait a block
         if (preState !== state.encodePacked()) {
+
+          // make an emmittion
+          if (config.emit) {
+            try {
+              await config.emit({
+                channel: `fuel_v1_${config.network.name}_state`,
+                message: state.encodeRLP(),
+              });
+            } catch (emitError) {}
+          }
+
+          // state
           await config.db.put([interface.db.state], state);
         } else {
           await utils.wait(config.block_time);
         }
 
-        // if a limit block height is used, and current state gets their stop loop
-        if (config.blockHeight
-          && state.properties.blockHeight().get().gte(config.blockHeight)) {
-          break;
-        }
-
         // after a certain cycle or amount, we process the mempool
-        if (config.producer !== false) {
+        if (config.produce && config.archive) {
           await produce(state, config);
         }
 
-        // If the loop is false, stop it, null state, return, used for testing
-        if (config.loop === false) {
-          state = null;
-          return;
+        // if the configuration has a continue method, feed it the state, ask when to stop
+        if (config.continue) {
+          if (!config.continue(state)) {
+            state = null;
+            return;
+          }
         }
       } catch (loopError) {
         // state = null; // stop loop for now.., remove later
         config.console.error(loopError);
+        return;
       }
     }
   } catch (syncError) {

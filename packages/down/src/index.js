@@ -1,9 +1,9 @@
 const copy = require('./copy');
-const rewind = require('./rewind');
 const simulate = require('./simulate');
+const local = require('./local');
 
 module.exports = {
   copy,
-  rewind,
   simulate,
+  local,
 };

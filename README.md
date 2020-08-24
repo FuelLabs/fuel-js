@@ -4,7 +4,8 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 <a href="https://circleci.com/gh/badges/shields/tree/master"> <img src="https://img.shields.io/circleci/project/github/badges/shields/master" alt="build status"></a>
-[![Community](https://img.shields.io/badge/chat%20on-discord-orange?&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.com/invite/xfpK4Pe)
+[![Coverage](./config/coverage.svg)](/coverage/coverage-final.json)
+[![Community](https://img.shields.io/badge/chat%20on-discord-orange?&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.gg/DDWxYY6)
 
 ## Abstract
 
@@ -14,7 +15,7 @@ This repository contains all the necessary working Fuel javascript infrastructur
 
 Please consult the SDK documentation:
 
-[docs.fuel.sh](https://docs.fuel.sh/v1.0.0/SDK/Wallet.html)
+[docs.fuel.sh](https://docs.fuel.sh)
 
 ## Install
 

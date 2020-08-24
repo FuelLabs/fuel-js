@@ -37,7 +37,9 @@ const InputRoot = struct(
 
 const InputStructs = [InputTransfer, InputDeposit, InputHTLC, InputRoot];
 
-const isDeposit = input => input.object().type === InputTypes.Deposit;
+const isDeposit = _input => {
+  return _input.object().type === InputTypes.Deposit;
+};
 
 function decodePacked(data = '0x') {
   let result = [];
@@ -45,9 +47,9 @@ function decodePacked(data = '0x') {
 
   for (;pos < utils.hexDataLength(data);) {
     let decoder = null;
-    const type = parseInt(utils.hexDataSub(data, pos, 1), 16);
+    const kind = parseInt(utils.hexDataSub(data, pos, 1), 16);
 
-    switch (type) {
+    switch (kind) {
       case InputTypes.Transfer:
         decoder = InputTransfer;
         break;

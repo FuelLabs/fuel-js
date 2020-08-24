@@ -28,38 +28,6 @@ const _Transaction = struct(`
   bytes1[**] outputs
 `);
 
-/*
-function decodeTyped(data, structs) {
-  const type = utils.hexToInt(utils.hexDataSub(data, 0, 1));
-  if (type >= structs.length) throw new Error('invalid-type');
-  return structs[type].decodePacked(data);
-}
-
-function decodeTypedArray(data, structs) {
-  let result = [];
-  for (let pos = 0; pos < utils.hexDataLength(data);) {
-    const decoded = decodeTyped(utils.hexDataSlice(data, pos), structs);
-    const length = utils.hexDataLength(decoded.encodePacked());
-    result.push(decoded);
-    pos += length;
-  }
-  return result;
-}
-
-function decodePacked(data) {
-  const decoded = _Transaction.decodePacked(data).object();
-  const _inputs = decodeTypedArray(chunkJoin(decoded.inputs), inputs.InputStructs);
-
-  return {
-    length: decoded.length,
-    inputs: _inputs,
-    outputs: decodeTypedArray(chunkJoin(decoded.outputs), outputs.OutputStructs),
-    witnesses: decodeTypedArray(chunkJoin(decoded.witnesses), witness.WitnessStructs),
-    metadata: metadata.decodePackedArray(_inputs, chunkJoin(decoded.metadata), inputs),
-  };
-}
-*/
-
 async function Transaction(opts = {}, addon = []) {
   try {
     if (!opts.override && (opts.inputs.length !== opts.data.length

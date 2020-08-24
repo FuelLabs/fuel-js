@@ -32,9 +32,9 @@ function packAmount(output = {}) {
 }
 
 function unpackAmount(output = {}) {
-  const obj = output.object();
-  const shift = (new Array(obj.shift.toNumber())).fill('00').join('');
-  return utils.bigNumberify(chunkJoin(output.amount) + shift);
+  const shift = (new Array(output.properties.shift().get().toNumber())).fill('00').join('');
+  const value = output.properties.amount().get();
+  return utils.bigNumberify(chunkJoin(Array.isArray(value) ? value : [value.toHexString()]) + shift);
 }
 
 const OutputTypes = {
@@ -209,6 +209,7 @@ function decodeOwnerIds(outputs = []) {
 }
 
 module.exports = {
+  shiftValue,
   OutputStructs,
   OutputTypes,
   OutputTransfer,
@@ -217,6 +218,7 @@ module.exports = {
   OutputReturn,
   packAmount,
   unpackAmount,
+  _decodeOwner,
   OUTPUTS_MAX,
   UTXO,
   decodePacked,

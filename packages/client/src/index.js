@@ -1,69 +1,47 @@
 #!/usr/bin/env node
 'use strict';
-const meow = require('meow');
-const chalk = require('chalk');
 const logic = require('@fuel-js/logic');
-// const config = require('./config.local');
-const config = require('./config.fuellabs');
+const config = require('./config.local');
+const cli = require('./cli');
+const wallet = require('./wallet');
+const exit = require('./exit');
 
-const cli = meow(`
+// help / version / flags from command line
+const cl = cli();
 
-  ⚡ fuel [options]
+// loop continue var, keep pointer in object
+let loop = { continue: true };
 
-  ${chalk.grey(`Options:`)}
+// loop exit
+exit(() => {
+  loop.continue = false;
+});
 
-    -n, --network         the ethereum network "rinkeby"; default "rinkeby"
-    -r, --rpc             a standard Ethereum RPC provider (i.e. local go-ethereum)
-    -i, --infura          an Infura service API key (--network must also be specified)
-    -es, --etherscan      an Etherscan service API key (--network must also be specified)
-    -e, --environment     use the environment variables to specify node paramaters
-    -o, --operators       a comma (,) seperated list or seed phrase of Ethereum private keys used for block, root and fraud commitments
+// start async loop
+(async () => {
 
-  ${chalk.grey(`Examples:`)}
+  try {
 
-  ${chalk.cyan(`  $ fuel --network="ropsten" --rpc="http://localhost:8545"`)}
-`, {
-  package: {},
-  description: false,
-  flags: {
-    environment: {
-      type: 'boolean',
-      alias: 'e'
-    },
-    network: {
-      type: 'string',
-      alias: 'n'
-    },
-    infura: {
-      type: 'string',
-      alias: 'i'
-    },
-    etherscan: {
-      type: 'string',
-      alias: 'es'
-    },
-    rpc: {
-      type: 'string',
-      alias: 'r'
-    },
-    operators: {
-      type: 'string',
-      alias: 'o'
-    },
-    produce: {
-      type: 'boolean',
-      alias: 'p'
-    },
-    clear: {
-      type: 'boolean',
-      alias: 'c'
-    }
+    // setup or load a wallet
+    const operator = await wallet(cl.flags);
+
+    // settings configuration defaults
+    const settings = config({
+      network: 'rinkeby',
+      ...(cl.flags.environment ? process.env : {}),
+      ...cl.flags,
+      loop,
+      operator,
+    });
+
+    // logical sync for fuel using settings
+    await logic.sync(settings);
+
+    // exit process once complete
+    process.exit(0);
+  } catch (clientError) {
+    console.error(clientError);
+    process.exit(0);
   }
-});
 
-const settings = config({
-  network: 'rinkeby',
-  ...cli.flags,
-  ...(cli.flags.environment ? process.env : {}),
-});
-logic.sync(settings);
+})();

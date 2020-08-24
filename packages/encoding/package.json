@@ -1,10 +1,12 @@
 {
   "name": "@fuel-js/encoding",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The common leveldown encoding utilities for fuel.",
   "main": "src/index.js",
   "scripts": {
-    "test": "node src/test"
+    "test": "nyc node src/test",
+    "lint": "eslint src/index.js",
+    "prepublish": "npm test && npm run lint"
   },
   "repository": {
     "type": "git",
@@ -25,7 +27,17 @@
   },
   "homepage": "https://github.com/fuellabs/fuel-js#readme",
   "devDependencies": {
-    "@fuel-js/environment": "^0.1.0"
+    "@fuel-js/environment": "^0.1.0",
+    "@fuel-js/interface": "^0.1.0",
+    "@fuel-js/struct": "^0.1.0",
+    "leveldown": "^5.6.0",
+    "memdown": "^5.1.0",
+    "stream-to-array": "^2.3.0",
+    "eslint": "^7.6.0",
+    "nyc": "^15.1.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint": "^7.2.0",
+    "eslint-plugin-import": "^2.21.2"
   },
   "dependencies": {
     "@fuel-js/utils": "^0.1.0"

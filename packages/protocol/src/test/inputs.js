@@ -1,8 +1,8 @@
 const { test, utils, BN, accounts } = require('@fuel-js/environment');
 const inputs = require('../inputs');
+const struct = require('@fuel-js/struct');
 
 module.exports = test('inputs', async t => {
-  try {
   const data = '0x000100040101c5d2460186f7233c927e7db2dcc703c0e500b600';
   const decoded = inputs.decodePacked(data);
 
@@ -26,7 +26,23 @@ module.exports = test('inputs', async t => {
   const lengthOverflow = '0x000100010001000100010001000100010001';
   t.throws(() => inputs.decodePacked(lengthOverflow), 'length overflow');
 
-  } catch (err) {
-    console.error(err);
-  }
+  const txInputs = [
+    inputs.Input(),
+    inputs.InputTransfer(),
+    inputs.InputDeposit(),
+    inputs.InputHTLC(),
+    inputs.InputRoot(),
+  ];
+
+  t.equal(inputs.isDeposit(txInputs[2]), true, 'is deposit');
+
+  const decodedInputs = inputs.decodePacked(struct.combine(txInputs));
+
+  t.equalBig(decodedInputs[0].properties.type().get(), inputs.InputTypes.Transfer, 'type check');
+  t.equalBig(decodedInputs[1].properties.type().get(), inputs.InputTypes.Transfer, 'type check');
+  t.equalBig(decodedInputs[2].properties.type().get(), inputs.InputTypes.Deposit, 'type check');
+  t.equalBig(decodedInputs[3].properties.type().get(), inputs.InputTypes.HTLC, 'type check');
+  t.equalBig(decodedInputs[4].properties.type().get(), inputs.InputTypes.Root, 'type check');
+
+  t.throws(() => inputs.decodePacked(), 'empty decode');
 });

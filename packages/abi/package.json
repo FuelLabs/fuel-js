@@ -4,7 +4,9 @@
   "description": "The Fuel contract ABI interfaces.",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "nyc node src/test",
+    "lint": "eslint src/index.js",
+    "prepublish": "npm test && npm run lint"
   },
   "publishConfig": {
     "access": "public"
@@ -22,6 +24,14 @@
   "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/fuellabs/fuel-js/issues"
+  },
+  "devDependencies": {
+    "@fuel-js/environment": "0.1.0",
+    "eslint": "^7.6.0",
+    "nyc": "^15.1.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint": "^7.2.0",
+    "eslint-plugin-import": "^2.21.2"
   },
   "homepage": "https://github.com/fuellabs/fuel-js#readme"
 }

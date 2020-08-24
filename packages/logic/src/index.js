@@ -1,9 +1,17 @@
 const transact = require('./transact');
 const sync = require('./sync');
-const config = require('./config.local');
+const mempool = require('./mempool');
+const balance = require('./balance');
+const genesis = require('./genesis');
+const produce = require('./produce');
+const root = require('./root');
 
 module.exports = {
   transact,
   sync,
-  config,
+  mempool,
+  balance,
+  genesis,
+  produce,
+  root,
 };

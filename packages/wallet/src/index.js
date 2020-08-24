@@ -1,6 +1,6 @@
 const utils = require('@fuel-js/utils');
 const protocol = require('@fuel-js/protocol');
-const interface = require('@fuel-js/interface');
+const _interface = require('@fuel-js/interface');
 const abi = require('./abi.json');
 const memdown = require('memdown');
 const ethers = require('ethers');
@@ -15,6 +15,15 @@ function resolveProvider(provider = {}) {
   return (provider !== null && provider.sendAsync)
     ? new ethers.providers.Web3Provider(provider)
     : provider;
+}
+
+// if provider && options.key && options.address are all null, create a key
+function createKey(provider = null, options = {}) {
+  if (!options.key && !options.privateKey && !options.address && !provider) {
+    return new utils.SigningKey(utils.randomBytes(32));
+  }
+
+  return options.privateKey || null;
 }
 
 // resolve a keyish input, SigningKey, Wallet, Uint8Array or Hex, Returns: SingingKey
@@ -35,8 +44,14 @@ function resolveKey(key = '0x') {
     return key;
   }
 
-  throw new Error('invalid `key`, must be SigningKey, Wallet, Hex or Uint8Array');
+  throw new Error('invalid `privateKey`, must be SigningKey, Wallet, Hex or Uint8Array');
 }
+
+// constants
+const constants = {
+  ether: 0,
+  faucetToken: 1,
+};
 
 // Token, A Token ERC20 Object, Returns ethers.Contract
 function Token(address = '0x', provider = {}) {
@@ -63,20 +78,27 @@ function Wallet(provider = {}, opts = {}) {
   self.network = null;
   self.options = opts;
   self.contract = null;
-  self._isSetup = false;
-  self.key = null;
+  self._setupPromise = null;
+  self.key = createKey(provider, opts);
   self.db = database(self.options.db || memdown());
   self.listeners = [];
   self._lastSynced = 0;
 
   // attempt to resolve address if key is present
-  if (self.options.key) {
-    self.address = resolveKey(self.options.key).address;
+  if (self.key) {
+    self.address = resolveKey(self.key).address;
   }
 }
 
+// getNetwork, get the current ethereum network object { name, chainId }
+Wallet.prototype.getNetwork = async function (opts = {}) {
+  const self = this;
+  await self._setup(opts);
+  return self.network;
+};
+
 // _defer, wait until setup is complete
-Wallet.prototype._defer = async function(opts = {}) {
+Wallet.prototype._defer = async function (opts = {}) {
   try {
     const self = this;
     while (!self.address) {
@@ -89,94 +111,98 @@ Wallet.prototype._defer = async function(opts = {}) {
 }
 
 // _setup, setup the wallet with the provider, Returns: Void
-Wallet.prototype._setup = async function(opts = {}) {
+Wallet.prototype._setup = function (opts = {}) {
+  if (!this._setupPromise) {
+    this._setupPromise = this._internalSetup(opts);
+  }
+
+  return this._setupPromise;
+};
+
+Wallet.prototype._internalSetup = async function (opts = {}) {
   try {
     const self = this;
-    if (self._isSetup === false) {
-      const self = this;
-
-      // Set to _isSetup
-      self._isSetup = true;
-
-      // provider
-      if (self.provider && !self.options.network) {
-        self.network = await self.provider.getNetwork();
+    // provider
+    if (self.provider && !self.options.network) {
+      self.network = await self.provider.getNetwork();
+    } else {
+      // if network override
+      if (self.options.network) {
+        self.network = utils.getNetwork(self.options.network);
       } else {
-        // if network override
-        if (self.options.network) {
-          self.network = utils.getNetwork(self.options.network);
-        } else {
-          self.network = { name: 'unspecified', chainId: 0 };
-        }
-
-        if (!self.provider) {
-          self.provider = ethers.getDefaultProvider('rinkeby');
-        }
+        self.network = { name: 'rinkeby', chainId: 4 };
       }
 
-      self.wallet = self.provider;
+      if (!self.provider) {
+        self.provider = ethers.getDefaultProvider('rinkeby');
+      }
+    }
 
-      if (self.network.name === 'unknown' || (self.wallet === null)) {
-        self.network.name = 'unspecified';
-        self.network.chainId = 0;
+    self.wallet = self.provider;
+
+    if (self.network.name === 'unknown' || (self.wallet === null)) {
+      self.network.name = 'unspecified';
+      self.network.chainId = 0;
+    }
+
+    utils.assert(self.network.chainId === 4
+      || self.network.chainId === 0, 'only-rinkeby-network-supported');
+
+    let _contractAddress = deployments.v1[self.network.name] || self.options._contract;
+
+    // fetch from the API, namely for testing purposes
+    if (!_contractAddress) {
+      _contractAddress = await self._fetch({ key: _interface.db.contract.encode([]) });
+    }
+
+    self.contract = new ethers.Contract(
+      _contractAddress,
+      abi,
+      self.wallet,
+    );
+
+    // if listeners have been set, we will subscribe now that self.address is setup
+    if (self.listeners.length) {
+      self._subscribe();
+    }
+
+    // Read-only wallet
+    if (self.options.address) {
+      // Handle key
+      self.address = self.options.address;
+      return;
+    }
+
+    // handle if no key or address override
+    if (!self.key && !self.options.address) {
+      // handle if provider is meta provider and has enabled property
+      if (self.provider.provider && self.provider.provider.enable) {
+        await self.provider.provider.enable();
       }
 
-      let _contractAddress = deployments.v1[self.network.name] || self.options._contract;
+      // list accounts 0
+      self.address = (await self.provider.listAccounts())[0];
+    }
 
-      // fetch from the API, namely for testing purposes
-      if (!_contractAddress) {
-        _contractAddress = await self._fetch({ key: interface.db.contract.encode([]) });
-      }
+    // If key override is specified
+    if (self.key) {
+      self.key = resolveKey(self.key);
 
+      utils.assert(self.address || self.key,
+          'no-signer, specify a provider that can sign or a `key`');
+
+      // The wallet account
+      self.wallet = new ethers.Wallet(self.key, self.provider);
+
+      // connect key to contract
       self.contract = new ethers.Contract(
         _contractAddress,
         abi,
         self.wallet,
       );
 
-      // if listeners have been set, we will subscribe now that self.address is setup
-      if (self.listeners.length) {
-        self._subscribe();
-      }
-
-      // Read-only wallet
-      if (self.options.address) {
-        // Handle key
-        self.address = self.options.address;
-        return;
-      }
-
-      // handle if no key or address override
-      if (!self.options.key && !self.options.address) {
-        // handle if provider is meta provider and has enabled property
-        if (self.provider.provider && self.provider.provider.enable) {
-          await self.provider.provider.enable();
-        }
-
-        // list accounts 0
-        self.address = (await self.provider.listAccounts())[0];
-      }
-
-      // If key override is specified
-      if (self.options.key) {
-        self.key = resolveKey(self.options.key);
-
-        utils.assert(self.address || self.key,
-            'no-signer, specify a provider that can sign or a `key`');
-
-        // The wallet account
-        self.wallet = new ethers.Wallet(self.key, self.provider);
-
-        // connect key to contract
-        self.contract = new ethers.Contract(
-          _contractAddress,
-          abi,
-          self.wallet,
-        );
-
-        if (!self.address && self.key) {
-          self.address = self.key.address;
-        }
+      if (!self.address && self.key) {
+        self.address = self.key.address;
       }
     }
   } catch (error) {
@@ -185,7 +211,7 @@ Wallet.prototype._setup = async function(opts = {}) {
 }
 
 // _sendTransaction, send transaction as account, handle two key scenario
-Wallet.prototype._sendTransaction = function(opts = {}) {
+Wallet.prototype._sendTransaction = function (opts = {}) {
   const self = this;
 
   if (self.key) {
@@ -196,7 +222,7 @@ Wallet.prototype._sendTransaction = function(opts = {}) {
 }
 
 // _options, Formulate the options object
-Wallet.prototype._options = function(opts = {}) {
+Wallet.prototype._options = function (opts = {}) {
   const self = this;
   return {
     gasLimit: 2000000,
@@ -206,14 +232,51 @@ Wallet.prototype._options = function(opts = {}) {
 }
 
 // _emit, emit a typed data to available listeners
-Wallet.prototype._emit = async function(type = '', data = {}) {
+Wallet.prototype._emit = async function (type = '', data = {}) {
   const self = this;
   self.listeners
     .map(entry => type === entry.type ? entry.listener(data) : null);
 }
 
+async function fetchRetry(path = '', obj = {}, opts = {}) {
+  try {
+    const maximumRetries = opts.retries || 10;
+    let output = null;
+    let error = null;
+
+    // manage 502 retries if they occur
+    for (var retry = 0; retry < maximumRetries; retry++) {
+      try {
+        output = await utils.fetch(path, obj);
+        break;
+      } catch (retryError) {
+        // error
+        error = retryError;
+
+        // the lambda needs to be woken up..
+        if (retryError.statusCode !== 502) {
+          throw new utils.ByPassError(retryError);
+          break;
+        }
+
+        // wait 1 second than try again..
+        await utils.wait(1000);
+      }
+    }
+
+    // if no output after 10 tries, than result the error
+    if (!output) {
+      throw new utils.ByPassError(error);
+    }
+
+    return output;
+  } catch (fetchError) {
+    throw new utils.ByPassError(fetchError);
+  }
+}
+
 // _fetch, fetch data from the api provider, Returns: Array, RLP Decoded
-Wallet.prototype._fetch = async function(obj = {}, opts = {}) {
+Wallet.prototype._fetch = async function (obj = {}, opts = {}) {
   try {
     const self = this;
     const path = opts.path || '/get';
@@ -225,7 +288,7 @@ Wallet.prototype._fetch = async function(obj = {}, opts = {}) {
     const {
       error,
       result,
-    } = await utils.fetch(`${root}${path}`, obj);
+    } = await fetchRetry(`${root}${path}`, obj, opts);
 
     // if any error
     if (error) throw new Error(error);
@@ -238,7 +301,7 @@ Wallet.prototype._fetch = async function(obj = {}, opts = {}) {
 }
 
 // _get, get data from the api provider, Returns: Array, RLP encoded
-Wallet.prototype._get = async function(key = [], opts = {}) {
+Wallet.prototype._get = async function (key = [], opts = {}) {
   try {
     const self = this;
     return await self._fetch({
@@ -250,7 +313,7 @@ Wallet.prototype._get = async function(key = [], opts = {}) {
 }
 
 // _inputHash, get input hash for a specified input, Returns: Hex, bytes32 hash
-Wallet.prototype._inputHash = function(type = 0, input = {}) {
+Wallet.prototype._inputHash = function (type = 0, input = {}) {
   const _type = utils.bigNumberify(type).toNumber();
   if (_type === protocol.inputs.InputTypes.Root) {
     return input.keccak256Packed();
@@ -260,7 +323,7 @@ Wallet.prototype._inputHash = function(type = 0, input = {}) {
 };
 
 // _inputDecoder, decode RLP data based upon specified InputType, Returns: Object
-Wallet.prototype._inputDecoder = function(type = 0, isWithdraw = 0, data = []) {
+Wallet.prototype._inputDecoder = function (type = 0, isWithdraw = 0, data = []) {
   const _type = utils.bigNumberify(type).toNumber();
   const _isWithdraw = utils.bigNumberify(isWithdraw).toNumber();
   let decoder = protocol.outputs.UTXO;
@@ -280,7 +343,7 @@ Wallet.prototype._inputDecoder = function(type = 0, isWithdraw = 0, data = []) {
 }
 
 // _getInputByHash, get an input by hash from API or wallet
-Wallet.prototype._getInputByHash = async function(type = 0, isWithdraw = 0, hash = '0x', opts = {}) {
+Wallet.prototype._getInputByHash = async function (type = 0, isWithdraw = 0, hash = '0x', opts = {}) {
   try {
     const self = this;
     const options = {
@@ -292,7 +355,7 @@ Wallet.prototype._getInputByHash = async function(type = 0, isWithdraw = 0, hash
 
     if (options.fetch) {
       entry = await self._get([
-        interface.db.inputHash,
+        _interface.db.inputHash,
         type,
         isWithdraw,
         hash,
@@ -301,7 +364,7 @@ Wallet.prototype._getInputByHash = async function(type = 0, isWithdraw = 0, hash
 
     if (!options.fetch) {
       entry = await self.db._get([
-        interface.db.walletInput,
+        _interface.db.walletInput,
         type,
         isWithdraw,
         opts.token,
@@ -316,7 +379,7 @@ Wallet.prototype._getInputByHash = async function(type = 0, isWithdraw = 0, hash
 }
 
 // sync, sync the wallet object with the API provider
-Wallet.prototype.sync = async function(opts = {}) {
+Wallet.prototype.sync = async function (opts = {}) {
   try {
     const self = this;
     await self._setup();
@@ -328,27 +391,31 @@ Wallet.prototype.sync = async function(opts = {}) {
     // get spendable inputs for this account
     const inputs = await self._fetch({
       owner: self.address,
-      // timeMin: utils.bigNumberify(self._lastSynced).toHexString(),
+      proof: true,
     }, { path: '/account' });
 
     // parse and database spendable inputs
-    for (const input of inputs) {
-      const _type = input[2];
-      const _isWithdraw = input[3];
-      const _timestamp = utils.bigNumberify(input[4]).toNumber();
-      const _hash = input[5];
+    for (const [key, entry] of inputs) {
+      const _type = key[4];
+      const _isWithdraw = key[5];
+      const _timestamp = utils.bigNumberify(key[3]).toNumber();
+      const _hash = key[6];
       let decoded = null;
 
       try {
-        decoded = await self._getInputByHash(_type, _isWithdraw, _hash);
+        decoded = self._inputDecoder(_type, _isWithdraw, entry);
+
+        // decoded = await self._getInputByHash(_type, _isWithdraw, _hash, value);
       } catch (noSpendableInput) {
         continue;
       }
 
-      try {
-        await self._get([ interface.db.spent, _type, _hash ]);
-        continue;
-      } catch (noSpendableInput) {
+      if (self.options.spendProtection) {
+        try {
+          await self._get([ _interface.db.spent, _type, _hash ]);
+          continue;
+        } catch (noSpendableInput) {
+        }
       }
 
       // set last syneced time
@@ -358,7 +425,7 @@ Wallet.prototype.sync = async function(opts = {}) {
 
       // put
       await self.db.put([
-        interface.db.walletInput,
+        _interface.db.walletInput,
         _type,
         _isWithdraw,
         (decoded.properties.token
@@ -384,7 +451,7 @@ function filterOptions({ gasPrice, gasLimit, from, value, nonce, data }) {
 }
 
 // deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse
-Wallet.prototype.faucet = async function(opts = {}) {
+Wallet.prototype.faucet = async function (opts = {}) {
   try {
     const self = this;
     const options = self._options(opts);
@@ -398,20 +465,17 @@ Wallet.prototype.faucet = async function(opts = {}) {
       path: '/faucet',
     });
 
-    // get test token
-    const token = await self._get([ interface.db.token, 1 ]);
-
     // make 10 attempts
     for (;utils.timestamp().lt(timeout);) {
       try {
         try {
-          await self._get([ interface.db.faucet, timestamp, nonce ]);
+          await self._get([ _interface.db.faucet, timestamp, nonce ]);
 
           // wait two secods on the faucet
           await utils.wait(4000);
         } catch (error) {
           // away for some balance
-          const balance = await self.balance(token);
+          const balance = await self.balance(constants.faucetToken);
 
           // balance
           if (balance.gt(0)) {
@@ -427,7 +491,7 @@ Wallet.prototype.faucet = async function(opts = {}) {
 }
 
 // deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse
-Wallet.prototype.deposit = async function(token = '0x', amount = 0, opts = {}) {
+Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) {
   try {
     const self = this;
     const options = self._options({ timeout: 600, ...opts });
@@ -457,7 +521,7 @@ Wallet.prototype.deposit = async function(token = '0x', amount = 0, opts = {}) {
     for (let i = utils.timestamp(); i < timeout;) {
       try {
         await self._get([
-          interface.db.deposit,
+          _interface.db.deposit,
           depositTx.logs[0].blockNumber,
           self.address,
           await self._tokenId(token),
@@ -493,7 +557,7 @@ function determinePreImage(preimages = [], digest = '0x') {
 }
 
 // _inputs, get all inputs in the wallet, filtered by tokenId, Returns: Array, of inputs
-Wallet.prototype._inputs = async function(tokenId = 0, opts = {}) {
+Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
   try {
     // Setup
     const self = this;
@@ -516,10 +580,11 @@ Wallet.prototype._inputs = async function(tokenId = 0, opts = {}) {
     const _blockNumber = await self.provider.getBlockNumber();
 
     // If options.inputs, search all, otherwise if withdraw it's 1 or up to 8
-    const limit = (options.inputs || !options.htlc ? null : (isWithdraw ? 1 : 8));
+    const limit = (options.inputs || !options.htlc ? null : (isWithdraw ? 1 : (options.limit || 8)));
+
     const proofs = (await streamToArray(self.db.createReadStream({
-      gt: interface.db.walletInput.encode([ 0, isWithdraw, tokenMin, utils.min_num ]),
-      lt: interface.db.walletInput.encode([ 4, isWithdraw, tokenMax, utils.max_num ]),
+      gt: _interface.db.walletInput.encode([ 0, isWithdraw, tokenMin, utils.min_num ]),
+      lt: _interface.db.walletInput.encode([ 4, isWithdraw, tokenMax, utils.max_num ]),
       ...(limit ? { limit } : {}),
     })));
     const _proofs = [];
@@ -544,7 +609,7 @@ Wallet.prototype._inputs = async function(tokenId = 0, opts = {}) {
         if (_type === protocol.inputs.InputTypes.HTLC) continue;
       }
 
-      if (inputs.length >= 8) {
+      if (inputs.length >= 8 && !options.nolimit) {
         break;
       }
 
@@ -640,7 +705,7 @@ Wallet.prototype._inputs = async function(tokenId = 0, opts = {}) {
 }
 
 // balance, get the balance of a particular token, Returns: Object, BigNumber balance
-Wallet.prototype.balance = async function(token = '0x', opts = {}) {
+Wallet.prototype.balance = async function (token = '0x', opts = {}) {
   try {
     // Setup
     const self = this;
@@ -654,21 +719,26 @@ Wallet.prototype.balance = async function(token = '0x', opts = {}) {
     const tokenId = await self._tokenId(token);
 
     // Get Spendable Inputs
-    const { balance } = await self._inputs(tokenId, opts);
+    const { balance } = await self._inputs(tokenId, { ...opts, nolimit: true });
+
+    // the final result
+    const result = options.format
+      ? utils.formatUnits(balance, options.format)
+      : balance;
 
     // Return the balance
-    return balance;
+    return result;
   } catch (error) {
     throw new utils.ByPassError(error);
   }
 }
 
 // sign, use provider or key to sign unsigned payload, Returns: Object, Signature witness
-Wallet.prototype._sign = async function(unsigned = {}, opts = {}) {
+Wallet.prototype._sign = async function (unsigned = {}, opts = {}) {
   try {
     const self = this;
     const options = self._options(opts);
-    const key = resolveKey(options.key);
+    const key = resolveKey(self.key);
     utils.assert(!options.address, 'this wallet is read-only, remove `address` for a signable wallet');
 
     const {
@@ -704,8 +774,17 @@ Wallet.prototype._sign = async function(unsigned = {}, opts = {}) {
   }
 }
 
+// resolve an amount
+function resolveAmount(amount = 0, opts = {}) {
+  if (opts.units) {
+    return utils.parseUnits(amount, opts.units);
+  }
+
+  return utils.bigNumberify(amount);
+}
+
 // transfer, simple transfer to another account, Returns: TransactionResponse
-Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, opts = {}) {
+Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0, opts = {}) {
   const self = this;
 
   try {
@@ -713,6 +792,7 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
     await self._setup();
     await self.sync(opts);
     const options = self._options(opts);
+    const amount = resolveAmount(_amount, options);
 
     // Get token ID
     const tokenId = await self._tokenId(token);
@@ -721,6 +801,7 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
     const { balance, inputs, metadata, data, keys } = await self._inputs(tokenId, opts);
 
     // Balance check
+    utils.assert(amount.gt(0), 'amount-underflow');
     utils.assert(balance.gte(amount), 'not-enough-balance');
 
     // No inputs..
@@ -728,9 +809,13 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
 
     // Calculate Change if Any
     const change = balance.sub(amount);
+    utils.assert(!options.return
+      || (utils.hexDataLength(options.return) > 0
+      && utils.hexDataLength(options.return) < 512),
+      'return-data-overflow');
 
     // Build Outputs
-    const outputs = [
+    const outputs = opts.outputs || [
       ...(!options.withdraw ? [protocol.outputs.OutputTransfer({
         owner: to,
         token: tokenId,
@@ -745,6 +830,11 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
         token: tokenId,
         amount: change,
       })] : []),
+      ...(options.return ? [
+        protocol.outputs.OutputReturn({
+          data: struct.chunk(options.return),
+        }),
+      ] : []),
     ];
 
     // Build Unsigned Transaction
@@ -765,9 +855,31 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
     });
 
     let addChange = () => {};
+    let addSelfTransfer = () => {};
 
     // build change UTXO for the local database and future spends
-    if (change.gt(0)) {
+    if (to.toLowerCase() === self.address.toLowerCase()) {
+      // Build the UTXO proof
+      const selfUTXO = protocol.outputs.UTXO({
+        transactionHashId: hash,
+        outputIndex: 0,
+        outputType: options.withdraw ? 1 : 0,
+        owner: self.address,
+        token: tokenId,
+        amount: amount,
+      });
+
+      addSelfTransfer = () => self.db.put([
+        _interface.db.walletInput,
+        options.withdraw ? 1 : 0,
+        options.withdraw ? 1 : 0,
+        tokenId,
+        selfUTXO.keccak256(),
+      ], selfUTXO);
+    }
+
+    // build change UTXO for the local database and future spends
+    if (change.gt(0) && !opts.outputs) {
       // Build the UTXO proof
       const changeUTXO = protocol.outputs.UTXO({
         transactionHashId: hash,
@@ -779,7 +891,7 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
       });
 
       addChange = () => self.db.put([
-        interface.db.walletInput,
+        _interface.db.walletInput,
         0,
         0,
         tokenId,
@@ -789,6 +901,14 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
 
     // Construct Witness Data
     const witnesses = [await self._sign(unsigned, opts)];
+
+    // this allows for a user to use the raw outputs
+    if (opts.raw) {
+      return {
+        unsigned,
+        witnesses,
+      };
+    }
 
     // force a transaction on-chain
     if (opts.force) {
@@ -810,20 +930,13 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
 
       // Add change to DB
       await addChange();
+      await addSelfTransfer();
 
       // Return Receipt
       return new TransactionSubmission({
         transactionId: hash,
         receipts: [rootTx],
       });
-    }
-
-    // test this output
-    if (opts._test) {
-      return {
-        unsigned: unsigned.encodeRLP(),
-        witnesses: struct.combine(witnesses),
-      };
     }
 
     let result = null;
@@ -851,6 +964,7 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
 
     // Add change to DB
     await addChange();
+    await addSelfTransfer();
 
     // This should be a TransactionResponse
     return new TransactionSubmission({
@@ -863,43 +977,53 @@ Wallet.prototype.transfer = async function(token = '0x', to = '0x', amount = 0, 
 }
 
 // _token, get a token address from id
-Wallet.prototype._token = async function(id = '0x') {
+Wallet.prototype._token = async function (id = '0x') {
   try {
     const self = this;
     await self._setup();
-    return await self._get([ interface.db.token, id ]);
+    return await self._get([ _interface.db.token, id ]);
   } catch (error) {
     throw new utils.ByPassError(error);
   }
 }
 
 // _tokenId, get the token ID for a given token address, Returns: Object, token id BigNumber
-Wallet.prototype._tokenId = async function(token = '0x') {
+Wallet.prototype._tokenId = async function (tokenOrId = '0x') {
   try {
     const self = this;
     await self._setup();
+    const isId = typeof tokenOrId === 'object' || typeof tokenOrId === 'number';
     let id = null;
 
-    // Handle test network situation
-    if (self.network.name === 'unspecified' || self.network.name === 'unknown') {
-      // Attempt to get locally first, than go to big db
-      try {
-        id = await self.db.get([ interface.db.tokenId, token ]);
-      } catch (localGetError) {
-        id = await self._get([ interface.db.tokenId, token ]);
-      }
+    // if this is a token id
+    if (isId) {
+      id = tokenOrId;
     } else {
-      id = await self.contract.tokenId(token);
+      if (self.network.name === 'unspecified' || self.network.name === 'unknown') {
+        // Attempt to get locally first, than go to big db
+        try {
+          id = await self.db.get([ _interface.db.tokenId, tokenOrId ]);
+        } catch (localGetError) {
+          id = await self._get([ _interface.db.tokenId, tokenOrId ]);
+        }
+      } else {
+        id = await self.contract.tokenId(tokenOrId);
+      }
     }
 
     // check for invalid id
-    if (utils.bigNumberify(id).eq(0) && utils.bigNumberify(token).gt(0)) {
-      throw new Error('token not registered.');
+    if (utils.bigNumberify(id).eq(0)
+      && utils.bigNumberify(tokenOrId).gt(0)
+      && !isId) {
+      utils.assert(0, 'token-not-registered');
     }
 
     // add tokenid to local database
-    await self.db.put([ interface.db.tokenId, token ], id);
+    if (!isId) {
+      await self.db.put([ _interface.db.tokenId, tokenOrId ], id);
+    }
 
+    // id
     return utils.bigNumberify(utils.bigNumberify(id).toNumber());
   } catch (error) {
     throw new utils.ByPassError(error);
@@ -907,7 +1031,7 @@ Wallet.prototype._tokenId = async function(token = '0x') {
 }
 
 // withdraw, make a withdraw transaction on Fuel, Returns: Object, TransactionResponse
-Wallet.prototype.withdraw = async function(token = '0x', amount = 0, opts = {}) {
+Wallet.prototype.withdraw = async function (token = '0x', amount = 0, opts = {}) {
   try {
     const self = this;
     await self._setup();
@@ -922,7 +1046,7 @@ Wallet.prototype.withdraw = async function(token = '0x', amount = 0, opts = {}) 
 }
 
 // retrieve, retrieve withdrawals from Fuel, Returns: TransactionResponse
-Wallet.prototype.retrieve = async function(opts = {}) {
+Wallet.prototype.retrieve = async function (opts = {}) {
   try {
     const self = this;
     await self._setup();
@@ -942,7 +1066,7 @@ Wallet.prototype.retrieve = async function(opts = {}) {
 
 const noop = () => {};
 
-Wallet.prototype._subscribe = function() {
+Wallet.prototype._subscribe = function () {
   const self = this;
 
   if (!self._publisher && self.address) {
@@ -958,11 +1082,11 @@ Wallet.prototype._subscribe = function() {
     });
 
     self._publisher.addListener({
-      message: function(response) {
+      message: function (response) {
         const [_type, _isWithdraw, _token, _input] = utils.RLP.decode(response.message.content);
         const _decoded = self._inputDecoder(_type, _isWithdraw, utils.RLP.decode(_input));
         self.db.put([
-          interface.db.walletInput,
+          _interface.db.walletInput,
           _type,
           _isWithdraw,
           _token,
@@ -980,7 +1104,7 @@ Wallet.prototype._subscribe = function() {
 }
 
 // on, add an event listener, Returns: Void
-Wallet.prototype.on = function(type = 'input', listener = noop) {
+Wallet.prototype.on = function (type = 'input', listener = noop) {
   const self = this;
   self.listeners.push({ type, listener });
 
@@ -993,7 +1117,7 @@ Wallet.prototype.on = function(type = 'input', listener = noop) {
 }
 
 // on, add an event listener, Returns: Void
-Wallet.prototype.off = function(type = 'input', listener = null) {
+Wallet.prototype.off = function (type = 'input', listener = null) {
   const self = this;
 
   if (listener === null) {
@@ -1019,7 +1143,7 @@ Wallet.prototype.off = function(type = 'input', listener = null) {
 }
 
 // fee, get the fee for a given token, Returns: Void
-Wallet.prototype.fee = async function(token = '0x') {
+Wallet.prototype.fee = async function (token = '0x') {
   try {
     const self = this;
     await self._setup();
@@ -1031,5 +1155,6 @@ Wallet.prototype.fee = async function(token = '0x') {
 
 module.exports = {
   utils,
+  constants,
   Wallet,
 };

@@ -4,7 +4,9 @@
   "description": "The fuel-js levelup database wrapper.",
   "main": "src/index.js",
   "scripts": {
-    "test": "node src/test"
+    "test": "nyc node src/test",
+    "lint": "eslint src/index.js",
+    "prepublish": "npm test && npm run lint"
   },
   "repository": {
     "type": "git",
@@ -28,7 +30,13 @@
     "@fuel-js/environment": "^0.1.0",
     "leveldown": "^5.6.0",
     "memdown": "^5.1.0",
-    "stream-to-array": "^2.3.0"
+    "stream-to-array": "^2.3.0",
+    "@fuel-js/environment": "^0.1.0",
+    "eslint": "^7.6.0",
+    "nyc": "^15.1.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint": "^7.2.0",
+    "eslint-plugin-import": "^2.21.2"
   },
   "dependencies": {
     "@fuel-js/encoding": "^0.1.0",

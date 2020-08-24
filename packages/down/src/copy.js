@@ -1,4 +1,6 @@
 // @description leveldown remote, reads from local, puts / dels / batch / on both dbs
+/* eslint no-underscore-dangle: 0 */
+/* eslint consistent-return: 0 */
 const { AbstractLevelDOWN } = require('abstract-leveldown');
 const util = require('util');
 
@@ -11,8 +13,8 @@ function CopyDown(remote, local) {
     ...(local.supports || {}),
     promises: true,
     buffer: true,
-    remote: remote,
-    local: local,
+    remote,
+    local,
   });
   this.remote = remote;
   this.local = local;
@@ -33,17 +35,23 @@ function closeIfOpen(db, callback) {
 
 CopyDown.prototype._open = function (options, callback) {
   const self = this;
-  openIfNew(self.local, options, err => !err
-    ? openIfNew(self.remote, options, callback)
-    : callback(err));
-}
+  openIfNew(self.local, options, err => {
+    if (!err) {
+      return openIfNew(self.remote, options, callback);
+    }
+    return callback(err);
+  });
+};
 
 CopyDown.prototype._close = function (callback) {
   const self = this;
-  closeIfOpen(self.local, err => !err
-    ? closeIfOpen(self.remote, callback)
-    : callback(err));
-}
+  closeIfOpen(self.local, err => {
+    if (!err) {
+      return closeIfOpen(self.remote, callback);
+    }
+    return callback(err);
+  });
+};
 
 CopyDown.prototype._put = function (key, value, options, callback) {
   const self = this;
@@ -54,7 +62,7 @@ CopyDown.prototype._put = function (key, value, options, callback) {
     if (error) { return callback(error, result); }
     self.remote._put(key, value, options, callback);
   });
-}
+};
 
 CopyDown.prototype._get = function (key, options, callback) {
   const self = this;
@@ -86,7 +94,7 @@ CopyDown.prototype._clear = function (options, callback) {
   });
 };
 
-CopyDown.prototype._batch = function(array, options, callback) {
+CopyDown.prototype._batch = function (array, options, callback) {
   const self = this;
   if (options.remote) return self.remote._batch(array, options, callback);
   if (options.local) return self.local._batch(array, options, callback);
@@ -97,7 +105,7 @@ CopyDown.prototype._batch = function(array, options, callback) {
   });
 };
 
-CopyDown.prototype._iterator = function(options) {
+CopyDown.prototype._iterator = function (options) {
   if (options.remote) return this.remote._iterator(options);
   if (options.local) return this.local._iterator(options);
 

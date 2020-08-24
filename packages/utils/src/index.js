@@ -1,5 +1,4 @@
-// @description general utilities
-const { utils } = require('ethers');
+const { utils, constants } = require('ethers');
 const BN = require('bn.js');
 
 // Shorthand ABI coder
@@ -18,20 +17,24 @@ function hexit(v) {
 
 // @param v small hex values
 // @return integer
-function hexToInt(v) {
+function hexToInt(v = '0x') {
+  if (v === '0x') {
+    return 0;
+  }
+
   return +v;
 }
 
 // Ip to Hex
-function ipToHex(ip) {
+function ipToHex(ip = '0.0.0.0') {
   return utils.RLP.encode(ip.split('.')
     .map(v => big(v)));
 }
 
 // Hex to IP
-function hexToIP(hex) {
-  return utils.RLP.decode(hex)
-    .reduce((acc, v) => acc + '.' + big(v).toNumber(), '')
+function hexToIP(value = '0xc400000000') {
+  return utils.RLP.decode(value)
+    .reduce((acc, v) => `${acc}.${utils.bigNumberify(v).toNumber()}`, '')
     .slice(1);
 }
 
@@ -45,20 +48,7 @@ function unixtime() {
   return Math.round(time() / 1000);
 }
 
-// @description assert is
-function hex(value) {
-  return '0x' + value.toString(16);
-}
-
-// @descrition assert a value is hex
-function assertHex(value, max = 0, min = 0, message = 'hex') {
-  if (!utils.isHexString(value)) throw new Error('invalid not type hex');
-  if (max > 0 && utils.hexDataLength(value) > max) throw new Error(`${message} ${value} < ${max} bytes`);
-  if (min > 0 && utils.hexDataLength(value) < min) throw new Error(`${message} ${value} must be ${max} bytes`);
-  return value;
-}
-
-const assert = (v, error = 'assertion-failed') => {
+const assert = (v = false, error = 'assertion-failed') => {
   if (!v) {
     const err = new Error(error);
     err.value = v;
@@ -66,20 +56,28 @@ const assert = (v, error = 'assertion-failed') => {
   }
 };
 
-const assertHexEqual = (v0 = '0x', v1 = '0x', error) => {
-  assert(v0.toLowerCase() === v1.toLowerCase(), error);
+// @descrition assert a value is hex
+function assertHex(value, max = 0, min = 0, message = 'hex') {
+  assert(utils.isHexString(value), 'hex-string');
+  if (max > 0 && utils.hexDataLength(value) > max) throw new Error(`${message} ${value} < ${max} bytes`);
+  if (min > 0 && utils.hexDataLength(value) < min) throw new Error(`${message} ${value} must be ${max} bytes`);
+  return value;
+}
+
+const assertHexEqual = (v0 = '0x', v1 = '0x', error = 'assertHexEqual') => {
+  assert(utils.hexlify(v0).toLowerCase() === utils.hexlify(v1).toLowerCase(), error);
 };
 
-const emptyBytes32 = utils.hexZeroPad('0x0', 32);
-const emptyAddress = utils.hexZeroPad('0x0', 20);
+const emptyBytes32 = constants.HashZero; // utils.hexZeroPad('0x0', 32);
+const emptyAddress = constants.AddressZero; // utils.hexZeroPad('0x0', 20);
 
-const ByPassError = function (error) {
+function ByPassError(error) {
   return error;
 }
 
 const day = () => Math.floor(unixtime() / 86400);
 
-const minutes = v => Math.floor(v === undefined ? unixtime() : v / 60);
+const minutes = v => Math.floor((v === undefined ? unixtime() : v) / 60);
 
 const noop = () => {};
 
@@ -87,24 +85,30 @@ const noop = () => {};
 const timestamp = () => utils.bigNumberify((new Date()).getTime());
 
 // Wait promise
-const wait = time => new Promise(res => setTimeout(res, time));
+const wait = (_time = 0) => new Promise(res => setTimeout(res, _time));
 
-const min = (x, y) => x.lt(y) ? utils.bigNumberify(x) : utils.bigNumberify(y);
+// BigNumberify Min method
+const min = (x, y) => utils.bigNumberify(x.lt(y) ? x : y);
 
+// Hex Data Sub
 const hexDataSub = (data = '0x', pos = 0, len = 0) => {
-  assert(pos + len <= data.length * 2, 'hex-data-overflow');
+  assert(pos + len <= (data.length - 2) / 2, 'hex-data-overflow');
+
+  // eslint-disable-next-line
   return '0x' + data.substr((pos * 2) + 2, len ? (len * 2) : undefined);
 };
 
-const logMemory = () => {
+const logMemory = (_console = console) => {
   const used2 = process.memoryUsage().heapUsed / 1024 / 1024;
-  console.log(`The script uses approximately ${Math.round(used2 * 100) / 100} MB`);
+  _console.log(`The script uses approximately ${Math.round(used2 * 100) / 100} MB`);
 };
 
-const bigstring = v => utils.bigNumberify(v).toString();
+const bigstring = (v = 0) => utils.bigNumberify(v).toString();
 
-const min_num = '0x0000000000000000000000000000000000000000000000000000000000000000';
-const max_num = '0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
+// '0x0000000000000000000000000000000000000000000000000000000000000000';
+const min_num = constants.HashZero;
+// '0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF';
+const max_num = constants.MaxUint256;
 
 const fetch = (url = '', obj = {}) => utils.fetchJson(url, JSON.stringify(obj));
 
@@ -117,7 +121,10 @@ function toLowerCaseHex(array = []) {
 }
 
 // Ethers Utils + Fuel-Core Utils
-module.exports = Object.assign({}, utils, {
+module.exports = {
+  // ethers.js full utils, eventually let's break this up
+  ...utils,
+
   // hex and number handling
   hasDuplicates,
   toLowerCaseHex,
@@ -126,7 +133,6 @@ module.exports = Object.assign({}, utils, {
   hexToInt,
   BN,
   abi,
-  hex,
   assertHex,
   emptyBytes32,
   emptyAddress,
@@ -154,5 +160,5 @@ module.exports = Object.assign({}, utils, {
 
   // handy
   noop,
-  wait
-});
+  wait,
+};

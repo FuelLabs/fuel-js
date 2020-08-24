@@ -3,6 +3,7 @@
 // npm run build
 // parse, copy and allocate JSON to appropriate repos in fuel-js
 // namely: bytecode, abi, errors
+// this will add Fuel builds to the repo
 
 const write = require('write');
 

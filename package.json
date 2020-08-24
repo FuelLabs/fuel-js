@@ -2,14 +2,18 @@
   "name": "root",
   "private": true,
   "scripts": {
-    "build": "npm run clone && node config/build",
+    "test": "nyc --reporter=json lerna run test",
+    "bootstrap": "lerna bootstrap --no-ci --ignore-prepublish",
+    "badge": "istanbul-badges-readme --coverageDir='./coverage'",
+    "build": "lerna bootstrap --no-ci",
+    "build-fuel": "npm run clone && node config/build",
     "clone": "rm -rf fuel && git clone git@github.com:FuelLabs/fuel.git && cd fuel && npm install && npm run build && cd .."
   },
   "devDependencies": {
+    "fs-readfile-promise": "^3.0.1",
+    "istanbul-badges-readme": "1.0.5",
+    "nyc": "^15.1.0",
     "lerna": "^3.22.1",
     "write": "^2.0.0"
-  },
-  "dependencies": {
-    "pubnub": "^4.28.4"
   }
 }

@@ -1,10 +1,12 @@
 {
   "name": "@fuel-js/deployments",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "The Fuel contract deployment addresses.",
   "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "nyc node src/test",
+    "lint": "eslint src/index.js",
+    "prepublish": "npm test && npm run lint"
   },
   "publishConfig": {
     "access": "public"
@@ -18,6 +20,14 @@
     "js",
     "interface"
   ],
+  "devDependencies": {
+    "@fuel-js/environment": "0.1.0",
+    "eslint": "^7.6.0",
+    "nyc": "^15.1.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint": "^7.2.0",
+    "eslint-plugin-import": "^2.21.2"
+  },
   "author": "Nick Dodson <nick.dodson@fuel.sh>",
   "license": "Apache-2.0",
   "bugs": {

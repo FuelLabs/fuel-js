@@ -20,7 +20,6 @@ const DomainStruct = utils.keccak256(utils.solidityPack(
 
 // @description Registration hash
 const TransactionStruct = utils.keccak256(utils.solidityPack(
-  // ...types.Transaction.map(v => `${v.name} ${v.type}`)
   ['string'], ['Transaction(bytes transaction)']
 ));
 

@@ -5,7 +5,7 @@ const { simulate } = require('@fuel-js/down');
 const interface = require('@fuel-js/interface');
 const streamToArray = require('stream-to-array');
 const memdown = require('memdown');
-// const level = require('leveldown');
+const balance = require('./balance');
 
 function last(array = []) {
   return array[array.length - 1];
@@ -13,15 +13,15 @@ function last(array = []) {
 
 async function process(block = {}, config = {}) {
   try {
-    if (!config.db.supports.local) throw new Error('db must support local');
+    utils.assert(config.db.supports.local, 'db must support .local');
     const db = database(simulate(config.db.supports.local, memdown()));
-
     let stats = {
       trades: 0,
       transactions: 0,
     };
     let rootIndex = 0;
     for (const rootHash of block.properties.roots().get()) {
+      // establish the root header
       const root = protocol.root.RootHeader(await db.get([
         interface.db.inputHash,
         protocol.inputs.InputTypes.Root,
@@ -31,13 +31,16 @@ async function process(block = {}, config = {}) {
       const rootAddon = protocol.addons.RootHeader(root.getAddon());
       rootAddon.properties.blockHeight().set(block.properties.height().get());
       rootAddon.properties.blockProducer().set(block.properties.producer().hex());
+
+      // get the root transaction data
       const transactionData = await config.provider
           .getTransaction(rootAddon.properties.transactionHash().get());
       const calldata = config.contract.interface.parseTransaction(transactionData)
         .args[3];
+
+      // establish the fee token and token for this root
       const feeToken = root.properties.feeToken().get();
       const fee = root.properties.fee().get();
-
 
       // attempt to decode the root from data
       let transactions = null;
@@ -45,6 +48,7 @@ async function process(block = {}, config = {}) {
         transactions = protocol.root.decodePacked(calldata);
       } catch (malformedBlockError) {
         console.log('malformed block', malformedBlockError);
+        utils.assert(0, 'malformed-block');
         break;
         // await config.contract.proveMalformedBlock()
       }
@@ -57,6 +61,7 @@ async function process(block = {}, config = {}) {
           transaction = protocol.transaction.decodePacked(transactionHex);
         } catch (invalidTransaction) {
           console.log('invalid transaction', invalidTransaction);
+          utils.assert(0, 'invalid-transaction');
           break;
         }
         const { inputs, outputs, metadata, witnesses } = transaction;
@@ -82,6 +87,11 @@ async function process(block = {}, config = {}) {
             const spendableInput = 0;
             switch (input.properties.type().get().toNumber()) {
               case protocol.inputs.InputTypes.Transfer:
+                const _key = utils.RLP.encode(interface.db.inputMetadata.encode([
+                  protocol.inputs.InputTypes.Transfer,
+                  spendableInput,
+                  ...metadata[inputIndex].values(),
+                ]));
                 key = [
                   interface.db.inputMetadata,
                   protocol.inputs.InputTypes.Transfer,
@@ -91,33 +101,50 @@ async function process(block = {}, config = {}) {
                 proofs.push(protocol.outputs.UTXO(await db.get(key)));
                 data.push(last(proofs).keccak256());
 
-                await db.del([
-                  interface.db.owner,
-                  last(proofs).properties.owner().hex(),
-                  protocol.inputs.InputTypes.Transfer,
-                  spendableInput,
-                  last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.owner,
-                  last(proofs).properties.owner().hex(),
-                  protocol.inputs.InputTypes.Transfer,
-                  spendableInput,
-                  0, // addons.RootHeader.properties.timestamp
-                  last(data)
-                ]);
-                // delete input
+                // delete the input metadata key
                 await db.del(key);
-                await db.del([
-                  interface.db.inputHash,
-                  protocol.inputs.InputTypes.Transfer,
-                  spendableInput,
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.spent, protocol.inputs.InputTypes.Transfer, last(data)
-                ]);
+
+                // archival deletes
+                if (config.archive) {
+                  await balance.decrease(
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    last(proofs).properties.amount().get(),
+                    config);
+                  await db.del([
+                    interface.db.owner,
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Transfer,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.owner,
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Transfer,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.decrease,
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Transfer,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.inputHash,
+                    protocol.inputs.InputTypes.Transfer,
+                    spendableInput,
+                    last(data)
+                  ]);
+                }
                 break;
 
               case protocol.inputs.InputTypes.Deposit:
@@ -131,31 +158,46 @@ async function process(block = {}, config = {}) {
                 data.push(last(proofs).keccak256());
 
                 // delete input
-                await db.del([
-                  interface.db.owner,
-                  input.properties.owner().get(),
-                  protocol.inputs.InputTypes.Deposit,
-                  spendableInput,
-                  last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.owner,
-                  input.properties.owner().get(),
-                  protocol.inputs.InputTypes.Deposit,
-                  spendableInput,
-                  0, // addons.RootHeader.properties.timestamp
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.inputHash,
-                  protocol.inputs.InputTypes.Deposit,
-                  spendableInput,
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.spent, protocol.inputs.InputTypes.Deposit, last(data)
-                ]);
+                if (config.archive) {
+                  await balance.decrease(
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    last(proofs).properties.value().get(),
+                    config);
+                  await db.del([
+                    interface.db.owner,
+                    input.properties.owner().get(),
+                    metadata[inputIndex].properties.token().get(),
+                    last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Deposit,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.owner,
+                    input.properties.owner().get(),
+                    metadata[inputIndex].properties.token().get(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Deposit,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.decrease,
+                    input.properties.owner().get(),
+                    metadata[inputIndex].properties.token().get(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Deposit,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.inputHash,
+                    protocol.inputs.InputTypes.Deposit,
+                    spendableInput,
+                    last(data)
+                  ]);
+                }
                 break;
 
               case protocol.inputs.InputTypes.HTLC:
@@ -172,55 +214,87 @@ async function process(block = {}, config = {}) {
                   .lte(last(proofs).properties.expiry().get())) {
                   utils.assertHexEqual(utils.keccak256(input.properties.preImage().hex()),
                     last(proofs).properties.digest().hex(), 'htlc-pre-image');
-                } else {
-                  await db.del([
-                    interface.db.owner,
-                    last(proofs).properties.returnOwner.hex(),
-                    protocol.inputs.InputTypes.HTLC,
-                    spendableInput,
-                    last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
-                    last(data)
-                  ]);
-                  await db.del([
-                    interface.db.owner,
-                    last(proofs).properties.returnOwner.hex(),
-                    protocol.inputs.InputTypes.HTLC,
-                    spendableInput,
-                    0, // addons.RootHeader.properties.timestamp
-                    last(data)
-                  ]);
                 }
 
                 // increase trades
                 stats.trades += 1;
 
-                // delete input
-                await db.del([
-                  interface.db.owner,
-                  last(proofs).properties.owner().hex(),
-                  protocol.inputs.InputTypes.HTLC,
-                  spendableInput,
-                  last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.owner,
-                  last(proofs).properties.owner().hex(),
-                  protocol.inputs.InputTypes.HTLC,
-                  spendableInput,
-                  0, // addons.RootHeader.properties.timestamp
-                  last(data)
-                ]);
+                // delete the metadata input
                 await db.del(key);
-                await db.del([
-                  interface.db.inputHash,
-                  protocol.inputs.InputTypes.HTLC,
-                  spendableInput,
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.spent, protocol.inputs.InputTypes.HTLC, last(data)
-                ]);
+
+                // delete input
+                if (config.archive) {
+                  await balance.decrease(
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    last(proofs).properties.amount().get(),
+                    config);
+                  await balance.decrease(
+                    last(proofs).properties.returnOwner().hex(),
+                    last(proofs).properties.token().hex(),
+                    last(proofs).properties.amount().get(),
+                    config);
+                  await db.del([
+                    interface.db.owner,
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.HTLC,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.owner,
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.HTLC,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.owner,
+                    last(proofs).properties.returnOwner().hex(),
+                    last(proofs).properties.token().hex(),
+                    last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.HTLC,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.owner,
+                    last(proofs).properties.returnOwner().hex(),
+                    last(proofs).properties.token().hex(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.HTLC,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.decrease,
+                    last(proofs).properties.returnOwner().hex(),
+                    last(proofs).properties.token().hex(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.HTLC,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.decrease,
+                    last(proofs).properties.owner().hex(),
+                    last(proofs).properties.token().hex(),
+                    0, // addons.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.HTLC,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.inputHash,
+                    protocol.inputs.InputTypes.HTLC,
+                    spendableInput,
+                    last(data)
+                  ]);
+                }
                 break;
 
               case protocol.inputs.InputTypes.Root:
@@ -234,38 +308,57 @@ async function process(block = {}, config = {}) {
                 data.push(last(proofs).keccak256Packed());
                 const rootAddon = last(proofs).getAddon();
 
-                // delete input
-                await db.del([
-                  interface.db.owner,
-                  rootAddon[1], // addon.RootHeader.properties.blockProducer
-                  protocol.inputs.InputTypes.Root,
-                  spendableInput,
-                  rootAddon[0], // addon.RootHeader.properties.timestamp
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.owner,
-                  rootAddon[1], // addon.RootHeader.properties.blockProducer
-                  protocol.inputs.InputTypes.Root,
-                  spendableInput,
-                  0, // addon.RootHeader.properties.timestamp
-                  last(data)
-                ]);
+                // delete metadata input
                 await db.del(key);
-                await db.del([
-                  interface.db.inputHash,
-                  protocol.inputs.InputTypes.Root,
-                  spendableInput,
-                  last(data)
-                ]);
-                await db.del([
-                  interface.db.spent, protocol.inputs.InputTypes.Root, last(data)
-                ]);
+
+                // archive deletes
+                if (config.archive) {
+                  await db.del([
+                    interface.db.inputHash,
+                    protocol.inputs.InputTypes.Root,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await balance.decrease(
+                    rootAddon[1],
+                    last(proofs).properties.feeToken().hex(),
+                    last(proofs).properties.fee().get()
+                      .mul(last(proofs).properties.rootLength().get()),
+                    config);
+                  await db.del([
+                    interface.db.owner,
+                    rootAddon[1], // addon.RootHeader.properties.blockProducer
+                    last(proofs).properties.feeToken().hex(),
+                    rootAddon[0], // addon.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Root,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.owner,
+                    rootAddon[1], // addon.RootHeader.properties.blockProducer
+                    last(proofs).properties.feeToken().hex(),
+                    0, // addon.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Root,
+                    spendableInput,
+                    last(data)
+                  ]);
+                  await db.del([
+                    interface.db.decrease,
+                    rootAddon[1], // addon.RootHeader.properties.blockProducer
+                    last(proofs).properties.feeToken().hex(),
+                    0, // addon.RootHeader.properties.timestamp
+                    protocol.inputs.InputTypes.Root,
+                    spendableInput,
+                    last(data)
+                  ]);
+                }
                 break;
             }
             inputIndex++;
           } catch (invalidInput) {
             console.log('invalid input', invalidInput);
+            utils.assert(0, 'invalid-input');
             // config.contract.proveInvalidInput(...)
             break;
           }
@@ -358,6 +451,7 @@ async function process(block = {}, config = {}) {
                   transactionHashId, callers, block), 'invalid-witness');
           } catch (invalidWitness) {
             console.log('invalid witness', invalidWitness);
+            utils.assert(0, 'invalid-witness');
             // config.contract.proveInvalidWitness
           }
 
@@ -368,6 +462,7 @@ async function process(block = {}, config = {}) {
         // begin parsing outputs
         let outputIndex = 0;
         let owners = {};
+        let spendableHashes = [];
         for (const output of outputs) {
           const outputType = output.properties.type().get().toNumber();
           let token = null, amount = null, owner = null,
@@ -375,9 +470,20 @@ async function process(block = {}, config = {}) {
 
           // Resolve addess ID's
           if (outputType !== protocol.outputs.OutputTypes.Return) {
+            if (outputType === protocol.outputs.OutputTypes.HTLC) {
+              const returnData = output.properties.returnOwner().hex();
+              const returnId = utils.bigstring(returnData);
+
+              if (utils.hexDataLength(returnData) < 20 && !owners[returnId]) {
+                owners[returnId] = await db.get([ interface.db.address, returnData ]);
+              }
+            }
+
             const ownerData = output.properties.owner().hex();
-            if (utils.hexDataLength(ownerData) < 20 && !owners[ownerData]) {
-              owners[ownerData] = await db.get([ interface.db.address, ownerData ]);
+            const ownerId = utils.bigstring(ownerData);
+
+            if (utils.hexDataLength(ownerData) < 20 && !owners[ownerId]) {
+              owners[ownerId] = await db.get([ interface.db.address, ownerData ]);
             }
           }
 
@@ -406,10 +512,14 @@ async function process(block = {}, config = {}) {
                 break;
 
               case protocol.outputs.OutputTypes.Return:
+                const returnDataLength = utils.hexDataLength(output.properties.data().hex());
+                utils.assert(returnDataLength > 0, 'return-data-overflow');
+                utils.assert(returnDataLength < 512, 'return-data-overflow');
                 break;
             }
           } catch (invalidTransactionError) {
             console.log('invalid transaction error', invalidTransactionError);
+            utils.assert(0, 'invalid-transaction');
             break;
             // config.contract.invalidTransactionError()
           }
@@ -438,39 +548,8 @@ async function process(block = {}, config = {}) {
             const isWithdraw = outputType === protocol.outputs.OutputTypes.Withdraw ? 1 : 0;
             const zeroTimestamp = 0;
 
-            // Database this output, we database the utxo twice, eventually this will go
-            if (returnOwner) {
-              // delete the mempool vbersion
-               await db.del([interface.db.owner, returnOwner, outputType, isWithdraw,
-                    zeroTimestamp, hash]);
-
-              // add the processed version, need to remove these also..
-              await db.put([interface.db.owner, returnOwner, outputType, isWithdraw,
-                timestamp, hash], hash);
-
-              // add the archive stub
-              await db.put([
-                interface.db.archiveOwner,
-                returnOwner,
-                transactionData.timestamp * 1000,
-                transactionHashId,
-              ], transactionHashId);
-            }
-            // delete the mempool version
-            await db.del([interface.db.owner, owner, outputType, isWithdraw,
-               zeroTimestamp, hash]);
-
-            // add the processed version
-            await db.put([interface.db.owner, owner, outputType, isWithdraw,
-              timestamp, hash], hash);
-
-            // add the archive stub
-            await db.put([
-              interface.db.archiveOwner,
-              owner,
-              transactionData.timestamp * 1000,
-              transactionHashId,
-            ], transactionHashId);
+            // add to spendable hashes
+            spendableHashes.push(!isWithdraw ? hash : utils.emptyBytes32);
 
             // Build input hash keys
             const inputHashKey = [outputType, isWithdraw, hash];
@@ -483,21 +562,80 @@ async function process(block = {}, config = {}) {
               outputIndex,
             ];
 
-            // add inputs
-            await db.put([interface.db.inputHash, ...inputHashKey], utxo);
+            // metadata input
             await db.put([interface.db.inputMetadata, ...inputMetadataKey], utxo);
 
-            // add archival inputs with reference to the transactionHashId
-            await db.put([interface.db.archiveHash, ...inputHashKey], utxo);
-            await db.put([interface.db.archiveMetadata, ...inputMetadataKey], utxo);
+            // Database this output, we database the utxo twice, eventually this will go
+            if (returnOwner && config.archive) {
+              // increase return owner balance
+              await balance.increase(returnOwner, token, amount, config);
+
+              // delete the mempool vbersion
+              await db.del([interface.db.owner, returnOwner, token, zeroTimestamp,
+                outputType, isWithdraw, hash]);
+
+              // add the processed version, need to remove these also..
+              await db.put([interface.db.owner, returnOwner, token, timestamp,
+                outputType, isWithdraw, hash], utxo);
+
+              // remove change delta
+              await db.del([interface.db.increase, returnOwner, token, zeroTimestamp,
+                outputType, isWithdraw, hash]);
+
+              // add the archive stub
+              await db.put([
+                interface.db.archiveOwner,
+                returnOwner,
+                transactionData.timestamp * 1000,
+                transactionHashId,
+              ], transactionHashId);
+            }
+
+            // delete the mempool version
+            if (config.archive) {
+              // input hash
+              await db.put([interface.db.inputHash, ...inputHashKey], utxo);
+
+              // add archival inputs with reference to the transactionHashId
+              await db.put([interface.db.archiveHash, ...inputHashKey], transactionHashId);
+              await db.put([interface.db.archiveMetadata, ...inputMetadataKey], transactionHashId);
+
+              // increase return owner balance
+              await balance.increase(owner, token, amount, config);
+
+              // owner deletion
+              await db.del([interface.db.owner, owner, token, zeroTimestamp,
+                outputType, isWithdraw, hash]);
+
+              // add the processed version
+              await db.put([interface.db.owner, owner, token, timestamp,
+                outputType, isWithdraw, hash], utxo);
+
+              // remove change delta
+              await db.del([interface.db.increase, owner, token, zeroTimestamp,
+                outputType, isWithdraw, hash]);
+
+              // add the archive stub
+              await db.put([
+                interface.db.archiveOwner,
+                owner,
+                transactionData.timestamp * 1000,
+                transactionHashId,
+              ], transactionHashId);
+            }
 
             // increase outs
             outs[utils.bigstring(token)] = (outs[utils.bigstring(token)]
               || utils.bigNumberify(0)).add(amount);
           } else {
-            // If it's a Return output, database this as well, this is prunable
-            await db.put([interface.db.return, transactionHashId, outputIndex],
-              output.properties.data().hex());
+            if (config.archive) {
+              // If it's a Return output, database this as well, this is prunable
+              await db.put([interface.db.return, transactionHashId, outputIndex],
+                output.properties.data().hex());
+            }
+
+            // add a hash here to keep order with returns
+            spendableHashes.push(utils.emptyBytes32);
           }
           outputIndex++;
         } // OutputsEnd
@@ -517,54 +655,48 @@ async function process(block = {}, config = {}) {
             utils.assert(ins[v].eq(outs[outsKeys[i]]), 'inputs-mismatch-outputs');
           } catch (invalidSum) {
             console.log('invalidSum', invalidSum);
+            utils.assert(0, 'invalid-sum');
           }
         });
 
-        // archival metadata, this is prunable
-        await db.put([
-          interface.db.transactionMetadata,
-          block.properties.height().get(),
-          rootIndex,
-          transactionIndex,
-        ], transactionHashId);
+        if (config.archive) {
+          // archival metadata, this is prunable
+          await db.put([
+            interface.db.transactionMetadata,
+            block.properties.height().get(),
+            rootIndex,
+            transactionIndex,
+          ], transactionHashId);
 
-
-        // archival transaction data, this is prunable
-        await db.put([
-          interface.db.transactionId,
-          transactionHashId,
-        ], protocol.addons.Transaction({
-          transaction: transactionHex,
-          data,
-          transactionIndex,
-          rootIndex,
-          inputsLength: inputs.length,
-          outputsLength: outputs.length,
-          witnessesLength: witnesses.length,
-          blockHeight: block.properties.height().get(),
-          blockNumber: block.properties.blockNumber().get(),
-          timestamp: utils.timestamp(),
-          signatureFeeToken: feeToken,
-          signatureFee: fee,
-        }));
+          // archival transaction data, this is prunable
+          await db.put([
+            interface.db.transactionId,
+            transactionHashId,
+          ], protocol.addons.Transaction({
+            transaction: transactionHex,
+            data,
+            transactionIndex,
+            rootIndex,
+            inputsLength: inputs.length,
+            outputsLength: outputs.length,
+            witnessesLength: witnesses.length,
+            blockHeight: block.properties.height().get(),
+            blockNumber: block.properties.blockNumber().get(),
+            timestamp: utils.timestamp(),
+            signatureFeeToken: feeToken,
+            signatureFee: fee,
+            spendableOutputs: spendableHashes,
+          }));
+        }
 
         // increase tx index
-        transactionIndex++
+        transactionIndex++;
       }
 
       // add this root as a spendable root, add for both hash and metadata addressable
       root.setAddon(rootAddon);
-      await db.put([
-        interface.db.inputHash,
-        protocol.inputs.InputTypes.Root,
-        0,
-        rootHash,
-      ], root);
-      await db.put([
-        interface.db.root,
-        block.properties.height().get(),
-        rootIndex,
-      ], root);
+
+      // input metadata
       await db.put([
           interface.db.inputMetadata,
           protocol.inputs.InputTypes.Root,
@@ -574,27 +706,65 @@ async function process(block = {}, config = {}) {
           0,
           0,
         ], root);
+
+      // add interface.db.owner input here!
+      if (config.archive) {
+        try {
+          await db.put([
+            interface.db.owner,
+            block.properties.producer().get(),
+            root.properties.feeToken().get(),
+            rootAddon.properties.timestamp().get(),
+            protocol.inputs.InputTypes.Root,
+            0,
+            rootHash
+          ], root);
+          await balance.increase(
+            block.properties.producer().get(),
+            root.properties.feeToken().get(),
+            root.properties.fee().get()
+              .mul(root.properties.rootLength().get()),
+            config);
+        } catch (rootOwnerError) {
+          config.console.error(rootOwnerError);
+          utils.assert(0, 'root-process-error');
+        }
+
+        await db.put([
+          interface.db.inputHash,
+          protocol.inputs.InputTypes.Root,
+          0,
+          rootHash,
+        ], root);
+        await db.put([
+          interface.db.archiveHash,
+          protocol.inputs.InputTypes.Root,
+          0,
+          rootHash,
+        ], root);
+        await db.put([
+          interface.db.root,
+          block.properties.height().get(),
+          rootIndex,
+        ], root);
+      }
+
+      // Increase Root Index
+      rootIndex++;
     }
 
-    // Make all the deletes to the database
-    await config.db.batch((await streamToArray(db.createReadStream({
+    let entries = (await streamToArray(db.createReadStream({
       deleted: true,
     }))).map(entry => ({
       type: 'del',
       key: entry.value,
-    })));
-
-    // Make all the puts to the database, do not add internal delete keys
-    await config.db.batch((await streamToArray(db.createReadStream({
+    })).concat((await streamToArray(db.createReadStream({
       beforedeleted: true,
     }))).map(entry => ({
       type: 'put',
       key: entry.key,
       value: entry.value,
-    })));
-
-    // Make all the puts to the database, do not add internal delete keys
-    await config.db.batch((await streamToArray(db.createReadStream({
+    }))).concat((await streamToArray(db.createReadStream({
       afterdeleted: true,
     }))).map(entry => ({
       type: 'put',
@@ -602,13 +772,52 @@ async function process(block = {}, config = {}) {
       value: entry.value,
     })));
 
+    // 20k per batch, safley 256 per payload for now, ~1.3 minutes per 100k writes
+    const batchSize = 20000;
+    const payloadSize = 256;
+    const numberOfRetries = 10;
+
+    // Entries
+    config.console.log(`making ${entries.length} entries for block, batch size: ${batchSize}, payload size: ${payloadSize}`);
+
+    // Make 20k groups of batches, execute them in parallel in payloads of 128 writes each
+    for (var retry = 0; retry < numberOfRetries; retry++) {
+      try {
+        // We attempt a large 20k batch size first, if it fails, than we try smaller batch sizes
+        const batchAttemptSize = Math.round(batchSize / (retry + 1));
+
+        // attempt 20k batchs
+        for (var bindex = 0; bindex < entries.length; bindex += batchAttemptSize) {
+          const _entries = entries.slice(bindex, bindex + batchAttemptSize);
+          let batches = [];
+
+          // build the payloads
+          for (var index = 0; index < _entries.length; index += payloadSize) {
+            batches.push(config.db.batch(_entries.slice(index, index + payloadSize)));
+          }
+
+          // send entire batch and payloads in parallel
+          await Promise.all(batches);
+        }
+
+        // if all is well, break retry cycle, carry on..
+        break;
+      } catch (error) {
+        // wait 10 seconds for potentially more connections
+        await utils.wait(10000);
+
+        // let the terminal know a batch error has occured
+        config.console.error(`batch processing error: ${error.message}`);
+      }
+    }
+
     // clear the cache / simulation db
     await db.clear();
 
     // return the stats for this block
     return stats;
   } catch (processError) {
-    console.log('process error', processError);
+    config.console.log('process error', processError);
     throw new utils.ByPassError(processError);
   }
 }

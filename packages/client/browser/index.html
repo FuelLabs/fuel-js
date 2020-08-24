@@ -1,0 +1,153 @@
+<html>
+  <head>
+    <meta name=”apple-mobile-web-app-capable” content=”yes”>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
+
+    <title>Fuel | Browser Client</title>
+    <link rel="icon"
+        type="image/png"
+        href="./favicon.png">
+
+    <style type="text/css">
+      body, html {
+        font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji;
+        line-height: 2.1;
+        padding: 20px;
+      }
+
+      button {
+        border-radius: 4px;
+        background-color: #04c399;
+        border: 2px solid #04c399;
+        color: #FFF;
+        border: none;
+        padding: 9px;
+        outline: none;
+        cursor: pointer;
+      }
+
+      input {
+        border-radius: 4px;
+        outline: none;
+        padding: 9px;
+        border: none;
+        border: 2px solid #F1F1F1;
+      }
+
+      h1 {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        line-height: 2em;
+        font-weight: 600;
+      }
+
+      h1 img {
+        height: 2em;
+        width: auto;
+      }
+
+      a {
+        color: #029a78;
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .not-visible {
+        display: none;
+      }
+
+      #controls {
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+      }
+
+      @media (max-width: 590px) {
+        body, html {
+          padding: 7px;
+        }
+
+        h1 {
+          align-items: center;
+          line-height: 1em;
+        }
+
+        input {
+          margin-top: 10px;
+        }
+
+        .version {
+          display: flex;
+          font-size: 20px;
+          font-style: italic;
+        }
+
+        .version .number {
+          display: none;
+        }
+
+        #controls {
+          flex-direction: column!important;
+        }
+      }
+
+      #warning {
+        border-radius: 4px;
+        padding: 9px;
+        border: 2px solid #F1F1F1;
+      }
+
+      #console {
+        background: #000;
+        color: #FFF;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        border-radius: 5px;
+        margin-top: 20px;
+        margin-bottom: 20px;
+        height: 300px;
+        overflow-y: scroll;
+      }
+
+      .logo {
+        color: #04c399;
+        font-weight: 600;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>
+      <img src="./favicon.png" />
+      <span class="text">
+        <span class="logo">Fuel</span>
+        <span class="version"><span class="number"> - </span>Browser Client</span>
+      </span>
+    </h1>
+    <small>This client can be used to validate the entire Fuel ORU from the browser! Simply "Connect" to Web3 (e.g. <a href="https://metamask.io/" target="_blank">MetaMask</a>).</small>
+    <br /><br />
+    <div id="controls">
+      <span id="watch" class="not-visible">
+        <button id="clear">Restart</button>
+        <button id="start">Sync</button>
+        <button id="stop">Stop</button>
+        <input type="text" id="query" placeholder="Search a block number" />
+      </span>
+      <button id="connect">Connect</button>
+      <span>
+        <span id="memory"></span>
+        <span id="storage"></span>
+        <input type="text" id="key" placeholder="Infura key or RPC URL" />
+      </span>
+    </div>
+    <div id="console">
+    </div>
+    <a href="https://discord.gg/xfpK4Pe" target="_blank">
+      <img src="./discord.svg" />
+    </a>
+
+    <script src="./index.js" /></script>
+  </body>
+</html>

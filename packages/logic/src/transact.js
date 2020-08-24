@@ -3,11 +3,13 @@ const utils = require('@fuel-js/utils');
 const batch = require('@fuel-js/batch');
 const struct = require('@fuel-js/struct');
 const interface = require('@fuel-js/interface');
+const balance = require('./balance');
 
 async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = {}) {
   try {
     // decoding
-    const decoded = protocol.transaction.Unsigned.decodeRLP(unsigned);
+    const decoded = protocol.transaction
+      .Unsigned.decodeRLP(unsigned);
     const witnesses = protocol.witness.decodePacked(_witnesses);
     const data = utils.toLowerCaseHex(decoded.properties.data().get());
     const inputs = protocol.inputs.decodePacked(decoded.properties.inputs().hex());
@@ -21,7 +23,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
       config.contract = {
         address: await config.db.get([ interface.db.contract ]),
       };
-      config.contract.chainId = 0;
+      config.contract.chainId = config.network.chainId;
     }
 
     // gather ids, transaction hash ids
@@ -37,14 +39,16 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
 
     // Get State Registered Callers, if Any from Witnesses
     const callerWitnesses = protocol.witness.filter(witnesses);
-    const callerKeys = callerWitnesses.map(witness => [
-      interface.db.caller,
-      witness.properties.owner().hex(),
-      witness.properties.blockNumber().hex(),
-    ]);
+    const callerKeys = callerWitnesses.map(witness => {
+      return [
+        interface.db.caller,
+        witness.properties.owner().hex(),
+        witness.properties.blockNumber().hex(),
+      ];
+    });
 
     // Ensure no duplicate inputs within the transaction itself, hashes are lowercased
-    utils.assert(!utils.hasDuplicates(data))
+    utils.assert(!utils.hasDuplicates(data), 'double-spend');
 
     // gather necessary data from the database
     const inputKeys = inputs
@@ -64,8 +68,13 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
       .concat(callerKeys);
 
     // get all necessary state / keys from db
-    const retrieve = (await batch(config.db, getKeys))
-      .map(entry => entry.value);
+    let retrieve = null;
+    try {
+      retrieve = (await batch(config.db, getKeys))
+        .map(entry => entry.value);
+    } catch (error) {
+      utils.assert(0, 'invalid-inputs');
+    }
 
     // Input Proofs, Owner IDs, Caller Ids
     let proofs = retrieve.slice(0, inputs.length);
@@ -74,19 +83,34 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
     const timestamp = utils.timestamp();
 
     // Parse Data Retrieved from DB
-    const owners = values.slice(1, ownerIds.size).reduce((acc, value, i) => ({
-      ...acc,
-      [utils.bigstring(ownerIds[i])]: value,
-    }), {});
-    const callers = values.slice(1 + ownerIds.size, callerWitnesses.length).reduce((acc, transactionHashId, i) => ({
-      ...acc,
-      [callerWitnesses[i].keccak256()]: transactionHashId,
-    }), {});
+    const owners = values.slice(1, ownerIds.size)
+      .reduce((acc, value, i) => ({
+        ...acc,
+        [utils.bigstring(ownerIds[i])]: value,
+      }), {});
+    const callers = values.slice(1 + ownerIds.size, callerWitnesses.length)
+      .reduce((acc, transactionHashId, i) => ({
+        ...acc,
+        [callerWitnesses[i].keccak256()]: transactionHashId,
+      }), {});
 
-    // fee checking
+    // ensure caller is registered before current sync block
+    for (const [index, owner, blockNumber] of callerKeys) {
+      utils.assert(blockNumber.lt(state.properties.blockNumber().get()),
+        'caller-block-number-overflow');
+    }
+
+    // ensure id is available in current state
+    for (const [id] of ownerIds) {
+      utils.assert(utils.bigNumberify(id).lt(state.properties.numAddresses().get()),
+        'owner-id-overflow');
+    }
+
+    // fee checking, this will be more dynamic overtime, based upon feeToken submitted
     const feeToken = decoded.properties.signatureFeeToken().get();
     const fee = decoded.properties.signatureFee().get();
     utils.assert(feeToken.gte(0), 'fee-token-underflow');
+    utils.assert(fee.eq(0), 'fee-mismatch');
     utils.assert(feeToken.lt(state.properties.numTokens().get()), 'fee-token-overflow');
 
     // inputs
@@ -96,6 +120,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
       key: [ interface.db.spent, key[1], key[3] ],
       value: '0x01',
     }));
+    let deltas = [];
     const inputHashes = inputKeys.map(v => v[3]);
 
     for (let inputIndex = 0; inputIndex < inputs.length; inputIndex++) {
@@ -117,6 +142,10 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
           token = proof.properties.token().get();
           amount = proof.properties.value().get();
           owner = proof.properties.owner().hex();
+
+          utils.assert(owner === input.properties.owner().get(), 'input-deposit-owner');
+          utils.assert(proof.properties.blockNumber().get()
+            .lt(state.properties.blockNumber().get()), 'deposit-block-overflow');
           break;
 
         case protocol.inputs.InputTypes.HTLC:
@@ -129,11 +158,16 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
 
           spentInputs.push({
             type: 'del',
-            key: [interface.db.owner, returnOwner, inputType, 0, proof.getAddon()[0], inputHashes[inputIndex]],
+            key: [interface.db.owner, returnOwner, token, proof.getAddon()[0], inputType, 0, inputHashes[inputIndex]],
           });
           spentInputs.push({
             type: 'del',
-            key: [interface.db.owner, returnOwner, inputType, 0, 0, inputHashes[inputIndex]],
+            key: [interface.db.owner, returnOwner, token, 0, inputType, 0, inputHashes[inputIndex]],
+          });
+          deltas.push({
+            type: 'put',
+            key: [interface.db.decrease, returnOwner, token, 0, inputType, 0, inputHashes[inputIndex]],
+            value: amount,
           });
 
           utils.assert(expiry.gt(state.properties.blockNumber().get()), 'expiry-underflow');
@@ -156,14 +190,17 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
           break;
       }
 
+      utils.assert(token.lt(state.properties.numTokens().get()), 'input-token-overflow');
+
       spentInputs.push({
         type: 'del',
         key: [
           interface.db.owner,
           owner,
+          token,
+          proof.getAddon()[0],
           inputType,
           0,
-          proof.getAddon()[0],
           inputHashes[inputIndex]
         ],
       });
@@ -172,11 +209,17 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
         key: [
           interface.db.owner,
           owner,
-          inputType,
+          token,
           0,
+          inputType,
           0,
           inputHashes[inputIndex]
         ],
+      });
+      deltas.push({
+        type: 'put',
+        key: [interface.db.decrease, owner, token, 0, inputType, 0, inputHashes[inputIndex]],
+        value: amount,
       });
 
       // increase ins
@@ -231,6 +274,9 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
           break;
 
         case protocol.outputs.OutputTypes.Return:
+          const returnDataLength = utils.hexDataLength(output.properties.data().hex());
+          utils.assert(returnDataLength > 0, 'return-data-overflow');
+          utils.assert(returnDataLength < 512, 'return-data-overflow');
           break;
       }
 
@@ -254,10 +300,19 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
         if (returnOwner) {
           accountOutputs.push({
             type: 'put',
-            key: [interface.db.owner, returnOwner, outputType, isWithdraw, 0, hash],
-            value: hash,
+            key: [interface.db.owner, returnOwner, token, 0, outputType, isWithdraw, hash],
+            value: utxo,
           });
-
+          accountOutputs.push({
+            type: 'put',
+            key: [interface.db.archiveOwner, returnOwner, timestamp, transactionHashId],
+            value: transactionHashId,
+          });
+          deltas.push({
+            type: 'put',
+            key: [interface.db.increase, returnOwner, token, 0, outputType, isWithdraw, hash],
+            value: amount,
+          });
           // emit to publisher, if any
           if (config.emit) {
             try {
@@ -270,14 +325,24 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
                   utxoRLP,
                 ]),
               });
-            } catch (error) { console.error(error); }
+            } catch (error) { config.console.error(error); }
           }
         }
 
         accountOutputs.push({
           type: 'put',
-          key: [interface.db.owner, owner, outputType, isWithdraw, 0, hash],
-          value: hash,
+          key: [interface.db.owner, owner, token, 0, outputType, isWithdraw, hash],
+          value: utxo,
+        });
+        accountOutputs.push({
+          type: 'put',
+          key: [interface.db.archiveOwner, owner, timestamp, transactionHashId],
+          value: transactionHashId,
+        });
+        deltas.push({
+          type: 'put',
+          key: [interface.db.increase, owner, token, 0, outputType, isWithdraw, hash],
+          value: amount,
         });
 
         // emit to publisher, if any
@@ -292,7 +357,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
                 utxoRLP,
               ]),
             });
-          } catch (error) { console.error(error); }
+          } catch (error) { config.console.error(error); }
         }
 
         spendableOutputs.push({
@@ -358,6 +423,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
     // check ins === outs
     const outsKeys = Object.keys(outs).sort();
     const inKeys = Object.keys(ins).sort();
+
     inKeys.forEach((v, i) => {
       utils.assert(v === outsKeys[i], 'ins-outs-keys');
       utils.assert(ins[v].eq(outs[outsKeys[i]]), 'inputs-mismatch-outputs');
@@ -377,11 +443,24 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
       value: transactionAddon,
     }];
 
+    // double spend protection
+    try {
+      // utils.assert(config.db.supports.upsert || config.db.supports.mysql,
+      //  'no-db-double-spend-protection');
+      await config.db.batch(spentInputs, { upsert: false, transact: true });
+    } catch (error) {
+      utils.assert(0, 'input-already-spent');
+    }
+
     // all is well, make database upserts
-    await config.db.batch(spentInputs
-        .concat(accountOutputs)
-        .concat(spendableOutputs)
-        .concat(mempoolEntry), { upsert: false, transact: true });
+    try {
+      await config.db.batch(accountOutputs
+          .concat(deltas)
+          .concat(spendableOutputs)
+          .concat(mempoolEntry)); // , { upsert: false, transact: true }
+    } catch (error) {
+      utils.assert(0, 'failed-to-insert');
+    }
 
     // new emit
     if (config.emit) {
@@ -390,14 +469,14 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
           await config.emit(emittion);
         }
       } catch (emitError) {
-        console.error(emitError);
+        utils.assert(0, 'failed-to-emit');
       }
     }
 
     // bool success for now..
     return '0x01';
   } catch (error) {
-    console.error(error);
+    config.console.error(error);
     throw new utils.ByPassError(error);
   }
 }

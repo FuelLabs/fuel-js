@@ -67,9 +67,9 @@ function metadataFromProofs(_inputs = [], proofs = []) {
     if (_inputs[i].properties.type().get().toNumber() === inputs.InputTypes.Deposit) {
       result.push(metadata.MetadataDeposit(proofs[i].object()));
     } else if (_inputs[i].properties.type().get().toNumber() === inputs.InputTypes.Root) {
-      result.push(metadata.Metadata(RootHeader(proofs[i].getAddon()).object()));
+      result.push(metadata.Metadata(RootHeader(proofs[i].getAddon().object()).object()));
     } else {
-      result.push(metadata.Metadata(UTXO(proofs[i].getAddon()).object()));
+      result.push(metadata.Metadata(UTXO(proofs[i].getAddon().object()).object()));
     }
   }
 
