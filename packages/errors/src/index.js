@@ -7,5 +7,5 @@ module.exports = {
   Fuel,
   ERC20,
   HTLC,
-  OwnedProxy,
+  ERC20,
 };
