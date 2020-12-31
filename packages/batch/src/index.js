@@ -39,7 +39,7 @@ async function batch(db = {}, keys = [], options = {}) {
     for (const key of keys) {
       results.push({
         key: encoding.keyEncoding.decode(encoding.keyEncoding.encode(key)),
-        value: await db.get(key),
+        value: await db.get(key, options),
       });
     }
 

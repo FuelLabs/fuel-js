@@ -1,22 +1,18 @@
 const { test, utils } = require('@fuel-js/environment');
-const abi = require('@fuel-js/abi');
 const interface = require('@fuel-js/interface');
-const bytecode = require('@fuel-js/bytecode');
 const protocol = require('@fuel-js/protocol');
 const struct = require('@fuel-js/struct');
-const errors = require('@fuel-js/errors');
 const defaults = require('./defaults');
 const config = require('./config.local');
 const sync = require('../sync');
 const transact = require('../transact');
-const streamToArray = require('stream-to-array');
+const { ERC20, Fuel } = require('@fuel-js/contracts');
 
 async function state(t = {}, opts = {}) {
   try {
-
     // check if sync dbs the right values
     const producer = t.getWallets()[0].address;
-    const contract = await t.deploy(abi.Fuel, bytecode.Fuel, defaults(producer));
+    const contract = await t.deploy(Fuel.abi, Fuel.bytecode, defaults(producer));
     const settings = config({
       network: 'unspecified',
       provider: t.getProvider(),
@@ -46,20 +42,22 @@ async function state(t = {}, opts = {}) {
     let depositProof = new protocol.deposit.Deposit({
       token: depositTokenId,
       owner: depositOwner,
-      blockNumber: utils.bigNumberify(await t.getBlockNumber()).add(1),
+      blockNumber: utils.bigNumberify(
+        await t.getBlockNumber(),
+      ).add(1),
       value: depositAmount,
     });
     let depositTx = await t.wait(contract.deposit(depositOwner, depositToken, t.getOverrides()),
-      'ether deposit', errors.Fuel);
+      'ether deposit', Fuel.errors);
 
     await sync(settings);
 
     let etherDeposit = deposit = protocol.deposit.Deposit(
       await settings.db.get([
-        interface.db.deposit,
-        depositProof.properties.blockNumber().get(),
-        depositTokenId,
+        interface.db.deposit2,
         depositOwner,
+        depositTokenId,
+        depositProof.properties.blockNumber().get(),
       ]),
       null,
       protocol.addons.Deposit);
@@ -70,7 +68,7 @@ async function state(t = {}, opts = {}) {
     t.ok(1, '***testing ERC20 deposit***');
 
     const totalSupply = utils.bigNumberify('0xFFFFFFFFFFFFFFFFFFFFFF');
-    const erc20 = await t.deploy(abi.ERC20, bytecode.ERC20, [producer, totalSupply]);
+    const erc20 = await t.deploy(ERC20.abi, ERC20.bytecode, [producer, totalSupply]);
 
     depositToken = erc20.address;
     depositTokenId = 1;
@@ -83,16 +81,18 @@ async function state(t = {}, opts = {}) {
       value: depositAmount,
     });
     depositTx = await t.wait(contract.deposit(depositOwner, depositToken, t.getOverrides()),
-      'erc20 deposit', errors.Fuel);
+      'erc20 deposit', Fuel.errors);
 
+    await sync(settings);
+    await sync(settings);
     await sync(settings);
 
     deposit = protocol.deposit.Deposit(
       await settings.db.get([
-        interface.db.deposit,
-        depositProof.properties.blockNumber().get(),
-        depositTokenId,
+        interface.db.deposit2,
         depositOwner,
+        depositTokenId,
+        depositProof.properties.blockNumber().get(),
       ]),
       null,
       protocol.addons.Deposit);
@@ -123,17 +123,16 @@ async function state(t = {}, opts = {}) {
       fee: 0,
     });
 
-    let witnesses = [ await protocol.witness.Signature(t.getWallets()[0], unsigned, contract, 0) ];
+    let witnesses = [
+      await protocol.witness.Signature(t.getWallets()[0], unsigned, contract, 0) ];
 
-    await transact(unsigned.encodeRLP(), struct.combine(witnesses), 0, settings);
+    t.ok(await transact(unsigned.encodeRLP(), struct.combine(witnesses), 0, settings));
+
   } catch (stateError) {
     throw new utils.ByPassError(stateError);
   }
 }
 
 module.exports = test('transact', async t => {
-  try {
-    await state(t, {});
-
-  } catch (testError) { console.error(testError); }
+  await state(t, {});
 });

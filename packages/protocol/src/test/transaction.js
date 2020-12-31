@@ -10,6 +10,7 @@ const { combine } = require('@fuel-js/struct');
 module.exports = test('transaction', async t => {
 
   const valid = await transaction.Transaction({
+    override: true,
     inputs: [
       inputs.InputTransfer({}),
       inputs.InputTransfer({}),
@@ -74,5 +75,50 @@ module.exports = test('transaction', async t => {
   t.equalBig(decoded.outputs[1].properties.amount().hex(), 102, 'amount-check');
   t.equalBig(decoded.witnesses[0].properties.v().hex(), 21, 'witness-version');
   t.equalBig(decoded.inputs[7].properties.witnessReference().hex(), 0, 'witness-reference');
+
+  const invalid2 = await transaction.Transaction({
+    override: true,
+    inputs: [
+      inputs.InputTransfer({}),
+      inputs.InputTransfer({}),
+      inputs.InputDeposit({}),
+      inputs.InputTransfer({}),
+      inputs.InputTransfer({}),
+      inputs.InputTransfer({}),
+      inputs.InputTransfer({}),
+      inputs.InputTransfer({ witnessReference: 0 }),
+    ],
+    data: [
+      utils.emptyBytes32,
+      utils.emptyBytes32,
+      utils.emptyBytes32,
+      utils.emptyBytes32,
+      utils.emptyBytes32,
+      utils.emptyBytes32,
+      utils.emptyBytes32,
+      utils.emptyBytes32,
+    ],
+    outputs: [
+    ],
+    metadata: [
+      metadata.Metadata({}),
+      metadata.Metadata({}),
+      metadata.MetadataDeposit({}),
+      metadata.Metadata({}),
+      metadata.Metadata({ blockHeight: 4 }),
+      metadata.Metadata({}),
+      metadata.Metadata({}),
+      metadata.Metadata({}),
+    ],
+    witnesses: [
+      witness._Signature({ v: 21 }),
+    ],
+  });
+
+  const encoded2 = invalid2.encodePacked();
+  try {
+    const decoded2 = transaction.decodePacked(encoded2);
+  } catch (invalid) {
+  }
 
 });

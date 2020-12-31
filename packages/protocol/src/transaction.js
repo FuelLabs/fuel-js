@@ -4,6 +4,7 @@ const inputs = require('./inputs');
 const outputs = require('./outputs');
 const witness = require('./witness');
 const metadata = require('./metadata');
+const { transactionHashId } = require('./witness');
 
 const TransactionSizeMinimum = 44;
 const TransactionSizeMaximum = 896;
@@ -28,7 +29,15 @@ const _Transaction = struct(`
   bytes1[**] outputs
 `);
 
-async function Transaction(opts = {}, addon = []) {
+async function PromiseSync(proms = []) {
+  let results = [];
+  for (const prom of proms) {
+    results.push(await prom());
+  }
+  return results;
+}
+
+async function prepairLeaf(opts = {}, addon = []) {
   try {
     if (!opts.override && (opts.inputs.length !== opts.data.length
           || opts.data.length !== opts.metadata.length)) {
@@ -41,11 +50,28 @@ async function Transaction(opts = {}, addon = []) {
       ...opts,
       data: opts.data.map(d => d._isStruct ? d.keccak256() : d),
     });
-    const chainId = opts.contract ? await witness.chainId(opts.contract) : 0;
+    const chainId = typeof opts.chainId === "number"
+      ? opts.chainId 
+      : (opts.contract 
+        ? await witness.chainId(opts.contract)
+        : 0);
 
-    const witnesses = await Promise.all(opts.witnesses.map(v => v.signingKey
+    const witnesses = await PromiseSync(opts.witnesses.map(v => () => v.signingKey
         ? witness.Signature(v, unsigned, opts.contract, chainId)
-        : Promise.resolve(v)));
+        : ( 
+          v._caller 
+            ? witness.commitWitness(
+              unsigned, 
+              opts.contract,
+              chainId)
+            : (
+              v._producer
+                ? witness.Producer({
+                  hash: witness.transactionHashId(unsigned, opts.contract, chainId),
+                })
+                : Promise.resolve(v)
+            )
+        )));
 
     const _leaf = _Transaction({
       metadata: (opts.metadata || []).map(m => m.encodePacked()),
@@ -61,6 +87,62 @@ async function Transaction(opts = {}, addon = []) {
     _leaf.unsigned = () => unsigned;
 
     return _leaf;
+  } catch (error) {
+    throw new utils.ByPassError(error);
+  }
+}
+
+async function Transaction(opts = {}, addon = []) {
+  try {
+    const leaf = await prepairLeaf(opts, addon);
+    const signatureFee = opts.signatureFee || 0;
+
+    // The length of the tx leaf.
+    let leafLength = utils.bigNumberify(
+      utils.hexDataLength(leaf.encodePacked()),
+    );
+
+    // If no metadata, we adjust the leaf length.
+    if (leaf.properties.metadata()
+      .get().length <= 0) {
+      // Add metadata length.
+      leafLength = leafLength.add(
+        opts.inputs.length * 8,
+      );
+    }
+
+    // Prepair signature fee owed.
+    const feeOwed = leafLength.mul(signatureFee);
+
+    // If the signature fee output index is specified.
+    if (typeof opts.signatureFeeOutputIndex === "number") {
+      // Get the output amount.
+      const amount = outputs.decodeAmount(
+        opts.outputs[opts.signatureFeeOutputIndex],
+      );
+
+      utils.assert(amount.gte(feeOwed), 
+        `output #${opts.signatureFeeOutputIndex} amount not greater than fee required.`);
+
+      const adjustedAmount = amount.sub(feeOwed);
+      const packed = outputs.packAmount(
+        {
+          noshift: true,
+          amount: adjustedAmount,
+        },
+      );
+
+      // Set that outputs amount.
+      opts.outputs[opts.signatureFeeOutputIndex].properties
+        .shift().set(packed.shift);
+      opts.outputs[opts.signatureFeeOutputIndex].properties
+        .amount().set(packed.amount);
+
+      // Return prepaired leaf with output fee amount transformed.
+      return await prepairLeaf(opts, addon);
+    }
+
+    return leaf;
   } catch (error) {
     throw new utils.ByPassError(error);
   }
@@ -150,8 +232,12 @@ function TransactionProof({
   inputOutputIndex,
   transactions,
   transactionIndex,
+  signatureFee,
+  signatureFeeToken,
+  data,
   token,
   selector }) {
+  const isSignatureFee = typeof signatureFee !== "undefined";
   const isEmpty = transactionIndex >= transactions.length;
   const transaction = isEmpty ? null : transactions[transactionIndex || 0];
   return new _TransactionProof({
@@ -162,14 +248,51 @@ function TransactionProof({
     inputOutputIndex,
     transactionIndex,
     transaction: isEmpty ? [] : pack(transaction),
+    signatureFeeToken: isSignatureFee ? signatureFeeToken : root.properties.feeToken().get(),
+    signatureFee: isSignatureFee ? signatureFee : root.properties.fee().get(),
     rootLength: utils.hexDataLength(combine(transactions)),
-    data: isEmpty
+    data: data || (isEmpty
       ? []
-      : (transaction.unsigned().object().data || [])
-          .map(d => d._isStruct ? d.keccak256() : d),
+      : transaction.unsigned ?
+        (transaction.unsigned().object().data || [])
+          .map(d => d._isStruct ? d.keccak256() : d) : []),
     token,
     selector,
   });
+}
+
+/// @notice This will prove the correct UTXO hashes based upon the proofs.
+function utxoHashes(proofs = []) {
+  let hashes = [];
+
+  for (const proof of proofs) {
+    // This proof is a Root.
+    if (proof.properties.fee) {
+      hashes.push(proof.keccak256Packed());
+    } else {
+      // Is a Deposit or UTXO proof.
+      hashes.push(proof.keccak256());
+    }
+  }
+
+  return hashes;
+}
+
+/// @notice This will prove the correct UTXO packed formatting for each proof.
+function utxoPacked(proofs = []) {
+  let packed = [];
+
+  for (const proof of proofs) {
+    // This proof is a Root.
+    if (proof.properties.fee) {
+      packed.push(proof.encodePacked());
+    } else {
+      // Is a Deposit or UTXO proof.
+      packed.push(proof.encode());
+    }
+  }
+
+  return chunkJoin(packed);
 }
 
 function decodePacked(data = '0x') {
@@ -197,6 +320,8 @@ function decodePacked(data = '0x') {
 module.exports = {
   Unsigned,
   Transaction,
+  utxoHashes,
+  utxoPacked,
   _Transaction,
   ...metadata,
   ...witness,

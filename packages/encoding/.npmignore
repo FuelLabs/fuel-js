@@ -1,1 +1,3 @@
 src/test
+.nyc_output
+.eslinterc.js

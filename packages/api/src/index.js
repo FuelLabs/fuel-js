@@ -3,19 +3,70 @@ const interface = require('@fuel-js/interface');
 const utils = require('@fuel-js/utils');
 
 // Constructor | network is Ethereum network specifier | base is api base url
-function Api(network = 'unspecified', base = '.api.fuel.sh/v1') {
-  if (base.slice(-1) === '/') throw new Error('Api base must have no trailing slash');
+function Api(network = 'unspecified', opts = {}) {
+  const { 
+    base = '.api.fuel.sh/v1',
+    url = null,
+  } = opts;
+
+  if (!url && (base || "").slice(-1) === '/') throw new Error('Api base must have no trailing slash');
   const self = this;
-  self.url = 'https://' + network + base;
+  self.url = url || 'https://' + network + base;
 }
 
 // No operation method
 const noop = v => v;
 
+// Fetch.
+const fetch = (url = '', obj = {}) => utils.fetchJson({
+  url,
+  allowInsecure: true,
+}, JSON.stringify(obj));
+
+// fetch with retry
+async function fetchRetry(path = '', obj = {}, opts = {}) {
+  try {
+    const maximumRetries = opts.retries || 10;
+    let output = null;
+    let error = null;
+
+    // manage 502 retries if they occur
+    for (var retry = 0; retry < maximumRetries; retry++) {
+      try {
+
+        
+        output = await fetch(path, obj);
+        break;
+      } catch (retryError) {
+        // error
+        error = retryError;
+
+        // the lambda needs to be woken up..
+        if (retryError.statusCode !== 502) {
+          throw new utils.ByPassError(retryError);
+          break;
+        }
+
+        // wait 1 second than try again..
+        await utils.wait(1000);
+      }
+    }
+
+    // if no output after 10 tries, than result the error
+    if (!output) {
+      throw new utils.ByPassError(error);
+    }
+
+    return output;
+  } catch (fetchError) {
+    throw new utils.ByPassError(fetchError);
+  }
+}
+
 // get, general post/get method for api, RLP key specifier, decoder and addon
 Api.prototype.get = function(key = '0x', decoderStruct = noop, addon = null) {
   const self = this;
-  return utils.fetch(self.url + '/get', { key: utils.RLP.encode(key) })
+  return fetchRetry(self.url + '/get', { key: utils.RLP.encode(key) })
     .then(({ error, result }) => {
       if (error) return Promise.reject(error);
       return decoderStruct(result, addon);
@@ -39,7 +90,7 @@ function decodeAssets(rlp = []) {
 // getAccount get all inputs for a specific Fuel account / owner
 Api.prototype.getAssets = function(owner = '0x', token = '0x00', opts = {}) {
   const self = this;
-  return utils.fetch(self.url + '/assets', { owner, token, ...opts })
+  return fetchRetry(self.url + '/assets', { owner, token, ...opts })
     .then(({ error, result }) => {
       if (error) return Promise.reject(error);
       return decodeAssets(utils.RLP.decode(result));
@@ -128,9 +179,26 @@ function decodeHistory(rlp = '0x', self = {}) {
   return Promise.all(results);
 }
 
+function sortHistory(results = []) {
+  return results.sort((a, b) => {
+    return b.timestamp.sub(a.timestamp);
+  });
+}
+
+// decode deposit data from profiles
+function decodeDeposits(deposits) {
+  return deposits.map(value => {
+    return protocol.deposit.Deposit(
+      value,
+      null,
+      protocol.addons.Deposit,
+    );
+  });
+}
+
 Api.prototype.getProfile = function (owner = '0x', opts = {}) {
   const self = this;
-  return utils.fetch(self.url + '/profile', { owner, ...opts })
+  return fetchRetry(self.url + '/profile', { owner, ...opts })
     .then(({ error, result }) => {
       // return error reject
       if (error) return Promise.reject(error);
@@ -140,14 +208,16 @@ Api.prototype.getProfile = function (owner = '0x', opts = {}) {
         assets,
         history,
         ownerId,
+        deposits,
       ] = utils.RLP.decode(result);
 
       // decode and return values
       return decodeHistory(history, self)
         .then(decodedHistory => ({
           assets: decodeAssets(assets),
-          history: decodedHistory,
+          history: sortHistory(decodedHistory),
           ownerId: utils.bigNumberify(ownerId),
+          deposits: decodeDeposits(deposits),
         }))
         .catch(Promise.reject);
     })
@@ -157,7 +227,7 @@ Api.prototype.getProfile = function (owner = '0x', opts = {}) {
 // getAccount get all inputs for a specific Fuel account / owner
 Api.prototype.getHistory = function(owner = '0x', opts = {}) {
   const self = this;
-  return utils.fetch(self.url + '/history', { owner, ...opts })
+  return fetchRetry(self.url + '/history', { owner, ...opts })
     .then(({ error, result }) => {
 
       if (error) return Promise.reject(error);
@@ -169,7 +239,7 @@ Api.prototype.getHistory = function(owner = '0x', opts = {}) {
 // getAccount get all inputs for a specific Fuel account / owner
 Api.prototype.getAccount = function(owner = '0x', opts = {}) {
   const self = this;
-  return utils.fetch(self.url + '/account', { owner, ...opts })
+  return fetchRetry(self.url + '/account', { owner, ...opts })
     .then(({ result }) => {
       if (opts.proof) {
         const inputs = utils.RLP.decode(result);
@@ -227,54 +297,48 @@ Api.prototype.decodeAmount = function(type = 0, isWithdraw = 0, proof = {}) {
 }
 
 // Get balance 2
-Api.prototype.getBalance = function(owner = '0x', token = '0x', opts = {}) {
+Api.prototype.getBalance = async function(owner = '0x', token = '0x', opts = {}) {
   const self = this;
-  return utils.fetch(self.url + '/balance', { owner, token, ...opts })
-    .then(({ result }) => {
-      return utils.bigNumberify(utils.RLP.decode(result));
-    })
-    .catch(error => Promise.reject(error));
+
+  // balance
+  let balance = 0;
+  let balObject = protocol.addons.Balance({});
+  try {
+    balObject = await self.get(interface.db.balance.encode([
+      owner,
+      token,
+    ]), protocol.addons.Balance.decodeRLP);
+    balance = balObject.properties.syncBalance().get();
+  } catch (balanceError) {}
+  balance = utils.bigNumberify(balance);
+
+  // final bal.
+  let finalBalance = 0;
+
+  // If there is a transaction hash id present
+  // we use mempool otherwise sync.
+  if (balObject.properties.transactionHashId()
+    .get() !== utils.emptyBytes32) {
+      finalBalance = balObject.properties.mempoolBalance()
+        .get();
+  } else {
+      finalBalance = balObject.properties.syncBalance()
+        .get();
+  }
+
+  return finalBalance;
 }
-
-// Get balance
-/*
-Api.prototype.getBalance = function(owner = '0x', token = '0x', opts = {}) {
-  const self = this;
-  return utils.fetch(self.url + '/account', { owner, token, proof: true, ...opts })
-    .then(({ result }) => {
-      const inputs = utils.RLP.decode(result);
-      let balance = utils.bigNumberify(0);
-
-      for (const [key, result] of inputs) {
-        const _type = key[4];
-        const _isWithdraw = key[5];
-        const inputProof = self.decodeInput(_type, _isWithdraw, result);
-
-        balance = balance.add(self.decodeAmount(
-          _type,
-          _isWithdraw,
-          inputProof,
-        ));
-      }
-
-      return balance;
-    })
-    .catch(error => Promise.reject(error));
-}
-*/
 
 // getTransactions, get all transactions in a block root
 Api.prototype.getTransactions = function(blockHeight = 0, rootIndex = 0) {
   const self = this;
-  return utils.fetch(self.url + '/transactions', { blockHeight, rootIndex })
+  return fetchRetry(self.url + '/transactions', { blockHeight, rootIndex })
     .then(({ result }) => {
       const results = utils.RLP.decode(result);
       return results;
     })
     .catch(error => Promise.reject(error));
 }
-
-// [ interface.db.spent, key[1], key[3] ]
 
 // getDeposit, get a deposit as specified by etheruem block number, token, owner
 Api.prototype.getSpent = function(type = 0, hash = 0) {
@@ -286,10 +350,10 @@ Api.prototype.getSpent = function(type = 0, hash = 0) {
 
 // getDeposit, get a deposit as specified by etheruem block number, token, owner
 Api.prototype.getDeposit = function(blockNumber = 0, token = 0, owner = '0x') {
-  return this.get(interface.db.deposit.encode([
-    blockNumber,
+  return this.get(interface.db.deposit2.encode([
+    owner,
     token,
-    owner
+    blockNumber,
   ]), protocol.deposit.Deposit.decodeRLP);
 }
 
@@ -337,98 +401,59 @@ Api.prototype.getTransactionByHash = function(transactionId = '0x', includeInput
           witnesses,
           metadata,
         } = protocol.transaction.decodePacked(transaction.properties.transaction().hex());
-        const data = transaction.properties.data().get();
+        let inputProofs = transaction.properties.inputProofs().get();
+        let outputProofs = transaction.properties.outputProofs().get();
 
-        const block = protocol.block.BlockHeader({
-          numAddresses: '0xFFFFFFFF',
-          numTokens: '0xFFFFFFFF',
-        });
+        for (let i = 0; i < inputProofs.length; i++) {
+          const input = inputs[i];
+          const inputType = input.properties.type().get().toNumber();
+          let decoder = protocol.outputs.UTXO.decodeRLP;
 
-        let inputProofs = [];
-        let outputProofs = [];
+          switch (inputType) {
+            case protocol.inputs.InputTypes.Transfer:
+              decoder = protocol.outputs.UTXO.decodeRLP;
+              break;
 
-        let inputIndex = 0;
-        for (const input of inputs) {
-          if (includeInputProofs) {
-            const inputType = input.properties.type().get().toNumber();
-            if (inputType === protocol.inputs.InputTypes.Deposit) {
-              inputProofs.push(await self.getDeposit(
-                metadata[inputIndex].properties.blockNumber().get(),
-                metadata[inputIndex].properties.token().get(),
-                input.properties.owner().get(),
-              ));
-            } else {
-              const isWithdraw = 0;
-              inputProofs.push(await self.getInputByHash(
-                inputType,
-                isWithdraw,
-                data[inputIndex],
-              ));
-            }
-          } else {
-            inputProofs.push(null);
+            case protocol.inputs.InputTypes.Deposit:
+              decoder = protocol.deposit.Deposit.decodeRLP;
+              break;
+
+            case protocol.inputs.InputTypes.HTLC:
+              decoder = protocol.outputs.UTXO.decodeRLP;
+              break;
+
+            case protocol.inputs.InputTypes.Root:
+              decoder = protocol.root.RootHeader.decodeRLP;
+              break;
           }
-          inputIndex++;
+
+          inputProofs[i] = decoder(inputProofs[i]);
         }
 
-        let outputIndex = 0;
-        let owners = {};
-        for (const output of outputs) {
+        for (let i = 0; i < outputProofs.length; i++) {
+          const output = outputs[i];
           const outputType = output.properties.type().get().toNumber();
-          let token = null, amount = null, owner = null,
-            returnOwner = utils.emptyAddress, expiry = 0, digest = utils.emptyBytes32;
-
-          if (outputType !== protocol.outputs.OutputTypes.Return) {
-            const ownerData = output.properties.owner().hex();
-            if (utils.hexDataLength(ownerData) < 20 && !owners[ownerData]) {
-              owners[ownerData] = await self.getAddress(ownerData);
-            }
-          }
+          let decoder = protocol.outputs.UTXO.decodeRLP;
 
           switch (outputType) {
             case protocol.outputs.OutputTypes.Transfer:
-              token = protocol.outputs.decodeToken(output, block);
-              amount = protocol.outputs.decodeAmount(output);
-              owner = protocol.outputs.decodeOwner(output, block, owners);
+              decoder = protocol.outputs.UTXO.decodeRLP;
               break;
 
             case protocol.outputs.OutputTypes.Withdraw:
-              token = protocol.outputs.decodeToken(output, block);
-              amount = protocol.outputs.decodeAmount(output);
-              owner = protocol.outputs.decodeOwner(output, block, owners);
+              decoder = protocol.outputs.UTXO.decodeRLP;
               break;
 
             case protocol.outputs.OutputTypes.HTLC:
-              token = protocol.outputs.decodeToken(output, block);
-              amount = protocol.outputs.decodeAmount(output);
-              owner = protocol.outputs.decodeOwner(output, block, owners);
-              returnOwner = protocol.outputs.decodeReturnOwner(output, block, owners);
-              expiry = output.properties.expiry().get();
-              digest = output.properties.digest().get();
+              decoder = protocol.outputs.UTXO.decodeRLP;
               break;
 
             case protocol.outputs.OutputTypes.Return:
+              decoder = protocol.root.Leaf;
               break;
           }
 
-          // handle databasing of outputs
-          if (outputType !== protocol.outputs.OutputTypes.Return) {
-            const utxo = protocol.outputs.UTXO({
-              transactionHashId: transactionId,
-              outputType,
-              outputIndex,
-              token,
-              amount,
-              owner,
-              expiry,
-              digest,
-              returnOwner,
-            });
-            outputProofs.push(utxo);
-          } else {
-            outputProofs.push({});
-          }
-          outputIndex++;
+          outputProofs[i] = decoder(outputProofs[i]);
         }
 
         return {
@@ -449,33 +474,6 @@ Api.prototype.getTransactionByHash = function(transactionId = '0x', includeInput
     .catch(error => Promise.reject(error));
 }
 
-Api.prototype.getInputByMetadata = function(type = 0, isWithdraw = 0, blockHeight = 0,
-  rootIndex = 0, transactionIndex = 0, outputIndex = 0) {
-  const _type = utils.bigNumberify(type).toNumber();
-  const _isWithdraw = utils.bigNumberify(isWithdraw).toNumber();
-  let decoder = protocol.outputs.UTXO.decodeRLP;
-  let addonDecoder = protocol.addons.UTXO;
-
-  if (_type === protocol.inputs.InputTypes.Root) {
-    decoder = protocol.root.RootHeader.decodeRLP;
-    addonDecoder = protocol.addons.RootHeader;
-  }
-
-  if (!_isWithdraw && _type === protocol.inputs.InputTypes.Deposit) {
-    decoder = protocol.deposit.Deposit.decodeRLP;
-    addonDecoder = noop;
-  }
-
-  return this.get(interface.db.inputMetadata.encode([
-    _type,
-    isWithdraw,
-    blockHeight,
-    rootIndex,
-    transactionIndex,
-    outputIndex,
-  ]), decoder, addonDecoder);
-}
-
 // decode an inptu
 Api.prototype.decodeInput = function(type = 0, isWithdraw = 0, entry = []) {
   const _type = utils.bigNumberify(type).toNumber();
@@ -491,63 +489,10 @@ Api.prototype.decodeInput = function(type = 0, isWithdraw = 0, entry = []) {
   return protocol.outputs.UTXO(entry, null, protocol.addons.UTXO);
 }
 
-Api.prototype.getInputByHash = async function(type = 0, isWithdraw = 0, hash = '0x') {
-  try {
-    const _type = utils.bigNumberify(type).toNumber();
-    const _isWithdraw = utils.bigNumberify(isWithdraw).toNumber();
-    let decoder = protocol.outputs.UTXO.decodeRLP;
-    let addonDecoder = protocol.addons.UTXO;
-
-    if (_type === protocol.inputs.InputTypes.Root) {
-      decoder = protocol.root.RootHeader.decodeRLP;
-      addonDecoder = protocol.addons.RootHeader;
-
-      return await this.get(interface.db.archiveHash.encode([
-        _type,
-        isWithdraw,
-        hash
-      ]), decoder, addonDecoder);
-    }
-
-    if (!_isWithdraw && _type === protocol.inputs.InputTypes.Deposit) {
-      decoder = protocol.deposit.Deposit.decodeRLP;
-      addonDecoder = protocol.addons.Deposit;
-
-      return await this.get(interface.db.archiveHash.encode([
-        _type,
-        isWithdraw,
-        hash
-      ]), decoder, addonDecoder);
-    }
-
-    try {
-      return await this.get(interface.db.inputHash.encode([
-        _type,
-        isWithdraw,
-        hash
-      ]), decoder, addonDecoder);
-    } catch (archiveAttempt) {
-      const transactionHashId = await this.get(interface.db.archiveHash.encode([
-        _type,
-        isWithdraw,
-        hash
-      ]), utils.RLP.decode);
-
-      const tx = await this.getTransactionByHash(transactionHashId, false);
-
-      let outputIndex = 0;
-      for (const utxo of tx.outputProofs) {
-        if (utxo.keccak256() === hash) {
-          break;
-        }
-        outputIndex++;
-      }
-
-      return tx.outputProofs[outputIndex];
-    }
-  } catch (error) {
-    throw new utils.ByPassError(error);
-  }
+Api.prototype.getTokenMetadata = async function(id = 0) {
+  return protocol.token.decodeTokenMetadata(await this.get(interface.db.tokenMetadata.encode([
+    id,
+  ]), protocol.token.Token.decodeRLP));
 }
 
 Api.prototype.getState = function() {

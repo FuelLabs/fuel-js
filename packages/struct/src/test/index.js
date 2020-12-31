@@ -1,6 +1,10 @@
 const { test, BN, accounts } = require('@fuel-js/environment');
 const utils = require('@fuel-js/utils');
 const { struct, decompose, chunk, pack, combine, chunkJoin } = require('../index');
+const abi = require('@ethersproject/abi');
+
+const abiA = 'tuple(bytes32,uint8 john,bytes) nick, bytes32 john';
+const abiB = 'tuple(bytes32,tuple(uint8,uint256) john,bytes) nick, bytes32 john';
 
 module.exports = test('struct', async t => {
   const A = struct('uint8 nick');
@@ -174,8 +178,6 @@ module.exports = test('struct', async t => {
   t.equal(chunk('0xaabb'), ['0xaa', '0xbb'], 'hex chunks');
 
   t.ok(struct(), 'empty struct');
-  t.throws(() => struct(`tuple(uint256)`), 'tuple throw struct');
-
   t.equal(pack(new subArrayStruct(), '0xbb'), ['0x00', '0xbb'], 'pack');
   t.equal(pack(new subArrayStruct({ val: '0xaa' }), '0xbb'), ['0xaa', '0xbb'], 'pack');
   t.equal(pack(), [], 'empty pack');
@@ -183,6 +185,93 @@ module.exports = test('struct', async t => {
   t.equal(combine([ new subArrayStruct({ val: '0xaa' }), new subArrayStruct({ val: '0xbb' }) ]), '0xaabb', 'combine')
 
   t.ok(RootHeader(), 'empty struct defaults');
+
+  const BlockHeader2 = struct(`
+    address producer,
+    bytes32 previousBlockHash,
+    uint32 height,
+    uint32 blockNumber,
+    uint32 numTokens,
+    uint32 numAddresses,
+    bytes32[] roots,
+    bytes32 publicKeysRoot,
+    bytes32 publicKeysCommitmentHash
+  `);
+
+  const RootHeader2 = struct(`
+    address producer,
+    bytes32 merkleTreeRoot,
+    bytes32 commitmentHash,
+    uint32 length,
+    uint32 feeToken,
+    uint256 fee
+  `);
+
+  const testRootHeader = RootHeader2({
+    producer: utils.emptyAddress,
+    merkleTreeRoot: utils.keccak256('0x01'),
+    commitmentHash: utils.keccak256('0x0a'),
+    length: 200,
+    feeToken: 0,
+    fee: 320,
+  });
+
+  console.log(testRootHeader.keccak256());
+
+  const TransactionProof = struct(`
+    ${BlockHeader2.tuple('blockHeader')},
+    ${RootHeader2.tuple('rootHeader')},
+    bytes32[] merkleProof,
+    bytes transaction,
+    uint8 rootIndex,
+    uint16 transactionIndex,
+    uint8 inputOutputIndex,
+    bytes data,
+    address token,
+    address selector
+  `);
+
+  const emptyBlock = BlockHeader2();
+  const emptyRoot = RootHeader2();
+  const proof = TransactionProof();
+
+  t.equal(proof.values().length, 10, 'proof length');
+
+  const proof2 = TransactionProof({
+    blockHeader: emptyBlock.values(),
+    rootHeader: emptyRoot.values(),
+  });
+
+  t.equal(proof.values().length, 10, 'proof length');
+
+  const proof3 = TransactionProof({
+    blockHeader: BlockHeader2({
+      blockNumber: 4,
+    }).values(),
+    rootHeader: RootHeader2({
+      feeToken: 10,
+    }),
+    data: utils.hexZeroPad('0x01', 212),
+    token: utils.emptyAddress,
+  });
+
+  const originalProofHash = proof3.keccak256();
+
+  t.ok(proof3.encode(), 'encode ok');
+
+  const decodedProof3 = TransactionProof.decode(proof3.encode());
+
+  t.equal(originalProofHash, decodedProof3.keccak256(), 'proof hash checks tuple');
+
+  const decodedProof3Header = BlockHeader2(decodedProof3.properties.blockHeader().get());
+
+  t.ok(decodedProof3Header.properties.blockNumber().get().eq(4), 'block header ok');
+
+  const decodedProof3Root = RootHeader2(decodedProof3.properties.rootHeader().get());
+
+  t.ok(decodedProof3Root.properties.feeToken().get().eq(10), 'fee root ok');
+
+  t.equal(decodedProof3.properties.data().get(), utils.hexZeroPad('0x01', 212), 'bytes check');
 
   // overflow checks
   const rootOverflow = RootHeader({

@@ -2,6 +2,7 @@
 /* eslint prefer-template: 0 */
 const coder = require('@fuel-js/rolled');
 const utils = require('@fuel-js/utils');
+const abi = require('@ethersproject/abi');
 
 function decompose(value, arrayit) {
   return value.map(v => {
@@ -52,15 +53,56 @@ const pack = (...arr) => {
 
   return hexChunks('0x' + bytes.join(''));
 };
-// const pack = (...arr) => hexChunks('0x'
-//  + arr.map(v => v._isStruct ? v.encodePacked().slice(2) : v.slice(2)).join(''));
 const combine = arr => '0x' + (arr || []).map(v => v.encodePacked().slice(2)).join('');
 const chunkJoin = arr => '0x' + arr.map(v => v.slice(2)).join('');
 
-function struct(abi = '', filter = null) {
-  if (abi.indexOf('tuple(') !== -1) throw new Error('no support for tuples yet');
-  const entries = abi.split(',').map(v => v.trim());
-  const split = entries.map(v => v.split(' '));
+function fragmentToEntries(data = '') {
+  const decoded = abi.Fragment.fromString(`function target(${data})`);
+  const { inputs } = decoded;
+  const output = inputs.map(param => [
+    param.format('minimal'),
+    param.name,
+  ]);
+
+  return output;
+}
+
+function componentToType(component = {}) {
+  if (component.type === 'tuple') {
+    return `tuple(${component.components
+      .map(componentToType)
+      .join(',')})`;
+  }
+
+  return component.type;
+}
+
+const defaults = type => {
+  const length = type.replace(/\D/g, '');
+  // const arrayish = type.indexOf('[') !== -1;
+  let value = null;
+  if (type.indexOf('tuple') !== -1) {
+    return [
+      ...utils.parseParamType(type)
+        .components
+        .map(component => defaults(componentToType(component))),
+    ];
+  }
+  if (type.indexOf('uint') !== -1) value = 0;
+  if (type.indexOf('bytes') !== -1) value = utils.hexZeroPad('0x', length || 0);
+  if (type.indexOf('address') !== -1) value = utils.hexZeroPad('0x', 20);
+  return type.indexOf('[') !== -1 ? [] : value;
+};
+
+function struct(abiData = '', filter = null) {
+  // if (abi.indexOf('tuple(') !== -1) throw new Error('no support for tuples yet');
+  const entries = abiData.split(',').map(v => v.trim());
+  let split = entries.map(v => v.split(' '));
+
+  if (abiData.indexOf('tuple(') !== -1) {
+    split = fragmentToEntries(abiData);
+  }
+
   const types = split.map(v => v[0]);
   const names = split.map((v, i) => {
     if (v.length > 1) {
@@ -82,9 +124,9 @@ function struct(abi = '', filter = null) {
     const self = this;
 
     self.properties = new StructProperties(isArray
-      ? names.map((name, i) => values[i] || coder.defaults(types[i]))
+      ? names.map((name, i) => values[i] || defaults(types[i]))
       : names.reduce((acc, name, i) => acc.concat([
-        values[name] || coder.defaults(types[i]),
+        values[name] || defaults(types[i]),
       ]), []));
     self.addonStorage = ((addon || {})._isStruct ? addon.values() : addon)
       || (isArray ? values.slice(types.length) : []);
@@ -108,6 +150,10 @@ function struct(abi = '', filter = null) {
           return utils.hexlify(self.storage[i]).toLowerCase();
         },
         get: () => {
+          if (types[i].indexOf('tuple') !== -1) {
+            return self.storage[i];
+          }
+
           if (types[i].indexOf('int') !== -1) {
             return utils.bigNumberify(self.storage[i]);
           }
@@ -124,7 +170,7 @@ function struct(abi = '', filter = null) {
   Struct.prototype.object = function () {
     const self = this;
     return names.reduce((acc, name, i) => Object.assign(acc, {
-      [name]: self.properties.storage[i] || coder.defaults(types[i]),
+      [name]: self.properties.storage[i] || defaults(types[i]),
     }), {});
   };
 

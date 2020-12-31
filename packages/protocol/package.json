@@ -1,13 +1,12 @@
 {
   "name": "@fuel-js/protocol",
-  "version": "0.3.1",
+  "version": "0.4.2",
   "description": "Fuel protocol structures and logic.",
   "main": "src/index.js",
   "scripts": {
     "browser": "parcel browser/index.html",
-    "test": "nyc node src/test",
-    "lint": "eslint src/index.js",
-    "prepublish": "npm test && npm run lint"
+    "test": "nyc node src/test --exclude src/test/*.js",
+    "lint": "eslint src/index.js"
   },
   "publishConfig": {
     "access": "public"
@@ -27,12 +26,11 @@
     "url": "https://github.com/fuellabs/fuel-js/issues"
   },
   "dependencies": {
-    "@fuel-js/struct": "^0.1.6",
-    "@fuel-js/utils": "^0.1.1"
+    "@fuel-js/struct": "^0.1.7",
+    "@fuel-js/utils": "^0.1.4"
   },
   "devDependencies": {
-    "@fuel-js/bytecode": "^0.0.2",
-    "@fuel-js/abi": "^0.0.2",
+    "@fuel-js/contracts": "^0.1.2",
     "eth-sig-util": "*",
     "regenerator-runtime": "^0.13.7",
     "@fuel-js/environment": "^0.1.0",
@@ -40,7 +38,6 @@
     "eslint": "^7.6.0",
     "nyc": "^15.1.0",
     "eslint-config-airbnb-base": "^14.2.0",
-    "eslint": "^7.2.0",
     "eslint-plugin-import": "^2.21.2"
   },
   "homepage": "https://github.com/fuellabs/fuel-js#readme"

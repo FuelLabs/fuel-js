@@ -1,6 +1,6 @@
 {
 	"name": "@fuel-js/api",
-	"version": "0.2.7",
+	"version": "0.3.1",
 	"description": "A simple API wrapper for the Fuel API.",
 	"main": "src/index.js",
   "scripts": {
@@ -19,12 +19,12 @@
 		"api"
 	],
 	"dependencies": {
-		"@fuel-js/interface": "^0.1.2",
-    "@fuel-js/protocol": "^0.3.1",
-    "@fuel-js/utils": "^0.1.1"
+		"@fuel-js/interface": "^0.2.0",
+		"@fuel-js/protocol": "^0.4.2",
+		"@fuel-js/utils": "^0.1.4"
 	},
 	"devDependencies": {
-    "@fuel-js/environment": "^0.1.0"
+    	"@fuel-js/environment": "^0.1.0"
 	},
 	"author": "Nick Dodson <nick.dodson@fuel.sh>",
 	"license": "Apache-2.0",

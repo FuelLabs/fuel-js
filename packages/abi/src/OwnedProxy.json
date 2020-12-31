@@ -1,5 +1,0 @@
-[
-  "constructor(address hot, address cold)",
-  "transact(address destination, uint256 value, bytes data)",
-  "change(address hot)"
-]

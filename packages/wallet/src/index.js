@@ -8,11 +8,15 @@ const database = require('@fuel-js/database');
 const streamToArray = require('stream-to-array');
 const struct = require('@fuel-js/struct');
 const PubNub = require('pubnub');
-const deployments = require('@fuel-js/deployments');
+const { deployments } = require('@fuel-js/contracts');
 
 // resolve the provider object down to an, Returns: Ethers provider
 function resolveProvider(provider = {}) {
-  return (provider !== null && provider.sendAsync)
+  if (typeof provider === 'string') {
+    return new ethers.providers.JsonRpcProvider(provider);
+  }
+
+  return (provider !== null && provider.send && provider.sendAsync)
     ? new ethers.providers.Web3Provider(provider)
     : provider;
 }
@@ -130,9 +134,11 @@ Wallet.prototype._internalSetup = async function (opts = {}) {
       if (self.options.network) {
         self.network = utils.getNetwork(self.options.network);
       } else {
+        // Default to rinkeby
         self.network = { name: 'rinkeby', chainId: 4 };
       }
 
+      // If no provider use the default provider and rinkeby.
       if (!self.provider) {
         self.provider = ethers.getDefaultProvider('rinkeby');
       }
@@ -146,20 +152,38 @@ Wallet.prototype._internalSetup = async function (opts = {}) {
     }
 
     utils.assert(self.network.chainId === 4
-      || self.network.chainId === 0, 'only-rinkeby-network-supported');
+      || self.network.chainId === 1
+      || self.network.chainId === 0, 'only-rinkeby-mainnet-network-supported');
 
-    let _contractAddress = deployments.v1[self.network.name] || self.options._contract;
+    if (!self.contract) {
+      let _contractAddress = deployments.v1[self.network.name]
+        || self.options._contract;
 
-    // fetch from the API, namely for testing purposes
-    if (!_contractAddress) {
-      _contractAddress = await self._fetch({ key: _interface.db.contract.encode([]) });
+      // fetch from the API, namely for testing purposes or the Chain is local / unspecified.
+      if (!_contractAddress || self.network.chainId === 0) {
+        _contractAddress = await self._fetch({
+          key: _interface.db.contract.encode([]),
+        });
+      }
+
+      let _signer = null;
+
+      try {
+        _signer = self.provider.getSigner();
+
+        self.contract = new ethers.Contract(
+          _contractAddress,
+          abi,
+          _signer,
+        );
+      } catch (err) {
+        self.contract = new ethers.Contract(
+          _contractAddress,
+          abi,
+          self.wallet,
+        );
+      }
     }
-
-    self.contract = new ethers.Contract(
-      _contractAddress,
-      abi,
-      self.wallet,
-    );
 
     // if listeners have been set, we will subscribe now that self.address is setup
     if (self.listeners.length) {
@@ -184,6 +208,16 @@ Wallet.prototype._internalSetup = async function (opts = {}) {
       self.address = (await self.provider.listAccounts())[0];
     }
 
+    // Setup fee enforcement for unspecified and mainnet (rinkeby doesn't have fees).
+    if (self.network.chainId === 0 || self.network.chainId === 1) {
+      self.feeEnforcement = true;
+    }
+
+    // override homestead
+    if (self.network.name === 'homestead') {
+      self.network.name = 'mainnet';
+    }
+
     // If key override is specified
     if (self.key) {
       self.key = resolveKey(self.key);
@@ -195,11 +229,7 @@ Wallet.prototype._internalSetup = async function (opts = {}) {
       self.wallet = new ethers.Wallet(self.key, self.provider);
 
       // connect key to contract
-      self.contract = new ethers.Contract(
-        _contractAddress,
-        abi,
-        self.wallet,
-      );
+      self.contract = self.contract.connect(self.wallet);
 
       if (!self.address && self.key) {
         self.address = self.key.address;
@@ -211,14 +241,23 @@ Wallet.prototype._internalSetup = async function (opts = {}) {
 }
 
 // _sendTransaction, send transaction as account, handle two key scenario
-Wallet.prototype._sendTransaction = function (opts = {}) {
+Wallet.prototype._sendTransaction = async function (opts = {}) {
   const self = this;
 
   if (self.key) {
-    return self.wallet.sendTransaction(opts);
+    return await self.wallet.sendTransaction(opts);
   }
 
-  return self.provider.sendTransaction(opts);
+  if (self.provider._web3Provider) {
+    // Get the signer from the provider.
+    const _signer = self.provider.getSigner();
+  
+    // Return send tx result.
+    return await _signer.sendTransaction(opts);
+  } else {
+    // Return send tx result.
+    return await self.provider.sendTransaction(opts);
+  }
 }
 
 // _options, Formulate the options object
@@ -275,6 +314,10 @@ async function fetchRetry(path = '', obj = {}, opts = {}) {
   }
 }
 
+function fixNetworkName(name = '') {
+  return name === 'homestead' ? 'mainnet' : name;
+}
+
 // _fetch, fetch data from the api provider, Returns: Array, RLP Decoded
 Wallet.prototype._fetch = async function (obj = {}, opts = {}) {
   try {
@@ -282,7 +325,7 @@ Wallet.prototype._fetch = async function (obj = {}, opts = {}) {
     const path = opts.path || '/get';
 
     // Root api path
-    const root = self.options.path || `https://${self.network.name}.api.fuel.sh/v1`;
+    const root = self.options.path || `https://${fixNetworkName(self.network.name)}.api.fuel.sh/v1`;
 
     // fetch
     const {
@@ -404,7 +447,6 @@ Wallet.prototype.sync = async function (opts = {}) {
 
       try {
         decoded = self._inputDecoder(_type, _isWithdraw, entry);
-
         // decoded = await self._getInputByHash(_type, _isWithdraw, _hash, value);
       } catch (noSpendableInput) {
         continue;
@@ -492,41 +534,75 @@ Wallet.prototype.faucet = async function (opts = {}) {
 
 // deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse
 Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) {
+  const self = this;
+
   try {
-    const self = this;
     const options = self._options({ timeout: 600, ...opts });
     await self._setup();
+
     const funnel = await self.contract.funnel(self.address);
     let transferTx = null;
 
-    // handle Ether or Transfer
-    if (utils.bigNumberify(token).eq(0)) {
-      transferTx = await self._sendTransaction({
-        to: funnel,
-        value: amount,
-        ...options,
-      });
-      transferTx = await transferTx.wait();
-    } else {
-      transferTx = await Token(token, self.wallet)
-        .transfer(funnel, amount, filterOptions(options));
-      transferTx = await transferTx.wait();
+    if (!opts.skipTransfer) {
+      // handle Ether or Transfer
+      if (utils.bigNumberify(token).eq(0)) {
+        // Sending transaction.
+        transferTx = await self._sendTransaction({
+          to: funnel,
+          value: amount,
+          ...filterOptions(options),
+        });
+
+        // Wait on this transfer.
+        transferTx = await transferTx.wait();
+      } else {
+        let _signer = self.wallet;
+
+        if (self.provider._web3Provider) {
+          // Get the signer from the provider.
+          _signer = self.provider.getSigner();
+        }
+
+        // Transfering token.
+        transferTx = await Token(token, _signer)
+          .transfer(funnel, amount, filterOptions(options));
+
+        // Transfer.
+        transferTx = await transferTx.wait();
+      }
+
+      // Emit a deposit tx.
+      self._emit('deposit-funnel-receipt', transferTx);
     }
 
-    let depositTx = await self.contract.deposit(self.address, token, filterOptions(options));
+    let depositTx = await self.contract.deposit(
+      self.address,
+      token,
+      filterOptions(options),
+    );
     depositTx = await depositTx.wait();
 
+    // Deposit commitmen 
+    self._emit('deposit-commmitment-receipt', depositTx);
+
     if (!options.timeout) return depositTx;
-    const timeout = utils.timestamp() + (options.timeout * 1000);
-    for (let i = utils.timestamp(); i < timeout;) {
+
+    const timeout = utils.timestamp().toNumber() + ((options.timeout || 600) * 1000);
+
+    let i = utils.timestamp().toNumber();
+
+    while (i < timeout) {
       try {
-        await self._get([
-          _interface.db.deposit,
-          depositTx.logs[0].blockNumber,
+        const depositForm = protocol.deposit.Deposit(await self._get([
+          _interface.db.deposit2,
           self.address,
           await self._tokenId(token),
-        ]);
+          depositTx.logs[0].blockNumber,
+        ]));
+
         await self.sync();
+        self._emit('deposit', depositForm.object());
+
         return new TransactionSubmission({
           receipts: [
             transferTx,
@@ -535,13 +611,17 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
         });
       } catch (error) {}
 
-      // wait 10 seconds
-      await utils.wait(10000);
+      // wait 5 seconds
+      await utils.wait(5000);
+
+      // Set timestamp.
+      i = utils.timestamp().toNumber();
     }
 
     // timeout
     throw new Error('deposit timed out');
   } catch (error) {
+    self._emit('error', error);
     throw new utils.ByPassError(error);
   }
 }
@@ -567,7 +647,7 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
     let inputs = [];
     let metadata = [];
     let keys = [];
-    const isWithdraw = options.withdraw ? 1 : 0;
+    const isWithdraw = options.retrieve ? 1 : 0;
     const tokenMin = options.anytoken ? 0 : tokenId;
     const tokenMax = options.anytoken ? '0xFFFFFFFF' : tokenId;
 
@@ -577,7 +657,8 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
     }
 
     // get the current block number for understanding HTLC's
-    const _blockNumber = await self.provider.getBlockNumber();
+    const _state = await self._state();
+    const _blockNumber = _state.properties.blockNumber().get(); // await self.provider.getBlockNumber();
 
     // If options.inputs, search all, otherwise if withdraw it's 1 or up to 8
     const limit = (options.inputs || !options.htlc ? null : (isWithdraw ? 1 : (options.limit || 8)));
@@ -605,7 +686,7 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
         || !isWithdraw && _inputWithdrawable) continue;
 
       // If no HTLC inputs, filter them out
-      if (!options.htlc) {
+      if (!options.preimages) {
         if (_type === protocol.inputs.InputTypes.HTLC) continue;
       }
 
@@ -616,6 +697,11 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
       // decode the entry into UTXO, Deposit or Root
       const decodedInput = self._inputDecoder(type, _isWithdraw, entry.value);
       const inputAddon = decodedInput.getAddon();
+
+      // If the token id is not correct, skip.
+      if (!decodedInput.properties.token().get().eq(tokenId)) {
+        continue;
+      }
 
       // If Force inputs, only use inputs we have metadata for
       if (options.force && _type !== protocol.inputs.InputTypes.Deposit) {
@@ -630,7 +716,7 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
         case protocol.inputs.InputTypes.Transfer:
           inputs.push(protocol.inputs.InputTransfer({
             witnessReference: 0,
-          }))
+          }));
           metadata.push(protocol.metadata.Metadata({
             blockHeight: inputAddon.properties.blockHeight().get(),
             rootIndex: inputAddon.properties.rootIndex().get(),
@@ -640,35 +726,54 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
           balance = balance.add(decodedInput.properties.amount().get());
           break;
         case protocol.inputs.InputTypes.Deposit:
-          inputs.push(protocol.inputs.InputDeposit({
-            witnessReference: 0,
-            owner: decodedInput.properties.owner().hex(),
-          }))
-          metadata.push(protocol.metadata.MetadataDeposit({
-            blockNumber: decodedInput.properties.blockNumber().get(),
-            token: decodedInput.properties.token().get(),
-          }));
-          balance = balance.add(decodedInput.properties.value().get());
+          // Is a deposit.
+          if (!isWithdraw) {
+            inputs.push(protocol.inputs.InputDeposit({
+              witnessReference: 0,
+              owner: decodedInput.properties.owner().hex(),
+            }));
+            metadata.push(protocol.metadata.MetadataDeposit({
+              blockNumber: decodedInput.properties.blockNumber().get(),
+              token: decodedInput.properties.token().get(),
+            }));
+            balance = balance.add(decodedInput.properties.value().get());
+          } else {
+            inputs.push(protocol.inputs.InputTransfer({
+              witnessReference: 0,
+            }));
+            metadata.push(protocol.metadata.Metadata({
+              blockHeight: inputAddon.properties.blockHeight().get(),
+              rootIndex: inputAddon.properties.rootIndex().get(),
+              transactionIndex: inputAddon.properties.transactionIndex().get(),
+              outputIndex: inputAddon.properties.outputIndex().get(),
+            }));
+            balance = balance.add(decodedInput.properties.amount().get());
+          }
           break;
         case protocol.inputs.InputTypes.HTLC:
-          if (decodedInput.properties.expiry().get().gt(_blockNumber)) {
+          if (_blockNumber.gt(decodedInput.properties.expiry().get())) {
             inputs.push(protocol.inputs.InputHTLC({
               witnessReference: 0,
               preImage: utils.emptyBytes32,
             }));
+            balance = balance.add(decodedInput.properties.amount().get());
           } else {
-            inputs.push(protocol.inputs.InputHTLC({
-              witnessReference: 0,
-              preImage: determinePreImage(options.preimages, decodedInput.properties.digest().hex()),
+            if (options.preimages) {
+              inputs.push(protocol.inputs.InputHTLC({
+                witnessReference: 0,
+                preImage: determinePreImage(options.preimages, decodedInput.properties.digest().hex()),
+              }));
+              balance = balance.add(decodedInput.properties.amount().get());
+            }
+          }
+          if (options.preimages) {
+            metadata.push(protocol.metadata.Metadata({
+              blockHeight: inputAddon.properties.blockHeight().get(),
+              rootIndex: inputAddon.properties.rootIndex().get(),
+              transactionIndex: inputAddon.properties.transactionIndex().get(),
+              outputIndex: inputAddon.properties.outputIndex().get(),
             }));
           }
-          metadata.push(protocol.metadata.Metadata({
-            blockHeight: inputAddon.properties.blockHeight().get(),
-            rootIndex: inputAddon.properties.rootIndex().get(),
-            transactionIndex: inputAddon.properties.transactionIndex().get(),
-            outputIndex: inputAddon.properties.outputIndex().get(),
-          }));
-          balance = balance.add(decodedInput.properties.amount().get());
           break;
         case protocol.inputs.InputTypes.Root:
           inputs.push(protocol.inputs.InputRoot({
@@ -757,7 +862,6 @@ Wallet.prototype._sign = async function (unsigned = {}, opts = {}) {
     }
 
     if (!key) {
-
       // we might need to go even more raw here, as there is an extra "from" field in the data
       // to the RPC
       signature = await self.provider.send('eth_signTypedData_v4', [
@@ -781,6 +885,16 @@ function resolveAmount(amount = 0, opts = {}) {
   }
 
   return utils.bigNumberify(amount);
+}
+
+// transfer, simple transfer to another account, Returns: TransactionResponse
+Wallet.prototype.estimateGasCost = async function (token = '0x', to = '0x', _amount = 0, opts = {}) {
+  const self = this;
+
+  return self.transfer(token, to, _amount, {
+    ...opts,
+    estimateGasCost: true,
+  });
 }
 
 // transfer, simple transfer to another account, Returns: TransactionResponse
@@ -808,24 +922,63 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
     utils.assert(inputs.length, 'spendable-inputs-underflow');
 
     // Calculate Change if Any
-    const change = balance.sub(amount);
+    let change = balance.sub(amount);
+
+    // The output index of the change.
+    let changeOutputIndex = 1;
+
+    // Check return data for invalidity.
     utils.assert(!options.return
       || (utils.hexDataLength(options.return) > 0
       && utils.hexDataLength(options.return) < 512),
       'return-data-overflow');
 
+    // Is HTLC.
+    const isHTLC = options.htlc;
+
+    // Main output type.
+    let mainOutputType = options.withdraw
+      ? 1
+      : (isHTLC ? 2 : 0);
+
+    let returnOwner = utils.emptyAddress;
+    let expiry = 0;
+    let digest = utils.emptyBytes32;
+
+    // HTLC checks.
+    if (isHTLC) {
+      utils.assert(options.preImage, 'htlc used but no pre-image specified');
+      utils.assert(options.expiry, 'htlc used but no expiry specified');
+
+      returnOwner = options.returnOwner || self.address;
+      expiry = options.expiry || 0;
+      digest = utils.keccak256(options.preImage);
+    }
+
     // Build Outputs
     const outputs = opts.outputs || [
-      ...(!options.withdraw ? [protocol.outputs.OutputTransfer({
-        owner: to,
-        token: tokenId,
-        amount: amount,
-      })] :  [protocol.outputs.OutputWithdraw({
+      ...(options.withdraw ? [protocol.outputs.OutputWithdraw({
         owner: self.address,
         token: tokenId,
         amount: amount,
-      })]),
+      })] : [
+          isHTLC
+          ? protocol.outputs.OutputHTLC({
+            owner: to,
+            token: tokenId,
+            amount: amount,
+            digest,
+            expiry,
+            returnOwner,
+          })
+          : protocol.outputs.OutputTransfer({
+            owner: to,
+            token: tokenId,
+            amount: amount,
+          })
+      ]),
       ...(change.gt(0) ? [protocol.outputs.OutputTransfer({
+        noshift: true,
         owner: self.address,
         token: tokenId,
         amount: change,
@@ -838,13 +991,92 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
     ];
 
     // Build Unsigned Transaction
-    const unsigned = protocol.transaction.Unsigned({
+    let unsigned = protocol.transaction.Unsigned({
       inputs,
       outputs,
       data,
       signatureFeeToken: 0, // no fee for now
       feeToken: 0, // no fee for now
     });
+
+    // Construct Witness Data
+    let witnesses = [];
+
+    // If fee enforcement is turned on, we have to check fees.
+    // Than charge the change output appropriately.
+    if ((self.feeEnforcement
+      && !opts.force
+      && !opts.apiKey
+      && !self.options.apiKey || opts.estimateGasCost)) {
+      let fee = utils.bigNumberify(0);
+
+      // Get the fee for this token type.
+      try {
+        fee = await self.fee(tokenId);
+      } catch (feeError) {
+        utils.assert(0, `fee-token-error-${JSON.stringify(feeError)}`);
+      }
+
+      const fakeWitness = utils.hexlify(utils.randomBytes(66));
+
+      // This is the pretend leaf we use for size calculation.
+      const _leaf = protocol.transaction._Transaction({
+        metadata: (new Array(inputs.length)).fill('0xFFFFFFFFFFFFFFFF'),
+        witnesses: struct.pack(fakeWitness),
+        ...unsigned.object(),
+      });
+      const _leafLength = utils.bigNumberify(
+        utils.hexDataLength(_leaf.encodePacked()),
+      );
+      const feeOwed = _leafLength.mul(fee);
+
+      // Return fee owed, i.e. the estimated gas cost.
+      if (opts.estimateGasCost) {
+        return feeOwed;
+      }
+
+      // Check is there room for change or a fee.
+      utils.assert(change.gt(0) || fee.eq(0), 'insufficient-balance-for-fee');
+
+      // If change is available, than we use that to reduce the fee from.
+      const changeAmount = protocol.outputs.decodeAmount(
+        outputs[changeOutputIndex],
+      );
+      const changeAmountLength = utils.hexDataLength(changeAmount);
+
+      // Inssuficient change for fee error.
+      utils.assert(changeAmount.gte(feeOwed), 'insufficient-change-for-fee');
+
+      // Change amount.
+      const adjustedAmount = changeAmount.sub(feeOwed);
+      const packed = protocol.outputs.packAmount(
+        {
+          noshift: true,
+          amount: adjustedAmount,
+        },
+      );
+
+      // Set that outputs amount.
+      outputs[changeOutputIndex].properties
+        .shift().set(0);
+      outputs[changeOutputIndex].properties
+        .amount().set(utils.hexZeroPad(adjustedAmount.toHexString(), changeAmountLength));
+
+      // Adjust the change amount.
+      change = adjustedAmount;
+
+      // Build a new unsigned tx with the adjusted change amount for the fee.
+      unsigned = protocol.transaction.Unsigned({
+        inputs,
+        outputs,
+        data,
+        signatureFeeToken: tokenId, // no fee for now
+        signatureFee: fee, // no fee for now
+      });
+    }
+
+    // Resign this tx.
+    witnesses = [await self._sign(unsigned, opts)];
 
     const {
       hash,
@@ -863,15 +1095,18 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
       const selfUTXO = protocol.outputs.UTXO({
         transactionHashId: hash,
         outputIndex: 0,
-        outputType: options.withdraw ? 1 : 0,
+        outputType: mainOutputType,
         owner: self.address,
         token: tokenId,
         amount: amount,
+        expiry,
+        returnOwner,
+        digest,
       });
 
       addSelfTransfer = () => self.db.put([
         _interface.db.walletInput,
-        options.withdraw ? 1 : 0,
+        mainOutputType,
         options.withdraw ? 1 : 0,
         tokenId,
         selfUTXO.keccak256(),
@@ -898,9 +1133,6 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
         changeUTXO.keccak256(),
       ], changeUTXO);
     }
-
-    // Construct Witness Data
-    const witnesses = [await self._sign(unsigned, opts)];
 
     // this allows for a user to use the raw outputs
     if (opts.raw) {
@@ -945,12 +1177,14 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
       result = await self.options.transact(
         unsigned.encodeRLP(),
         struct.combine(witnesses),
+        opts.apiKey || self.options.apiKey,
       );
     } else {
       // Send Transaction
       result = await self._fetch({
         unsigned: unsigned.encodeRLP(),
         witnesses: struct.combine(witnesses),
+        account: opts.apiKey || self.options.apiKey,
       }, {
         path: '/transact',
       });
@@ -971,6 +1205,17 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
       transactionId: hash,
       receipts: [],
     });
+  } catch (error) {
+    throw new utils.ByPassError(error);
+  }
+}
+
+// _token, get a token address from id
+Wallet.prototype._state = async function () {
+  try {
+    const self = this;
+    await self._setup();
+    return protocol.state.State(await self._get([ _interface.db.state ]));
   } catch (error) {
     throw new utils.ByPassError(error);
   }
@@ -1045,19 +1290,157 @@ Wallet.prototype.withdraw = async function (token = '0x', amount = 0, opts = {})
   }
 }
 
+/// @notice Proof from Metadata and Input.
+Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config }) {
+  const self = this;
+
+  const block = await protocol.block.BlockHeader.fromLogs(
+      metadata.properties.blockHeight().get().toNumber(),
+      config.contract,
+  );
+
+  utils.assert(block.properties, 'block-not-found');
+  const rootIndex = metadata.properties.rootIndex().get().toNumber();
+  const roots = block.properties.roots().get();
+
+  // Check the root index isn't invalid.
+  utils.assert(roots[rootIndex], 'roots-index-overflow');
+
+  // Get the root from logs.
+  const rootHash = roots[rootIndex];
+  const logs = await config.contract.provider.getLogs({
+      fromBlock: 0,
+      toBlock: 'latest',
+      address: config.contract.address,
+      topics: config.contract.filters.RootCommitted(rootHash).topics,
+  });
+
+  // Check root is real.
+  utils.assert(logs.length > 0, 'no-root-available');
+
+  // Parse log and build root struct.
+  const log = config.contract.interface.parseLog(logs[0]);
+  const root = new protocol.root.RootHeader({ ...log.values });
+
+  // Get the root transaction data.
+  const transactionData = await config.contract.provider
+      .getTransaction(logs[0].transactionHash);
+  const calldata = config.contract.interface.parseTransaction(transactionData)
+      .args[3];
+
+  // attempt to decode the root from data.
+  const transactions = protocol.root.decodePacked(calldata);
+
+  // Selected transaction index.
+  const transactionIndex = metadata.properties.transactionIndex().get();
+
+  // Check index overflow.
+  utils.assert(transactions[transactionIndex], 'transaction-index');
+
+  // Check transaction output overflow.
+  const transaction = protocol.transaction
+      .decodePacked(transactions[transactionIndex]);
+
+  // Check output index overflow.
+  const outputIndex = metadata.properties.outputIndex().get();
+
+  // Output index overflow check.
+  utils.assert(transaction.outputs[outputIndex], 'output-index-overflow');
+
+  // The output owner.
+  let outputOwner = transaction.outputs[outputIndex]
+      .properties.owner().hex();
+
+  // If the owner is a ID resolve, otherwise use it.
+  if (utils.hexDataLength(outputOwner) !== 20) {
+      try {
+          outputOwner = await self._get([
+              _interface.db.address,
+              outputOwner,
+          ]);
+      } catch (error) {
+          utils.assert(0, 'invalid-owner-id');
+      }
+  }
+  
+  // Token id.
+  let tokenId = transaction.outputs[outputIndex]
+      .properties.token().hex();
+  let tokenAddress = await self._get([
+      _interface.db.token,
+      tokenId,
+  ]);
+
+  // Return transaction proof.
+  return protocol.transaction.TransactionProof({
+      block,
+      root,
+      transactions: transactions
+          .map(txHex => protocol.root.Leaf({
+              // Trim the length and 0x prefix.
+              data: struct.chunk(
+              '0x' + txHex.slice(6),
+              ),
+          })),
+      data: [],
+      rootIndex,
+      transactionIndex,
+      inputOutputIndex: outputIndex,
+      token: tokenAddress,
+      selector: outputOwner,
+  });
+}
+
 // retrieve, retrieve withdrawals from Fuel, Returns: TransactionResponse
 Wallet.prototype.retrieve = async function (opts = {}) {
   try {
     const self = this;
     await self._setup();
-    const inputs = await self._inputs(0, {
+
+    // Sync to grab the latest inputs.
+    await self.sync();
+
+    // Get inputs for retrieval.
+    const { keys, proofs } = await self._inputs(0, {
       ...opts,
-      withdraw: true,
+      retrieve: true,
       anytoken: true,
     });
 
+    // Submissions.
+    let receipts = [];
+
+    // Go through inputs for withdraw.
+    let inputIndex = 0;
+
+    // Go through the proofs.
+    for (const input of proofs) {
+      // Get withdrawal proof.
+      let withdrawTx = await self.contract.withdraw((await self.withdrawProofFromMetadata({
+        metadata: protocol.metadata.Metadata(input.getAddon().object()),
+        config: {
+          contract: self.contract,
+        },
+      })).encodePacked(), {
+        gasLimit: 4000000,
+      });
+
+      // Withdraw tx.
+      withdrawTx = await withdrawTx.wait();
+
+      // Add to receipts.
+      receipts.push(withdrawTx);
+
+      // Delete key from inputs. 
+      self.db.del(keys[inputIndex]);
+
+      // Increase the index.
+      inputIndex += 1;
+    }
+
+    // Transaction submission.
     return new TransactionSubmission({
-      receipts: [],
+      receipts,
     });
   } catch (error) {
     throw new utils.ByPassError(error);
@@ -1143,11 +1526,14 @@ Wallet.prototype.off = function (type = 'input', listener = null) {
 }
 
 // fee, get the fee for a given token, Returns: Void
-Wallet.prototype.fee = async function (token = '0x') {
+Wallet.prototype.fee = async function (tokenOrId = '0x') {
   try {
     const self = this;
     await self._setup();
-    return utils.bigNumberify(0);
+    return utils.bigNumberify(await self._get([
+        _interface.db.fee,
+        await self._tokenId(tokenOrId),
+    ]));
   } catch (error) {
     throw new utils.ByPassError(error);
   }

@@ -5,9 +5,44 @@ const Api = require('../index');
 module.exports = test('api', async t => {
   try {
 
-    const api = new Api('rinkeby');
+    const api = new Api('rinkeby', {
+      url: 'http://localhost:3000',
+    });
 
+    t.ok(await api.getState(), 'get state');
     t.ok(await api.getBlockByHeight(0), 'block by height');
+    t.ok(await api.getTokenId(utils.emptyAddress), 'token id');
+    t.ok(await api.getToken(1), 'token address');
+    t.ok(await api.getAddress(0), 'address registered');
+    t.ok(await api.getState(), 'get state');
+    t.ok(await api.getTokenMetadata(1), 'get token');
+
+    const balance = await api.getBalance(
+      '0x19148d0a7ae99f19bc3862857318a7f80f96564c'
+      , 0
+    );
+    t.ok(balance, 'balance');
+
+    // const profile2 = await api.getProfile('0x73813909482106190c0e0fa220028d7787c221dc');
+
+    // const profile3 = await api.getProfile('0x19148d0a7ae99f19bc3862857318a7f80f96564c');
+
+    // console.log(profile3);
+
+    // console.log(await api.getTokenMetadata(1));
+
+    // console.log(JSON.stringify(profile2, null, 2));
+
+    // console.log((await api.getProfile(utils.emptyAddress)));
+
+    /*
+    const tx2 = await api.getTransactionByHash(
+      '0x68992241f7552d1e16880201c4186ce1a5d25a406f0c9ccee5d7feaf3b63b232',
+    );
+    */
+
+    return;
+
     t.ok(await api.getBlockByHeight(5), 'block by height');
     t.ok(await api.getBlockByHeight(10), 'block by height');
 
@@ -15,17 +50,17 @@ module.exports = test('api', async t => {
 
     t.ok(tx, 'tx by hash');
 
-    t.ok(await api.getAssets('0x87065ef77dd63220c0bf30cb6f322646bb9659e5'));
+    const depositProfile = await api.getProfile('0x1dF62f291b2E969fB0849d99D9Ce41e2F137006e');
 
-    t.ok(await api.getBalance('0x87065ef77dd63220c0bf30cb6f322646bb9659e5', 1));
+    console.log(depositProfile);
 
-    t.ok(await api.getHistory('0x9818d93e28796e7af47a61875f5d277f0d57ead5'));
+    const profile = await api.getProfile('0x0ea6b5edc8905c85514b3676703f1bfe6ec260ad');
 
-    t.ok(await api.getHistory('0x9818d93e28796e7af47a61875f5d277f0d57ead5', { include: true }));
+    // const profile2 = await api.getProfile('0x87065ef77dd63220c0bf30cb6f322646bb9659e5');
 
-    const { history } = await api.getProfile('0x9818d93e28796e7af47a61875f5d277f0d57ead5');
+    // console.log(profile2.history);
 
-    history.map(tx => console.log(new Date(tx.timestamp.toNumber())));
+    t.ok(profile);
 
     t.ok(await api.getTokenId(utils.emptyAddress), 'token id');
 

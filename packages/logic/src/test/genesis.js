@@ -1,16 +1,15 @@
-const { test, utils } = require('@fuel-js/environment');
-const abi = require('@fuel-js/abi');
-const bytecode = require('@fuel-js/bytecode');
+const { test } = require('@fuel-js/environment');
 const defaults = require('./defaults');
 const config = require('./config.local');
 const genesis = require('../genesis');
+const { Fuel } = require('@fuel-js/contracts');
 
 module.exports = test('genesis', async t => {
   try {
 
     // check if genesis function grabs correct starting Fuel block number
     const producer = t.getWallets()[0].address;
-    const contract = await t.deploy(abi.Fuel, bytecode.Fuel, defaults(producer));
+    const contract = await t.deploy(Fuel.abi, Fuel.bytecode, defaults(producer));
     const settings = config({
       network: 'unspecified',
       provider: t.getProvider(),
