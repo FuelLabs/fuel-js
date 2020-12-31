@@ -5,9 +5,7 @@ const Api = require('../index');
 module.exports = test('api', async t => {
   try {
 
-    const api = new Api('rinkeby', {
-      url: 'http://localhost:3000',
-    });
+    const api = new Api('rinkeby');
 
     t.ok(await api.getState(), 'get state');
     t.ok(await api.getBlockByHeight(0), 'block by height');
