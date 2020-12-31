@@ -72,7 +72,7 @@ module.exports = test('utils', async t => {
   t.throw(() => utils.assertHexEqual('0xaa', '0xBB'), 'assertHexEqual');
   t.throws(() => utils.assertHexEqual(''), 'not-hex-value');
 
-  t.ok(await utils.fetch('https://rinkeby.api.fuel.sh/v1/get', {}), 'fetch');
+  t.ok(await utils.fetch('https://min-api.cryptocompare.com/data/price?fsym=ETH&tsyms=BTC,USD,EUR', {}), 'fetch');
   // t.throws(() => utils.fetch(), 'fetch');
 
   try {

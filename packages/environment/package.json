@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/environment",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "Common Fuel testing and deployent utils.",
   "main": "src/index.js",
   "scripts": {
@@ -30,7 +30,7 @@
     "ethers": "^4.0.47",
     "ganache-core": "2.10.2",
     "solc": "0.6.6",
-    "yulp": "^0.2.2",
+    "yulp": "^0.2.3",
     "zora": "^3.1.8",
     "fs-readfile-promise": "^3.0.1",
     "write": "^2.0.0"

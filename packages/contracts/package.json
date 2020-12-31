@@ -1,0 +1,26 @@
+{
+    "name": "@fuel-js/contracts",
+    "version": "0.1.3",
+    "description": "Fuel protocol implemented in Yul+ for the Ethereum Virtual Machine",
+    "main": "src/index.js",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/fuellabs/fuel.git"
+    },
+    "keywords": [
+      "fuel",
+      "ethereum",
+      "optimistic",
+      "rollup"
+    ],
+    "publishConfig": {
+      "access": "public"
+    },
+    "author": "Nick Dodson <nick.dodson@fuel.sh>",
+    "license": "Apache-2.0",
+    "bugs": {
+      "url": "https://github.com/fuellabs/fuel/issues"
+    },
+    "homepage": "https://github.com/fuellabs/fuel#readme"
+  }
+  

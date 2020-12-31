@@ -7,7 +7,7 @@ const ethers = require('ethers');
 const defaultPath = '.fuel-wallet.json';
 
 // wallet method
-async function wallet(flags = {}) {
+async function wallet(flags = {}, environment = {}) {
   try {
     const provided = flags.wallet;
     const _path = provided || defaultPath;
@@ -44,12 +44,24 @@ async function wallet(flags = {}) {
         message = 'Please enter your Fuel wallet decryption passphrase';
       }
 
-      // ask for password
-      const { password } = await prompts({
-        type: 'password',
-        name: 'password',
-        message,
-      });
+      // Password.
+      let password = null;
+
+      // Get environmental password if not available.
+      if (environment.fuel_v1_default_password) {
+        password = environment.fuel_v1_default_password;
+
+        console.log('password detected in the environment');
+      } else {
+        // ask for password
+        const promptResult = await prompts({
+          type: 'password',
+          name: 'password',
+          message,
+        });
+
+        password = promptResult.password;
+      }
 
       // length check
       if (password.length < 8) {
@@ -63,7 +75,11 @@ async function wallet(flags = {}) {
 
       // if no wallet present, attempt to load the JSON from password
       if (!_wallet) {
-        _wallet = await ethers.Wallet.fromEncryptedJson(json, password);
+        try {
+          _wallet = await ethers.Wallet.fromEncryptedJson(json, password);
+        } catch (decryptError) {
+          throw new Error(decryptError.message);
+        }
       }
 
       // encrypto wallet JSON again
@@ -77,7 +93,6 @@ async function wallet(flags = {}) {
 
     // return wallet object descrypted into memory
     return _wallet;
-
   } catch (error) {
     throw new Error(error.message);
   }

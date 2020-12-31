@@ -9,6 +9,8 @@ const witness = require('./witness');
 const state = require('./state');
 const addons = require('./addons');
 const eip712 = require('./eip712');
+const token = require('./token');
+const withdraw = require('./withdraw');
 
 module.exports = {
   block,
@@ -22,4 +24,6 @@ module.exports = {
   state,
   addons,
   eip712,
+  token,
+  withdraw,
 };

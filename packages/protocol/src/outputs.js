@@ -3,7 +3,7 @@ const utils = require('@fuel-js/utils');
 
 const OUTPUTS_MAX = 8;
 
-function shiftValue(value = 0) {
+function shiftValue(value = 0, opts = {}) {
   const bn = utils.bigNumberify(value || 0);
   let amount = chunk(bn.toHexString());
   let shift = 0;
@@ -12,11 +12,13 @@ function shiftValue(value = 0) {
     return { shift: 0, amount: ['0x00'] };
   }
 
-  for (var i = amount.length - 1; i >= 0; i--) {
-    if (amount[i] === '0x00') {
-      shift += 8;
-    } else {
-      break;
+  if (!opts.noshift) {
+    for (var i = amount.length - 1; i >= 0; i--) {
+      if (amount[i] === '0x00') {
+        shift += 8;
+      } else {
+        break;
+      }
     }
   }
 
@@ -28,7 +30,7 @@ function shiftValue(value = 0) {
 
 function packAmount(output = {}) {
   if (output.shift) return {};
-  return shiftValue(output.amount);
+  return shiftValue(output.amount, output);
 }
 
 function unpackAmount(output = {}) {
@@ -146,7 +148,8 @@ function decodeToken(output = {}, state = {}) {
 }
 
 function decodeAmount(output = {}) {
-  const shift = output.properties.shift().get().toNumber();
+  const shift = output.properties.shift()
+    .get().toNumber();
 
   utils.assert(shift >= 0, 'output-shift-underflow');
   utils.assert(shift % 8 === 0, 'output-shift-mod');

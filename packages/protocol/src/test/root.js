@@ -1,8 +1,6 @@
-const { test, utils, BN, accounts } = require('@fuel-js/environment');
+const { test, utils } = require('@fuel-js/environment');
+const { Fuel } = require('@fuel-js/contracts');
 const root = require('../root');
-const transaction = require('../transaction');
-const abi = require('@fuel-js/abi');
-const bytecode = require('@fuel-js/bytecode');
 
 // defaults
 const defaults = (producer, bondSize = utils.parseEther('1.0')) => [
@@ -14,7 +12,7 @@ const defaults = (producer, bondSize = utils.parseEther('1.0')) => [
   "Fuel",
   "1.0.0",
   1,
-  utils.emptyBytes32
+  utils.emptyBytes32,
 ];
 
 module.exports = test('root', async t => {
@@ -44,7 +42,7 @@ module.exports = test('root', async t => {
   t.throw(() => root.decodePacked(overflowPacked), 'transaction-index-overflow');
 
   const producer = t.getWallets()[0].address;
-  const contract = await t.deploy(abi.Fuel, bytecode.Fuel, defaults(producer));
+  const contract = await t.deploy(Fuel.abi, Fuel.bytecode, defaults(producer));
 
   const merkleRoot = utils.emptyBytes32;
   const fee = 0;

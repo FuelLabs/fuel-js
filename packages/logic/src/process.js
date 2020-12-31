@@ -1,9 +1,11 @@
 const protocol = require('@fuel-js/protocol');
 const utils = require('@fuel-js/utils');
+const struct = require('@fuel-js/struct');
 const database = require('@fuel-js/database');
 const { simulate } = require('@fuel-js/down');
 const interface = require('@fuel-js/interface');
 const streamToArray = require('stream-to-array');
+const operatorsToWallets = require('./operatorsToWallets');
 const memdown = require('memdown');
 const balance = require('./balance');
 
@@ -11,13 +13,728 @@ function last(array = []) {
   return array[array.length - 1];
 }
 
+// Finalization period.
+const FRAUD_FINALIZATION_PERIOD = 10;
+
+/// @notice Make fraud commitment attempt.
+async function commitFraud(kind = '', args = [], config = {}) {
+  // Compute the fraud hash.
+  const fraudHash = utils.keccak256(config.contract.interface.functions
+    [kind].encode(args));
+
+  // Declare fraud found.
+  config.console.log(`Fraud detected, starting fraud submission sequence: 
+    ${kind}, ${fraudHash}`);
+
+  // Proposed block height and root index
+  const operators = operatorsToWallets(config);
+  const blockProducer = operators[0]; // first operator is block producer
+
+  // The contract for block production.
+  const contract = config.contract.connect(blockProducer); // rootProducers[rootIndex]);
+
+  // current ethereum block number
+  // If the fraud hash has been submitted, try submitting the proof.
+  while (true) {
+    // The current block number.
+    const blockNumber = await config.provider.getBlockNumber();
+
+    // Fraud block number.
+    const fraudBlockNumber = await contract.fraudCommitment(
+      contract.signer.address,
+      fraudHash,
+    );
+
+    // Submit fraud hash.
+    if (fraudBlockNumber.lte(0)) {
+      // Comit fraud hash.
+      const tx = await contract.commitFraudHash(
+        fraudHash,
+        { gasLimit: config.gas_limit },
+      );
+
+      // Wait for the fraud comitment hash.
+      await tx.wait();
+
+      // Break.
+      continue;
+    }
+
+    // The block to pass before fraud is commitable.
+    const fraudBlock = fraudBlockNumber.toNumber() 
+      + FRAUD_FINALIZATION_PERIOD;
+
+    // If increase block is available, increase it.
+    // This is for testing.
+    if (config.increaseBlock) {
+      if (blockNumber <= fraudBlock) {
+        await config.increaseBlock(
+          (fraudBlock + 1) - blockNumber,
+        );
+
+        // Go through the loop again.;
+        continue;
+      }
+    }
+
+    // Once we have passed the fraud block.
+    if (blockNumber > fraudBlock
+      && fraudBlockNumber.toNumber() > 0) {
+      // Submit the commit fraud tx.
+      let tx = await contract[kind](
+        ...args,
+        { gasLimit: config.gas_limit },
+      );
+
+      // Wait for Tx success.
+      tx = await tx.wait();
+
+      // Break the while loop.
+      break;
+    }
+
+    // Wait one block.
+    await utils.wait(13 * 1000);
+  }
+
+  // Return not success.
+  return {
+    trades: 0,
+    transactions: 0,
+    success: false,
+  };
+}
+
+/// @notice Proof from Metadata and Input.
+async function proofFromMetadata({ metadata, input, config }) {
+  const block = await protocol.block.BlockHeader.fromLogs(
+    metadata.properties.blockHeight().get().toNumber(),
+    config.contract,
+  );
+
+  utils.assert(block.properties, 'block-not-found');
+
+  const rootIndex = metadata.properties.rootIndex().get().toNumber();
+  const roots = block.properties.roots().get();
+
+  // Check the root index isn't invalid.
+  utils.assert(roots[rootIndex], 'roots-index-overflow');
+
+  // Get the root from logs.
+  const rootHash = roots[rootIndex];
+  const logs = await config.contract.provider.getLogs({
+    fromBlock: 0,
+    toBlock: 'latest',
+    address: config.contract.address,
+    topics: config.contract.filters.RootCommitted(rootHash).topics,
+  });
+
+  // Check root is real.
+  utils.assert(logs.length > 0, 'no-root-available');
+
+  // Parse log and build root struct.
+  const log = config.contract.interface.parseLog(logs[0]);
+  const root = new protocol.root.RootHeader({ ...log.values });
+
+  // Get the root transaction data.
+  const transactionData = await config.provider
+    .getTransaction(logs[0].transactionHash);
+  const calldata = config.contract.interface.parseTransaction(transactionData)
+    .args[3];
+
+  // attempt to decode the root from data.
+  const transactions = protocol.root.decodePacked(calldata);
+
+  // Selected transaction index.
+  const transactionIndex = metadata.properties.transactionIndex().get();
+
+  // Check index overflow.
+  utils.assert(transactions[transactionIndex], 'transaction-index');
+
+  // Check transaction output overflow.
+  const transaction = protocol.transaction
+    .decodePacked(transactions[transactionIndex]);
+
+  // Check output index overflow.
+  const outputIndex = metadata.properties.outputIndex().get();
+
+  // Output index overflow check.
+  utils.assert(transaction.outputs[outputIndex], 'output-index-overflow');
+
+  // The output owner.
+  let outputOwner = transaction.outputs[outputIndex]
+    .properties.owner().hex();
+
+  // If the owner is a ID resolve, otherwise use it.
+  if (utils.hexDataLength(outputOwner) !== 20) {
+    try {
+      outputOwner = await config.db.get([
+        interface.db.address,
+        outputOwner,
+      ]);
+    } catch (error) {
+      utils.assert(0, 'invalid-owner-id');
+    }
+  }
+
+  // Return owner.
+  let returnOwner = utils.emptyAddress;
+
+  // Output type.
+  const outputType = transaction.outputs[outputIndex]
+    .properties.type().get().toNumber();
+
+  // If HTLC, resolve any owner ID's.
+  if (outputType === protocol.outputs.OutputTypes.HTLC) {
+    returnOwner = transaction.outputs[outputIndex]
+      .properties.returnOwner().hex();
+
+    if (utils.hexDataLength(outputOwner) !== 20) {
+      try {
+        returnOwner = await config.db.get([
+          interface.db.address,
+          returnOwner,
+        ]);
+      } catch (error) {
+        utils.assert(0, 'invalid-return-owner-id');
+      }
+    }
+  }
+
+  // This covers the UTXO data hashes for each input in this tx.
+  // The map of this is stored in the db.
+  let data = [];
+
+  // Go through each input and build the data array.
+  for (var i = 0; i < transaction.inputs.length; i++) {
+    const _input = transaction.inputs[i];
+    const _metadata = transaction.metadata[i];
+    const _type = _input.properties.type()
+      .get().toNumber();
+    const _isWithdraw = 0;
+  
+    // Handle different kinds of inputs.
+    switch (_type) {
+      case protocol.inputs.InputTypes.Transfer:
+        // Push data into data array.
+        data.push(
+          await config.db.get([
+            interface.db.inputMetadataHash,
+            _type,
+            _isWithdraw,
+            _metadata.properties.blockHeight().get(),
+            _metadata.properties.rootIndex().get(),
+            _metadata.properties.transactionIndex().get(),
+            _metadata.properties.outputIndex().get(),
+          ]),
+        );
+        break;
+
+      case protocol.inputs.InputTypes.Deposit:
+        // Get the deposit amount.
+        const _amount = await config.contract.depositAt(
+          _input.properties.owner().hex(),
+          _metadata.properties.token().get(),
+          _metadata.properties.blockNumber().get(),
+        );
+
+        // Look up deposit details namely, amount.
+        data.push(
+          protocol.deposit.Deposit({
+            value: _amount,
+            owner: _input.properties.owner().hex(),
+            token: _metadata.properties.token().get(),
+            blockNumber: _metadata.properties.blockNumber().get(),
+          }).keccak256(),
+        );
+        break;
+
+      case protocol.inputs.InputTypes.Root:
+        // Look up the block, than the root hash, than the root.
+        const _block = await protocol.block.BlockHeader.fromLogs(
+          _metadata.properties.blockHeight().get().toNumber(),
+          config.contract,
+        );
+
+        // Get the root index, than root hash.
+        const _rootIndex = _metadata.properties.rootIndex().get();
+        const _rootHash = _block.properties.roots().get()[_rootIndex];
+        
+        // Than get the logs for this root hash.
+        const _logs = await config.contract.provider.getLogs({
+          fromBlock: 0,
+          toBlock: 'latest',
+          address: config.contract.address,
+          topics: config.contract.filters.RootCommitted(_rootHash).topics,
+        });
+
+        // Than get the root header.
+        const _log = config.contract.interface.parseLog(_logs[0]);
+        const _root = new protocol.root.RootHeader({ ..._log.values });
+
+        // Look up root log.
+        data.push(
+          _root.keccak256Packed(),
+        );
+        break;
+
+      case protocol.inputs.InputTypes.HTLC:
+        // Push data into data array.
+        data.push(
+          await config.db.get([
+            interface.db.inputMetadataHash,
+            _type,
+            _isWithdraw,
+            _metadata.properties.blockHeight().get(),
+            _metadata.properties.rootIndex().get(),
+            _metadata.properties.transactionIndex().get(),
+            _metadata.properties.outputIndex().get(),
+          ]),
+        );
+        break;
+
+      default:
+        utils.assert(0, 'invalid-type');
+    }
+  }
+
+  // Return transaction proof.
+  return protocol.transaction.TransactionProof({
+    block,
+    root,
+    transactions: transactions
+      .map(txHex => protocol.root.Leaf({
+        // Trim the length and 0x prefix.
+        data: struct.chunk(
+          '0x' + txHex.slice(6),
+        ),
+      })),
+    data,
+    rootIndex,
+    transactionIndex,
+    inputOutputIndex: outputIndex,
+    token: outputOwner,
+    selector: returnOwner,
+  });
+}
+
+/// @notice Handle an invalid input situation.
+/// @dev This could lead to either an invalidInput or doubleSpend submission.
+async function invalidInput({
+  proof,
+  metadata,
+  input,
+  block,
+  root,
+  rootIndex,
+  transactionIndex,
+  inputIndex,
+  config }) {
+  // Input is a deposit, skip to double spend.
+  const inputType = input.properties
+    .type().get();
+  const isDeposit = inputType.toNumber() === protocol.inputs
+    .InputTypes.Deposit;
+
+  // If the input is a deposit.
+  if (isDeposit) {
+    // Deposit amount.
+    const depositAmount = await config.contract.depositAt(
+      input.properties.owner().hex(),
+      metadata.properties.token().get(),
+      metadata.properties.blockNumber().get(),
+    );
+
+    // If deposit is invalid.
+    if (depositAmount.eq(0)) {
+      return await commitFraud(
+        'proveInvalidInput',
+        [
+          '0x', // this is ignored, not needed.
+          proof.encodePacked(),
+        ],
+        config,
+      );
+    }
+  }
+
+  // If not a deposit, than find invalidity.
+  if (!isDeposit) {
+    // Is this an invalid input.
+    let isInvalidInput = false;
+
+    // Select the block referenced in metadata.
+    const selectedBlock = await protocol.block.BlockHeader.fromLogs(
+      metadata.properties.blockHeight().get().toNumber(),
+      config.contract,
+    );
+
+    // Check root is real.
+    utils.assert(selectedBlock, 'no-block-available-invalid-input');
+
+    // This is the root being selected.
+    let selectedRootIndex = metadata.properties.rootIndex().get().toNumber();
+    const roots = selectedBlock.properties.roots().get();
+
+    // The default root hash to select.
+    let rootHash = roots[0];
+
+    // The core root object to select.
+    let selectedRoot = null;
+
+    // Roots overflow. Submit any root as the invalit input proof.
+    if (selectedRootIndex >= roots.length) {
+      // we select the zero index here, than move to submit this invalid input.
+      selectedRootIndex = 0;
+      isInvalidInput = true;
+    }
+
+    // Get logs for the root in question.
+    const logs = await config.contract.provider.getLogs({
+      fromBlock: 0,
+      toBlock: 'latest',
+      address: config.contract.address,
+      topics: config.contract.filters.RootCommitted(rootHash).topics,
+    });
+
+    // Check root is real.
+    utils.assert(logs.length > 0, 'no-root-available-while-invalid-input');
+
+    // Parse log and build root struct.
+    const log = config.contract.interface.parseLog(logs[0]);
+    selectedRoot = new protocol.root.RootHeader({ ...log.values });
+
+    // Get the root transaction data.
+    const transactionData = await config.provider
+      .getTransaction(logs[0].transactionHash);
+    const calldata = config.contract.interface.parseTransaction(transactionData)
+      .args[3];
+
+    // attempt to decode the root from data.
+    const transactions = protocol.root.decodePacked(calldata);
+
+    // Selected transaction index.
+    let selectedTransactionIndex = metadata.properties.transactionIndex().get();
+
+    // Roots overflow. Submit any root as the invalit input proof.
+    if (selectedRootIndex >= roots.length) {
+      // we select the zero index here, than move to submit this invalid input.
+      selectedTransactionIndex = 0;
+      isInvalidInput = true;
+    }
+
+    // Transactions index overflow, might need a MOD check here.
+    if (selectedTransactionIndex >= transactions.length) {
+      selectedTransactionIndex = transactions.length - 1;
+
+      // Account for the empty leaf if any.
+      if (transactions.length % 2 > 0) {
+        selectedTransactionIndex = transactions.length;
+      }
+
+      isInvalidInput = true;
+    }
+
+    // Transaction to be tested.
+    let transaction = null;
+
+    // Input output index.
+    let inputOutputIndex = 0;
+
+    // If the transaciton index is valid.
+    if (selectedTransactionIndex < transactions.length) {
+      // Check transaction output overflow.
+      const transaction = protocol.transaction
+        .decodePacked(transactions[selectedTransactionIndex]);
+
+      // Check output index overflow.
+      inputOutputIndex = metadata.properties.outputIndex()
+        .get();
+
+      // Selecting an input that doesn't exist (overflow).
+      if (inputOutputIndex >= transaction.outputs.length) {
+        isInvalidInput = true;
+      }
+
+      // Get the selected input type.
+      if (!isInvalidInput) {
+        // The input type from the actual tx.
+        const _type = transaction.outputs[inputOutputIndex]
+          .properties.type().get();
+
+        // Invalid input.
+        if (_type.eq(protocol.outputs.OutputTypes.Withdraw)
+          || _type.eq(protocol.outputs.OutputTypes.Return)
+          || !inputType.eq(_type)) {
+          isInvalidInput = true;
+        }
+      }
+    }
+
+    // This is an invalid input so we will submit the fraud proof.
+    if (isInvalidInput) {
+      return await commitFraud(
+        'proveInvalidInput',
+        [
+          protocol.transaction.TransactionProof({
+            block: selectedBlock,
+            root: selectedRoot,
+            transactions: transactions
+            .map(txHex => protocol.root.Leaf({
+              // Trim the length and 0x prefix.
+              data: struct.chunk(
+                '0x' + txHex.slice(6),
+              ),
+            })),
+            rootIndex: selectedRootIndex,
+            transactionIndex: selectedTransactionIndex,
+            inputOutputIndex: inputOutputIndex,
+          }).encodePacked(),
+          proof.encodePacked(),
+        ],
+        config,
+      );
+    }
+  }
+
+  // This is the metadata ID for this tx, and output.
+  const inputMetadata = protocol.metadata.Metadata({
+    blockHeight: block.properties.height().get(),
+    rootIndex,
+    transactionIndex,
+    outputIndex: inputIndex,
+  });
+
+  // Else this is not an invalid input, it is a double spend!
+  return await invalidDoubleSpend({
+    proof,
+    metadata,
+    input,
+    block,
+    root,
+    rootIndex,
+    transactionIndex,
+    inputMetadata,
+    inputIndex,
+    config });
+}
+
+/// @notice Handle double spend situation.
+/// @dev Will require a full scan starting from the block tip backward.
+async function invalidDoubleSpend({
+    proof,
+    metadata,
+    input,
+    inputMetadata,
+    config,
+  }) {
+  // Do a backward search starting from current block for double spend.
+  const state = protocol.state.State(
+    await config.db.get([ interface.db.state ]),
+  );
+
+  // Get the block tip.
+  const tip = inputMetadata.properties.blockHeight()
+    .get().toNumber();
+
+  // Empty owner used for comparison.
+  let owner = utils.emptyAddress;
+
+  // Owner check.
+  if (input.properties.type().get().eq(1)) {
+    owner = input.properties.owner().hex();
+  }
+
+  // Go through each block height.
+  for (let blockHeight = tip; blockHeight > 0; blockHeight--) {
+    // Get the block header.
+    const block = await protocol.block.BlockHeader.fromLogs(
+      blockHeight,
+      config.contract,
+    );
+
+    // Get the roots from this block.
+    const roots = block.properties.roots().get();
+
+    // Go through each of the block roots here.
+    for (let rootIndex = 0; rootIndex < roots.length; rootIndex++) {
+      // The root hash in question.
+      const rootHash = roots[rootIndex];
+
+      // Get logs for the root in question.
+      const logs = await config.contract.provider.getLogs({
+        fromBlock: 0,
+        toBlock: 'latest',
+        address: config.contract.address,
+        topics: config.contract.filters
+          .RootCommitted(rootHash).topics,
+      });
+
+      // Check root is real.
+      utils.assert(logs.length > 0, 'no-root-available-while-double-spend');
+
+      // Parse log and build root struct.
+      const log = config.contract.interface.parseLog(logs[0]);
+      const root = new protocol.root.RootHeader({ ...log.values });
+
+      // Get the root transaction data.
+      const transactionData = await config.provider
+        .getTransaction(logs[0].transactionHash);
+      const calldata = config.contract.interface
+        .parseTransaction(transactionData).args[3];
+
+      // Now we have the calldata do a simple string search before parsing.
+      const stringMetadata = metadata.encodePacked().slice(2);
+
+      // Test if the metadata like bytes are in this root.
+      if(calldata.indexOf(stringMetadata) !== -1) {
+        // We decode the root if it is.
+        const transactions = protocol.root.decodePacked(calldata);
+
+        // Now we cycle through these transactions and find where the metadata might be.
+        for (let transactionIndex = 0;
+          transactionIndex < transactions.length;
+          transactionIndex++) {
+          // Get the transaction hex.
+          const transactionHex = transactions[transactionIndex];
+
+          // If the metadata is in this tx, than we continue.
+          if(calldata.indexOf(stringMetadata) !== -1) {
+            // Check transaction output overflow.
+            const transaction = protocol.transaction
+              .decodePacked(transactionHex);
+
+            // Now we check through the metadata to identify the overlap.
+            for (let inputIndex = 0;
+              inputIndex < transaction.metadata.length;
+              inputIndex++) {
+              // Test metadata.
+              const testMetadata = transaction.metadata[inputIndex];
+
+              // Get the input specified.
+              const checkInput = transaction.inputs[inputIndex];
+              
+              // This is the metadata for this inputs current id.
+              const checkMetadata = protocol.metadata.Metadata({
+                blockHeight: block.properties.height().get(),
+                rootIndex,
+                transactionIndex,
+                outputIndex: inputIndex,
+              });
+
+              // check owner.
+              let checkOwner = utils.emptyAddress;
+
+              // If type is a Deposit.
+              if (checkInput.properties.type().get().eq(1)) {
+                checkOwner = checkInput.properties.owner().hex();
+              }
+
+              // Ensure the metadata ID's are not identical, just skip if they are.
+              // You don't want to call bullshit on the questionable input twice.
+              if (checkOwner === owner
+                && inputMetadata.encodePacked() === checkMetadata.encodePacked()) {
+                continue;
+              }
+
+              // If the metadata is the same we have a double spend.
+              if (checkOwner === owner
+                && testMetadata.encodePacked() === metadata.encodePacked()) {
+                // Commit double spend fraud proof.
+                return await commitFraud(
+                  'proveDoubleSpend',
+                  [
+                    protocol.transaction.TransactionProof({
+                      block,
+                      root,
+                      transactions: transactions
+                        .map(txHex => protocol.root.Leaf({
+                          // Trim the length and 0x prefix.
+                          data: struct.chunk(
+                            '0x' + txHex.slice(6),
+                          ),
+                        })),
+                      rootIndex,
+                      transactionIndex,
+                      inputOutputIndex: inputIndex,
+                    }).encodePacked(),
+                    proof.encodePacked(),
+                  ],
+                  config,
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+/// @notice Build input Transaction proofs from inputs.
+async function inputTransactionProofs({ metadata, inputs, config }) {
+  // The returned input proofs.
+  let proofs = [];
+
+  // Go through each input.
+  let inputIndex = 0;
+  for (const input of inputs) {
+    const inputType = input.properties.type()
+      .get().toNumber();
+    const data = metadata[inputIndex];
+
+    // Go through each type handle accordingly.
+    switch (inputType) {
+      case protocol.inputs.InputTypes.Transfer:
+        proofs.push((await proofFromMetadata({
+          input, metadata: data, config })).encodePacked());
+        break;
+
+      case protocol.inputs.InputTypes.Deposit:
+        const depositAmount = await config.contract.depositAt(
+          input.properties.owner().hex(),
+          data.properties.token().get(),
+          data.properties.blockNumber().get(),
+        );
+        proofs.push(protocol.deposit.Deposit({
+          owner: input.properties.owner().hex(),
+          token: data.properties.token().get(),
+          value: depositAmount,
+          blockNumber: data.properties.blockNumber().get(),
+        }).encode());
+        break;
+
+      case protocol.inputs.InputTypes.HTLC:
+        proofs.push((await proofFromMetadata({
+          input, metadata: data, config })).encodePacked());
+        break;
+
+      case protocol.inputs.InputTypes.Root:
+        proofs.push((await proofFromMetadata({
+          input, metadata: data, config })).encodePacked());
+        break;
+    }
+
+    // Increase index.
+    inputIndex++;
+  }
+
+  return proofs;
+}
+
 async function process(block = {}, config = {}) {
   try {
     utils.assert(config.db.supports.local, 'db must support .local');
     const db = database(simulate(config.db.supports.local, memdown()));
+
+    // setup a local config but with the new simulation db
+    const local = { ...config, db };
+
+    // stats object
     let stats = {
       trades: 0,
       transactions: 0,
+      success: true,
     };
     let rootIndex = 0;
     for (const rootHash of block.properties.roots().get()) {
@@ -45,12 +762,32 @@ async function process(block = {}, config = {}) {
       // attempt to decode the root from data
       let transactions = null;
       try {
+        // Transactions decoded into hex.
         transactions = protocol.root.decodePacked(calldata);
+
+        // Check the merkle root.
+        const computedRoot = protocol.root.merkleTreeRoot(
+          transactions.map(v => utils.keccak256(v)),
+          false,
+        );
+
+        // Check invalid merkle root.
+        utils.assert(
+          computedRoot === root.properties.merkleTreeRoot().hex(),
+          'invalid-merkle-root');
       } catch (malformedBlockError) {
-        console.log('malformed block', malformedBlockError);
-        utils.assert(0, 'malformed-block');
+        // Commit fraud.
+        return await commitFraud(
+          'proveMalformedBlock',
+          [
+            block.encodePacked(),
+            root.encodePacked(),
+            rootIndex,
+            calldata,
+          ],
+          config,
+        );
         break;
-        // await config.contract.proveMalformedBlock()
       }
 
       // attempt transaction decode
@@ -59,9 +796,35 @@ async function process(block = {}, config = {}) {
         let transaction = null;
         try {
           transaction = protocol.transaction.decodePacked(transactionHex);
+
+          // Verify the metadata correctness.
+          protocol.metadata.verifyMetadata({
+            metadata: transaction.metadata,
+            block,
+            rootIndex,
+            transactionIndex,
+          });
         } catch (invalidTransaction) {
-          console.log('invalid transaction', invalidTransaction);
-          utils.assert(0, 'invalid-transaction');
+          // Invalid transaction encoding.
+          return await commitFraud(
+            'proveInvalidTransaction',
+            [
+              protocol.transaction.TransactionProof({
+                block,
+                root,
+                transactions: transactions
+                  .map(txHex => protocol.root.Leaf({
+                    // Trim the length and 0x prefix.
+                    data: struct.chunk(
+                      '0x' + txHex.slice(6),
+                    ),
+                  })),
+                rootIndex,
+                transactionIndex,
+              }).encodePacked(),
+            ],
+            config,
+          );
           break;
         }
         const { inputs, outputs, metadata, witnesses } = transaction;
@@ -71,6 +834,8 @@ async function process(block = {}, config = {}) {
         let outs = {};
         let data = [];
         let proofs = [];
+        let outputProofs = [];
+        let inputTypes = [];
 
         // increase transactions
         stats.transactions += 1;
@@ -84,14 +849,15 @@ async function process(block = {}, config = {}) {
         let inputIndex = 0, key = null;
         for (const input of inputs) {
           try {
+            // Spendable input constant.
             const spendableInput = 0;
+
+            // Add to input types.
+            inputTypes.push(input.properties.type().get().toNumber());
+
+            // Go through each input type case.
             switch (input.properties.type().get().toNumber()) {
               case protocol.inputs.InputTypes.Transfer:
-                const _key = utils.RLP.encode(interface.db.inputMetadata.encode([
-                  protocol.inputs.InputTypes.Transfer,
-                  spendableInput,
-                  ...metadata[inputIndex].values(),
-                ]));
                 key = [
                   interface.db.inputMetadata,
                   protocol.inputs.InputTypes.Transfer,
@@ -106,11 +872,6 @@ async function process(block = {}, config = {}) {
 
                 // archival deletes
                 if (config.archive) {
-                  await balance.decrease(
-                    last(proofs).properties.owner().hex(),
-                    last(proofs).properties.token().hex(),
-                    last(proofs).properties.amount().get(),
-                    config);
                   await db.del([
                     interface.db.owner,
                     last(proofs).properties.owner().hex(),
@@ -122,15 +883,6 @@ async function process(block = {}, config = {}) {
                   ]);
                   await db.del([
                     interface.db.owner,
-                    last(proofs).properties.owner().hex(),
-                    last(proofs).properties.token().hex(),
-                    0, // addons.RootHeader.properties.timestamp
-                    protocol.inputs.InputTypes.Transfer,
-                    spendableInput,
-                    last(data)
-                  ]);
-                  await db.del([
-                    interface.db.decrease,
                     last(proofs).properties.owner().hex(),
                     last(proofs).properties.token().hex(),
                     0, // addons.RootHeader.properties.timestamp
@@ -149,21 +901,19 @@ async function process(block = {}, config = {}) {
 
               case protocol.inputs.InputTypes.Deposit:
                 key = [
-                  interface.db.deposit,
-                  metadata[inputIndex].properties.blockNumber().get(),
-                  metadata[inputIndex].properties.token().get(),
+                  interface.db.deposit2,
                   input.properties.owner().get(),
+                  metadata[inputIndex].properties.token().get(),
+                  metadata[inputIndex].properties.blockNumber().get(),
                 ];
                 proofs.push(protocol.deposit.Deposit(await db.get(key)));
                 data.push(last(proofs).keccak256());
 
+                // delete the input metadata key
+                await db.del(key);
+
                 // delete input
                 if (config.archive) {
-                  await balance.decrease(
-                    last(proofs).properties.owner().hex(),
-                    last(proofs).properties.token().hex(),
-                    last(proofs).properties.value().get(),
-                    config);
                   await db.del([
                     interface.db.owner,
                     input.properties.owner().get(),
@@ -171,7 +921,7 @@ async function process(block = {}, config = {}) {
                     last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
                     protocol.inputs.InputTypes.Deposit,
                     spendableInput,
-                    last(data)
+                    last(data),
                   ]);
                   await db.del([
                     interface.db.owner,
@@ -180,22 +930,13 @@ async function process(block = {}, config = {}) {
                     0, // addons.RootHeader.properties.timestamp
                     protocol.inputs.InputTypes.Deposit,
                     spendableInput,
-                    last(data)
-                  ]);
-                  await db.del([
-                    interface.db.decrease,
-                    input.properties.owner().get(),
-                    metadata[inputIndex].properties.token().get(),
-                    0, // addons.RootHeader.properties.timestamp
-                    protocol.inputs.InputTypes.Deposit,
-                    spendableInput,
-                    last(data)
+                    last(data),
                   ]);
                   await db.del([
                     interface.db.inputHash,
                     protocol.inputs.InputTypes.Deposit,
                     spendableInput,
-                    last(data)
+                    last(data),
                   ]);
                 }
                 break;
@@ -224,16 +965,6 @@ async function process(block = {}, config = {}) {
 
                 // delete input
                 if (config.archive) {
-                  await balance.decrease(
-                    last(proofs).properties.owner().hex(),
-                    last(proofs).properties.token().hex(),
-                    last(proofs).properties.amount().get(),
-                    config);
-                  await balance.decrease(
-                    last(proofs).properties.returnOwner().hex(),
-                    last(proofs).properties.token().hex(),
-                    last(proofs).properties.amount().get(),
-                    config);
                   await db.del([
                     interface.db.owner,
                     last(proofs).properties.owner().hex(),
@@ -264,24 +995,6 @@ async function process(block = {}, config = {}) {
                   await db.del([
                     interface.db.owner,
                     last(proofs).properties.returnOwner().hex(),
-                    last(proofs).properties.token().hex(),
-                    0, // addons.RootHeader.properties.timestamp
-                    protocol.inputs.InputTypes.HTLC,
-                    spendableInput,
-                    last(data)
-                  ]);
-                  await db.del([
-                    interface.db.decrease,
-                    last(proofs).properties.returnOwner().hex(),
-                    last(proofs).properties.token().hex(),
-                    0, // addons.RootHeader.properties.timestamp
-                    protocol.inputs.InputTypes.HTLC,
-                    spendableInput,
-                    last(data)
-                  ]);
-                  await db.del([
-                    interface.db.decrease,
-                    last(proofs).properties.owner().hex(),
                     last(proofs).properties.token().hex(),
                     0, // addons.RootHeader.properties.timestamp
                     protocol.inputs.InputTypes.HTLC,
@@ -319,12 +1032,6 @@ async function process(block = {}, config = {}) {
                     spendableInput,
                     last(data)
                   ]);
-                  await balance.decrease(
-                    rootAddon[1],
-                    last(proofs).properties.feeToken().hex(),
-                    last(proofs).properties.fee().get()
-                      .mul(last(proofs).properties.rootLength().get()),
-                    config);
                   await db.del([
                     interface.db.owner,
                     rootAddon[1], // addon.RootHeader.properties.blockProducer
@@ -343,24 +1050,36 @@ async function process(block = {}, config = {}) {
                     spendableInput,
                     last(data)
                   ]);
-                  await db.del([
-                    interface.db.decrease,
-                    rootAddon[1], // addon.RootHeader.properties.blockProducer
-                    last(proofs).properties.feeToken().hex(),
-                    0, // addon.RootHeader.properties.timestamp
-                    protocol.inputs.InputTypes.Root,
-                    spendableInput,
-                    last(data)
-                  ]);
                 }
                 break;
             }
             inputIndex++;
-          } catch (invalidInput) {
-            console.log('invalid input', invalidInput);
-            utils.assert(0, 'invalid-input');
-            // config.contract.proveInvalidInput(...)
-            break;
+          } catch (invalidInputError) {
+            // Submit an invalid input.
+            return await invalidInput({
+              proof: protocol.transaction.TransactionProof({
+                block,
+                root,
+                transactions: transactions
+                  .map(txHex => protocol.root.Leaf({
+                    // Trim the length and 0x prefix.
+                    data: struct.chunk(
+                      '0x' + txHex.slice(6),
+                    ),
+                  })),
+                rootIndex,
+                transactionIndex,
+                inputOutputIndex: inputIndex,
+              }),
+              metadata: metadata[inputIndex],
+              input: inputs[inputIndex],
+              block,
+              root,
+              rootIndex,
+              transactionIndex,
+              inputIndex,
+              config,
+            });
           }
         } // InputsEnd
 
@@ -397,6 +1116,15 @@ async function process(block = {}, config = {}) {
               token = proof.properties.token().get();
               amount = proof.properties.amount().get();
               owner = proof.properties.owner().hex();
+
+              if (config.archive) {
+                await balance.decrease(
+                  proof.properties.owner().hex(),
+                  proof.properties.token().hex(),
+                  proof.properties.amount().get(),
+                  local,
+                  transactionHashId);
+              }
               break;
 
             case protocol.inputs.InputTypes.Deposit:
@@ -404,6 +1132,15 @@ async function process(block = {}, config = {}) {
               token = proof.properties.token().get();
               amount = proof.properties.value().get();
               owner = proof.properties.owner().hex();
+
+              if (config.archive) {
+                await balance.decrease(
+                  proof.properties.owner().hex(),
+                  proof.properties.token().hex(),
+                  proof.properties.value().get(),
+                  local,
+                  transactionHashId);
+              }
               break;
 
             case protocol.inputs.InputTypes.HTLC:
@@ -412,17 +1149,51 @@ async function process(block = {}, config = {}) {
               amount = proof.properties.amount().get();
               owner = proof.properties.owner().hex();
 
+              // If expired.
               if (block.properties.blockNumber().get()
                 .gt(proof.properties.expiry().get())) {
                 owner = proof.properties.returnOwner().hex();
+
+                // Increase return owner balance if expired.
+                if (config.archive) {
+                  await balance.increase(
+                    proof.properties.returnOwner().hex(),
+                    proof.properties.token().hex(),
+                    proof.properties.amount().get(),
+                    local,
+                    transactionHashId);
+                }
+              } else {
+                // If not expired, increase the owner.
+                if (config.archive) {
+                  await balance.increase(
+                    proof.properties.owner().hex(),
+                    proof.properties.token().hex(),
+                    proof.properties.amount().get(),
+                    local,
+                    transactionHashId);
+                }
               }
               break;
 
             case protocol.inputs.InputTypes.Root:
               proof = proofs[inputIndex];
+              const proofAddon = protocol.addons.RootHeader(
+                proof.getAddon(),
+              );
               token = proof.properties.feeToken().get();
-              amount = proof.properties.fee().get().mul(proof.properties.length().get());
-              owner = proof.properties.rootProducer().hex();
+              amount = proof.properties.fee().get().mul(proof.properties.rootLength().get());
+              owner = proofAddon.properties.blockProducer().hex();
+
+              if (config.archive) {
+                await balance.decrease(
+                  proofAddon.properties.blockProducer().get(),
+                  proof.properties.feeToken().hex(),
+                  proof.properties.fee().get()
+                    .mul(proof.properties.rootLength().get()),
+                  local,
+                  transactionHashId);
+              }
               break;
           }
 
@@ -433,16 +1204,40 @@ async function process(block = {}, config = {}) {
           // check witness
           try {
             let callers = {};
-            const witnessReference = input.properties.witnessReference().get().toNumber();
+            const witnessReference = input.properties
+              .witnessReference().get().toNumber();
 
             // if is Caller, get Caller from database
             if (witnesses[witnessReference].properties
                 .type().get().toNumber() === protocol.witness.WitnessTypes.Caller) {
-              callers[witnesses[witnessReference].keccak256()] = await db.get([
-                interface.db.caller,
-                witnesses[witnessReference].properties.owner().hex(),
-                witnesses[witnessReference].properties.blockNumber().hex(),
-              ]);
+              try {
+                callers[witnesses[witnessReference].keccak256()] = await db.get([
+                  interface.db.caller,
+                  witnesses[witnessReference].properties.owner().hex(),
+                  witnesses[witnessReference].properties.blockNumber().hex(),
+                ]);
+              } catch (invalidTransactionError) {
+                // Invalid transaction encoding.
+                return await commitFraud(
+                  'proveInvalidTransaction',
+                  [
+                    protocol.transaction.TransactionProof({
+                      block,
+                      root,
+                      transactions: transactions
+                        .map(txHex => protocol.root.Leaf({
+                          // Trim the length and 0x prefix.
+                          data: struct.chunk(
+                            '0x' + txHex.slice(6),
+                          ),
+                        })),
+                      rootIndex,
+                      transactionIndex,
+                    }).encodePacked(),
+                  ],
+                  config,
+                );
+              }
             }
 
             // check the witness
@@ -450,9 +1245,36 @@ async function process(block = {}, config = {}) {
                 .witness.recover(witnesses[witnessReference],
                   transactionHashId, callers, block), 'invalid-witness');
           } catch (invalidWitness) {
-            console.log('invalid witness', invalidWitness);
-            utils.assert(0, 'invalid-witness');
-            // config.contract.proveInvalidWitness
+            // Prove the witness is invalid.
+            return await commitFraud(
+              'proveInvalidWitness',
+              [
+                protocol.transaction.TransactionProof({
+                  block,
+                  root,
+                  transactions: transactions
+                    .map(txHex => protocol.root.Leaf({
+                      // Trim the length and 0x prefix.
+                      data: struct.chunk(
+                        '0x' + txHex.slice(6),
+                      ),
+                    })),
+                  data,
+                  signatureFee: fee,
+                  signatureFeeToken: feeToken,
+                  inputOutputIndex: inputIndex,
+                  rootIndex,
+                  transactionIndex,
+                  chainId: config.network.chainId,
+                }).encodePacked(),
+                struct.chunkJoin(await inputTransactionProofs({
+                  metadata,
+                  inputs,
+                  config,
+                })),
+              ],
+              config,
+            );
           }
 
           // Increase Index
@@ -463,32 +1285,37 @@ async function process(block = {}, config = {}) {
         let outputIndex = 0;
         let owners = {};
         let spendableHashes = [];
+        const numAddresses = block.properties.numAddresses().get();
         for (const output of outputs) {
           const outputType = output.properties.type().get().toNumber();
           let token = null, amount = null, owner = null,
             returnOwner = utils.emptyAddress, expiry = 0, digest = utils.emptyBytes32;
 
-          // Resolve addess ID's
-          if (outputType !== protocol.outputs.OutputTypes.Return) {
-            if (outputType === protocol.outputs.OutputTypes.HTLC) {
-              const returnData = output.properties.returnOwner().hex();
-              const returnId = utils.bigstring(returnData);
+          try {
+            // Resolve addess ID's
+            if (outputType !== protocol.outputs.OutputTypes.Return) {
+              if (outputType === protocol.outputs.OutputTypes.HTLC) {
+                const returnData = output.properties.returnOwner().hex();
+                const returnId = utils.bigstring(returnData);
+                const idLength = utils.hexDataLength(returnData);
 
-              if (utils.hexDataLength(returnData) < 20 && !owners[returnId]) {
-                owners[returnId] = await db.get([ interface.db.address, returnData ]);
+                if (idLength < 20 && !owners[returnId]) {
+                  utils.assert(numAddresses.gte(returnData), "owner-id-overflow");
+
+                  owners[returnId] = await db.get([ interface.db.address, returnData ]);
+                }
+              }
+
+              const ownerData = output.properties.owner().hex();
+              const ownerId = utils.bigstring(ownerData);
+
+              if (utils.hexDataLength(ownerData) < 20 && !owners[ownerId]) {
+                utils.assert(numAddresses.gte(ownerData), "owner-id-overflow");
+                owners[ownerId] = await db.get([ interface.db.address, ownerData ]);
               }
             }
 
-            const ownerData = output.properties.owner().hex();
-            const ownerId = utils.bigstring(ownerData);
-
-            if (utils.hexDataLength(ownerData) < 20 && !owners[ownerId]) {
-              owners[ownerId] = await db.get([ interface.db.address, ownerData ]);
-            }
-          }
-
-          // Attempt Output Decoding
-          try {
+            // Attempt Output Decoding
             switch (outputType) {
               case protocol.outputs.OutputTypes.Transfer:
                 token = protocol.outputs.decodeToken(output, block);
@@ -514,14 +1341,31 @@ async function process(block = {}, config = {}) {
               case protocol.outputs.OutputTypes.Return:
                 const returnDataLength = utils.hexDataLength(output.properties.data().hex());
                 utils.assert(returnDataLength > 0, 'return-data-overflow');
-                utils.assert(returnDataLength < 512, 'return-data-overflow');
+                utils.assert(returnDataLength <= 512, 'return-data-overflow');
                 break;
             }
           } catch (invalidTransactionError) {
-            console.log('invalid transaction error', invalidTransactionError);
-            utils.assert(0, 'invalid-transaction');
+            // Invalid transaction encoding.
+            return await commitFraud(
+              'proveInvalidTransaction',
+              [
+                protocol.transaction.TransactionProof({
+                  block,
+                  root,
+                  transactions: transactions
+                    .map(txHex => protocol.root.Leaf({
+                      // Trim the length and 0x prefix.
+                      data: struct.chunk(
+                        '0x' + txHex.slice(6),
+                      ),
+                    })),
+                  rootIndex,
+                  transactionIndex,
+                }).encodePacked(),
+              ],
+              config,
+            );
             break;
-            // config.contract.invalidTransactionError()
           }
 
           // Handle UTXO outputss
@@ -548,6 +1392,9 @@ async function process(block = {}, config = {}) {
             const isWithdraw = outputType === protocol.outputs.OutputTypes.Withdraw ? 1 : 0;
             const zeroTimestamp = 0;
 
+            // add to output proofs.
+            outputProofs.push(utxo);
+
             // add to spendable hashes
             spendableHashes.push(!isWithdraw ? hash : utils.emptyBytes32);
 
@@ -562,31 +1409,34 @@ async function process(block = {}, config = {}) {
               outputIndex,
             ];
 
-            // metadata input
+            // metadata input, we need to make a copy of this which is *eventually* prunable, but is kept until finality.
             await db.put([interface.db.inputMetadata, ...inputMetadataKey], utxo);
 
+            // We keep an extra copy as such -> id -> hash.
+            await db.put([interface.db.inputMetadataHash, ...inputMetadataKey], hash);
+
             // Database this output, we database the utxo twice, eventually this will go
-            if (returnOwner && config.archive) {
+            if (outputType === protocol.outputs.OutputTypes.HTLC && config.archive) {
               // increase return owner balance
-              await balance.increase(returnOwner, token, amount, config);
+              // await balance.increase(returnOwner, token, amount, local, transactionHashId);
 
               // delete the mempool vbersion
               await db.del([interface.db.owner, returnOwner, token, zeroTimestamp,
                 outputType, isWithdraw, hash]);
 
-              // add the processed version, need to remove these also..
-              await db.put([interface.db.owner, returnOwner, token, timestamp,
-                outputType, isWithdraw, hash], utxo);
-
-              // remove change delta
-              await db.del([interface.db.increase, returnOwner, token, zeroTimestamp,
-                outputType, isWithdraw, hash]);
+              // here we check for a spend, if spent don't put owner.
+              try {
+                await db.get([ interface.db.spent, outputType, hash ]);
+              } catch (notAlreadySpent) {
+                await db.put([interface.db.owner, returnOwner, token, timestamp,
+                  outputType, isWithdraw, hash], utxo);
+              }
 
               // add the archive stub
               await db.put([
                 interface.db.archiveOwner,
                 returnOwner,
-                transactionData.timestamp * 1000,
+                timestamp,
                 transactionHashId,
               ], transactionHashId);
             }
@@ -597,29 +1447,38 @@ async function process(block = {}, config = {}) {
               await db.put([interface.db.inputHash, ...inputHashKey], utxo);
 
               // add archival inputs with reference to the transactionHashId
-              await db.put([interface.db.archiveHash, ...inputHashKey], transactionHashId);
-              await db.put([interface.db.archiveMetadata, ...inputMetadataKey], transactionHashId);
+              // await db.put([interface.db.archiveHash, ...inputHashKey], utxo);
+              // await db.put([interface.db.archiveMetadata, ...inputMetadataKey], hash);
 
               // increase return owner balance
-              await balance.increase(owner, token, amount, config);
+              if (!isWithdraw) {
+                if (outputType !== protocol.outputs.OutputTypes.HTLC) {
+                  await balance.increase(owner, token, amount, local, transactionHashId);
+                }
+              } else {
+                await balance.increase(
+                  balance.withdrawAccount(owner), 
+                  token, amount, local, transactionHashId);
+              }
 
               // owner deletion
               await db.del([interface.db.owner, owner, token, zeroTimestamp,
                 outputType, isWithdraw, hash]);
 
-              // add the processed version
-              await db.put([interface.db.owner, owner, token, timestamp,
-                outputType, isWithdraw, hash], utxo);
-
-              // remove change delta
-              await db.del([interface.db.increase, owner, token, zeroTimestamp,
-                outputType, isWithdraw, hash]);
+              // Check to see if this has already been spent, if so, don't flag owner.
+              try {
+                await db.get([ interface.db.spent, outputType, hash ]);
+              } catch (notAlreadySpent) {
+                // add the processed version
+                await db.put([interface.db.owner, owner, token, timestamp,
+                  outputType, isWithdraw, hash], utxo);
+              }
 
               // add the archive stub
               await db.put([
                 interface.db.archiveOwner,
                 owner,
-                transactionData.timestamp * 1000,
+                timestamp,
                 transactionHashId,
               ], transactionHashId);
             }
@@ -633,6 +1492,9 @@ async function process(block = {}, config = {}) {
               await db.put([interface.db.return, transactionHashId, outputIndex],
                 output.properties.data().hex());
             }
+
+            // Output proofs.
+            outputProofs.push(protocol.root.Leaf({ data: output.properties.data().hex() }));
 
             // add a hash here to keep order with returns
             spendableHashes.push(utils.emptyBytes32);
@@ -649,15 +1511,53 @@ async function process(block = {}, config = {}) {
         // Check for InvalidSum
         const outsKeys = Object.keys(outs).sort();
         const inKeys = Object.keys(ins).sort();
-        inKeys.forEach((v, i) => {
+
+        // Interate through used token types.
+        for (var i = 0; i < inKeys.length; i++) {
+          // In key token ID value.
+          const v = inKeys[i];
+
           try {
             utils.assert(v === outsKeys[i], 'ins-outs-keys');
             utils.assert(ins[v].eq(outs[outsKeys[i]]), 'inputs-mismatch-outputs');
           } catch (invalidSum) {
-            console.log('invalidSum', invalidSum);
-            utils.assert(0, 'invalid-sum');
+            // Prepair the token ID.
+            const tokenId = utils.bigNumberify(parseInt(outsKeys[i], 10));
+
+            // Get the token address for this token ID.
+            const token = await config.db.get([
+              interface.db.token,
+              tokenId,
+            ]);
+
+            // Invalid transaction encoding.
+            return await commitFraud(
+              'proveInvalidSum',
+              [
+                protocol.transaction.TransactionProof({
+                  block,
+                  root,
+                  transactions: transactions
+                    .map(txHex => protocol.root.Leaf({
+                      // Trim the length and 0x prefix.
+                      data: struct.chunk(
+                        '0x' + txHex.slice(6),
+                      ),
+                    })),
+                  data,
+                  signatureFee: fee,
+                  signatureFeeToken: feeToken,
+                  rootIndex,
+                  transactionIndex,
+                  token,
+                  chainId: config.network.chainId,
+                }).encodePacked(),
+                protocol.transaction.utxoPacked(proofs),
+              ],
+              config,
+            );
           }
-        });
+        }
 
         if (config.archive) {
           // archival metadata, this is prunable
@@ -686,6 +1586,9 @@ async function process(block = {}, config = {}) {
             signatureFeeToken: feeToken,
             signatureFee: fee,
             spendableOutputs: spendableHashes,
+            inputProofs: proofs.map(v => v.encodeRLP()),
+            outputProofs: outputProofs.map(v => v.encodeRLP()),
+            inputTypes,
           }));
         }
 
@@ -717,14 +1620,16 @@ async function process(block = {}, config = {}) {
             rootAddon.properties.timestamp().get(),
             protocol.inputs.InputTypes.Root,
             0,
-            rootHash
+            rootHash,
           ], root);
-          await balance.increase(
+          await balance.increaseSyncAndMempool(
             block.properties.producer().get(),
             root.properties.feeToken().get(),
             root.properties.fee().get()
               .mul(root.properties.rootLength().get()),
-            config);
+            local,
+            rootHash,
+          );
         } catch (rootOwnerError) {
           config.console.error(rootOwnerError);
           utils.assert(0, 'root-process-error');
@@ -736,12 +1641,14 @@ async function process(block = {}, config = {}) {
           0,
           rootHash,
         ], root);
+        /*
         await db.put([
           interface.db.archiveHash,
           protocol.inputs.InputTypes.Root,
           0,
           rootHash,
         ], root);
+        */
         await db.put([
           interface.db.root,
           block.properties.height().get(),
@@ -781,34 +1688,71 @@ async function process(block = {}, config = {}) {
     config.console.log(`making ${entries.length} entries for block, batch size: ${batchSize}, payload size: ${payloadSize}`);
 
     // Make 20k groups of batches, execute them in parallel in payloads of 128 writes each
-    for (var retry = 0; retry < numberOfRetries; retry++) {
-      try {
-        // We attempt a large 20k batch size first, if it fails, than we try smaller batch sizes
-        const batchAttemptSize = Math.round(batchSize / (retry + 1));
-
-        // attempt 20k batchs
-        for (var bindex = 0; bindex < entries.length; bindex += batchAttemptSize) {
-          const _entries = entries.slice(bindex, bindex + batchAttemptSize);
-          let batches = [];
-
-          // build the payloads
-          for (var index = 0; index < _entries.length; index += payloadSize) {
-            batches.push(config.db.batch(_entries.slice(index, index + payloadSize)));
+    try {
+      for (var retry = 0; retry < numberOfRetries; retry++) {
+        try {
+          // We attempt a large 20k batch size first, if it fails, than we try smaller batch sizes
+          const batchAttemptSize = Math.round(batchSize / (retry + 1));
+  
+          // attempt 20k batchs
+          for (var bindex = 0; bindex < entries.length; bindex += batchAttemptSize) {
+            const _entries = entries.slice(bindex, bindex + batchAttemptSize);
+            let batches = [];
+  
+            // build the payloads
+            for (var index = 0; index < _entries.length; index += payloadSize) {
+              batches.push(config.db.batch(_entries.slice(index, index + payloadSize)));
+            }
+  
+            // send entire batch and payloads in parallel
+            await Promise.all(batches);
+          }
+  
+          // if all is well, break retry cycle, carry on..
+          break;
+        } catch (error) {
+          // If on the last retry, than throw an error.
+          if (retry > numberOfRetries - 2) {
+            throw new utils.ByPassError(error);
           }
 
-          // send entire batch and payloads in parallel
-          await Promise.all(batches);
+          // wait 10 seconds for potentially more connections
+          await utils.wait(10000);
+  
+          // let the terminal know a batch error has occured
+          config.console.error(`batch processing error: ${error.message}`);
         }
-
-        // if all is well, break retry cycle, carry on..
-        break;
-      } catch (error) {
-        // wait 10 seconds for potentially more connections
-        await utils.wait(10000);
-
-        // let the terminal know a batch error has occured
-        config.console.error(`batch processing error: ${error.message}`);
       }
+
+      // Write the block header
+      await config.db.put([
+        interface.db.block,
+        block.properties.height().get(),
+      ], block);
+    } catch (batchWriteError) {
+      // This is a catastrophic write error.
+      // We will dump the dels and puts so we can force recover from this event.
+      // Then we would add in the block header after.
+      config.console.error(`catastrophic batch write during block processing error!`);
+      config.console.error(batchWriteError);
+
+      // if File system is available, write a dump for recovery.
+      if (config.write) {
+        await config.write(
+          './block-write-dump.json',
+          JSON.stringify(entries),
+        );
+        await config.write(
+          './block-header-dump.json',
+          JSON.stringify(block.object()),
+        );
+
+        // Process write dump success
+        config.console.error(`process write dump success!`);
+      }
+
+      // Throw an error now.
+      throw new utils.ByPassError(batchWriteError);
     }
 
     // clear the cache / simulation db
@@ -817,7 +1761,7 @@ async function process(block = {}, config = {}) {
     // return the stats for this block
     return stats;
   } catch (processError) {
-    config.console.log('process error', processError);
+    config.console.error('process error', processError);
     throw new utils.ByPassError(processError);
   }
 }

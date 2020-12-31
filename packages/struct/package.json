@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "test": "nyc node src/test",
-    "lint": "eslint src/index.js",
+    "lint": "eslint src/index.js --fix",
     "prepublish": "npm test && npm run lint"
   },
   "repository": {
@@ -28,14 +28,14 @@
   "homepage": "https://github.com/fuellabs/fuel-js#readme",
   "devDependencies": {
     "@fuel-js/environment": "^0.1.0",
-    "eslint": "^7.6.0",
+    "eslint": "^7.2.0",
     "nyc": "^15.1.0",
     "eslint-config-airbnb-base": "^14.2.0",
-    "eslint": "^7.2.0",
     "eslint-plugin-import": "^2.21.2"
   },
   "dependencies": {
-    "@fuel-js/utils": "^0.1.1",
-    "@fuel-js/rolled": "^0.1.5"
+    "@ethersproject/abi": "^5.0.5",
+    "@fuel-js/rolled": "^0.1.5",
+    "@fuel-js/utils": "^0.1.1"
   }
 }

@@ -1,12 +1,11 @@
-const abi = require('@fuel-js/abi');
 const utils = require('@fuel-js/utils');
-const interface = require('@fuel-js/interface');
 const database = require('@fuel-js/database');
 const { local } = require('@fuel-js/down');
-const { v1 } = require('@fuel-js/deployments');
 const ethers = require('ethers');
 const memdown = require('memdown');
 const leveljs = require('level-js');
+const { Fuel, deployments } = require('@fuel-js/contracts');
+const { v1 } = deployments;
 
 function definedOr(value, or) {
   return typeof value !== "undefined" ? value : or;
@@ -62,7 +61,7 @@ function config(opts = process.env, _prefix = 'fuel_v1_') {
     block_time: 13 * 1000,
     blockHeight: resolve('blockHeight'),
     db: database(local(leveljs('fueldb-' + network))),
-    contract: new ethers.Contract(opts.contract || v1[network], abi.Fuel, provider), // selected Fuel contract object
+    contract: new ethers.Contract(opts.contract || v1[network], Fuel.abi, provider), // selected Fuel contract object
     provider, // provider object
     operators: resolve('operators'), // 0 is main operator, the rest are for root deployment
   };

@@ -1,4 +1,5 @@
-(async () => {
+module.exports = (async () => {
+
   await require('./inputs');
   await require('./outputs');
   await require('./root');
@@ -11,4 +12,5 @@
   await require('./withdraw');
   await require('./state');
   await require('./metadata');
+
 })();

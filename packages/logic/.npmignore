@@ -1,2 +1,3 @@
 src/test
 .fueldb-unspecified
+.nyc_output

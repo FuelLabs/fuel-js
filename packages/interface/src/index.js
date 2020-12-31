@@ -63,7 +63,7 @@ const db = {
   block: Key(index++, 'uint32 blockHeight'),
 
   // Prunable, fee token
-  fee: Key(index++, 'address token'),
+  fee: Key(index++, 'uint32 tokenId'),
 
   // Essential, deposit proof for processign
   deposit: Key(index++, 'uint32 blockNumber', 'address token', 'address owner'),
@@ -98,6 +98,31 @@ const db = {
   // in the mempool, similar to owner but in reverse
   decrease: Key(index++, 'address owner', 'uint32 token',
     'uint64 timestamp', 'uint8 type', 'uint8 isWithdrawal', 'bytes32 inputHash'),
+
+  // Essential, deposit proof for processign
+  deposit2: Key(index++, 'address owner', 'address token', 'uint32 blockNumber'),
+
+  // Essential, Metadata ID Hash [id => hash]; kept until finality, than prunable.
+  inputMetadataHash: Key(index++, 'uint8 type', 'uint8 isWithdrawal',
+    'uint32 blockHeight', 'uint8 rootIndex', 'uint32 transactionIndex', 'uint8 outputIndex'),
+
+  // Mempool scan point for balance reconciliation.
+  scanPoint: Key(index++),
+
+  // Commmitment wait in blockNumber.
+  commitmentWait: Key(index++),
+
+  // Token metadata, is for storing token name, decimals etc.
+  tokenMetadata: Key(index++, 'uint32 token'),
+
+  // This is for fee enforcmenet keys.
+  record: Key(index++, 'address provider', 'uint64 timestamp', 'bytes32 transactionId'),
+
+  // This is the last block retrieved by the sync process.
+  lastRetrieved: Key(index++),
+
+  // To mark withdrawls.
+  withdraw: Key(index++, 'bytes32 withdrawHash'),
 };
 
 module.exports = {

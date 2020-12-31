@@ -6,6 +6,7 @@ const compile = require('./compile');
 const deployer = require('./deploy');
 
 const { createHarness, tapeTapLike, mochaTapLike } = require('zora');
+const { JsonRpcProvider } = require('ethers/providers');
 const harness = createHarness();
 const { test } = harness;
 
@@ -35,10 +36,15 @@ const providerConfig = {
 const ganacheProvider = ganache.provider(providerConfig);
 let provider = new providers.Web3Provider(ganacheProvider);
 const server = ganache.server(providerConfig);
+let usingServer = false;
 
-if (process.env.server) {
+if (process.env.genacheServer) {
   console.log(`genache listening at http://localhost:${process.env.server || 8545}`);
   server.listen(process.env.server || 8545);
+  provider = new providers.JsonRpcProvider(
+    `http://localhost:${process.env.server || 8545}`,
+  );
+  usingServer = true;
 }
 
 let wallets = [
@@ -101,6 +107,10 @@ async function deploy(abi, bytecode, args, wallet = null, opts = null) {
 }
 
 function rpc(method, ...args) {
+  if (usingServer) {
+    return provider.send(method, args);
+  }
+
   return new Promise((resolve, reject) => ganacheProvider.sendAsync({ method, params: args }, (err, result) => {
     if (err) return reject(err);
     if (result) return resolve(result);

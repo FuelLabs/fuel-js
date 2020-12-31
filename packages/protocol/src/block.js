@@ -30,9 +30,11 @@ BlockHeader.fromLogs = async function (height, contract) {
       topics: contract.filters.BlockCommitted(null, null, null, null, height).topics,
     });
 
-    const log = contract.interface.parseLog(logs[0]);
+    // get the latest log.
+    const raw = logs.pop();
+    const log = contract.interface.parseLog(raw);
 
-    return new BlockHeader({ ...log.values, blockNumber: logs[0].blockNumber });
+    return new BlockHeader({ ...log.values, blockNumber: raw.blockNumber });
   } catch (error) {
     throw new utils.ByPassError(error);
   }

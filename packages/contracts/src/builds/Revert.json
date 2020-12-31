@@ -1,0 +1,13 @@
+{
+  "bytecode": "0x604680600e600039806000f350fe600036818237600160e01b8151046370a082318114602d5763a9059cbb8114603a5760028252602082fd6043565b6113888252602082f36043565b60018252602082fd5b5050",
+  "abi": [
+    "balanceOf(address owner) public view returns (uint256 balance)",
+    "transfer(address owner, uint256 amount) public returns (bool success)"
+  ],
+  "errors": {
+    "transfer": "0x01",
+    "0x01": "transfer",
+    "invalid-sig": "0x02",
+    "0x02": "invalid-sig"
+  }
+}
