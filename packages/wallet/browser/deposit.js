@@ -36,6 +36,7 @@ const fuel = require('../src/index');
     const daiAddress = '0x6b175474e89094c44da98b954eedeac495271d0f';
     const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 
+    /*
     console.log(
         await wallet.deposit(
             usdcAddress,
@@ -46,12 +47,13 @@ const fuel = require('../src/index');
         ),
     );
 
-    /*
     console.log(await wallet.transfer(
         daiAddress,
         '0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C',
         fuel.utils.parseEther('.00002')));
 
+    */
+        /*
     console.log(await wallet.transfer(
         daiAddress,
         '0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C',

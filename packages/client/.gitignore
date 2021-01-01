@@ -12,3 +12,4 @@ node_modules
 .fueldb-remote-unspecified
 ./.fueldb-remote-unspecified
 old
+geth
