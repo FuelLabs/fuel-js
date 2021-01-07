@@ -28,9 +28,6 @@ async function sync(config = {}) {
     // Ideal spead is 100 logs.
     const SCAN_LOGS_SIZE = config.scanSize || 512;
 
-    // Finalization delay.
-    const FINALIZATION_DELAY = await config.contract.FINALIZATION_DELAY();
-
     // setup state, get from DB or blank state
     let state = null;
     try {
@@ -51,6 +48,9 @@ async function sync(config = {}) {
     |     archive mode : ${config.archive ? 'on' : 'off'}
     |         write fs : ${config.write ? 'on' : 'off'}
     |            state : ${JSON.stringify(state.object())}`);
+
+    // Finalization delay.
+    const FINALIZATION_DELAY = await config.contract.FINALIZATION_DELAY();
 
     // Setup contract address, namely for testing / sanity checks
     await config.db.put([
