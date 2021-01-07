@@ -16,6 +16,7 @@ const faucet = require('./faucet');
 const recover = require('./recover');
 const keyToWallet = require('./keyToWallet');
 const retrieveBonds = require('./retrieveBonds');
+const fetch = require('./fetch');
 
 // Start async loop.
 async function app(opts = {}) {
@@ -34,7 +35,10 @@ async function app(opts = {}) {
 
     // loop exit
     exit(() => {
-        console.log('attempting exit');
+        // If loop still up, echo exit.
+        if (loop.continue) {
+            console.log('Attempting graceful shutdown...');
+        }
         try {
             server.close();
         } catch (serverError) {
@@ -59,7 +63,13 @@ async function app(opts = {}) {
         }
 
         // Setup or load a wallet.
-        const operator = opts.operator || await wallet(cl.flags, environment);
+        let operator = null; // opts.operator || await wallet(cl.flags, environment);
+        try {
+            operator = opts.operator || await wallet(cl.flags, environment);
+        } catch (error) {
+            console.error('Fuel wallet setup error' + error.message);
+            return;
+        }
 
         // Special faucet operator.
         let faucetOperator = null;
@@ -70,15 +80,69 @@ async function app(opts = {}) {
             }, environment);
         }
 
+        // Local dpeloyment
+        let localDeploymentOpts = {};
+        if (opts.localDeployment) {
+            localDeploymentOpts = await opts.localDeployment(cl.flags);
+        }
+
+        // Provided network.
+        const providedNetwork = opts.network || 'mainnet';
+
+        // If CI flag for RPC is used, we have to do additional setup / checks.
+        if (cl.flags.rpc) {
+            // Sample provider and networks.
+            let detectedNetwork = null;
+            let lastConnectionError = null;
+            let count = 0;
+
+            // Max connecton attempts to RPC provider.
+            const connectionAttempts = 10;
+
+            // Try to connect with network a few times before setup and configuration.
+            while (!detectedNetwork && count < connectionAttempts) {
+                // Attempt connection and network collection.
+                try {
+                    // Sample provider.
+                    const sampledProvider = new ethers.providers.JsonRpcProvider(
+                        cl.flags.rpc,
+                        providedNetwork,
+                    );
+
+                    // Detect network.
+                    detectedNetwork = await sampledProvider.getNetwork();
+
+                    // Network detected.
+                    console.log('Network successfully detected: ' + detectedNetwork.name);
+                } catch (connectionError) {
+                    // Wait 2 seconds.
+                    await utils.wait(2000);
+
+                    // Set last error
+                    lastConnectionError = connectionError;
+                }
+
+                // Count.
+                count += 1;
+            }
+
+            // Count check.
+            if (count >= 10) {
+                console.error('Error while connecting to RPC provider: ');
+                console.error(lastConnectionError);
+            }
+        }
+
         // Settings configuration defaults.
         let settings = config({
-            network: opts.network || 'rinkeby',
+            network: providedNetwork,
             ...environment,
             ...cl.flags,
             loop,
             operator,
             faucetOperator,
             ...opts,
+            ...localDeploymentOpts,
         });
 
         // Force clear the database (no command prompt needed.) -- used for CI.
@@ -193,7 +257,7 @@ async function app(opts = {}) {
             app.use(bodyParser.urlencoded({ extended: true }));
 
             app.use((req, res, next) => {
-                res.setHeader('Access-Control-Allow-Origin', 'http://localhost:' + port);
+                res.setHeader('Access-Control-Allow-Origin', cl.flags.cors || 'http://localhost:1234');
                 res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
                 res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With, Content-Type, Accept');
                 next();
@@ -220,7 +284,6 @@ async function app(opts = {}) {
                 } catch (error) {
                         res.status(400);
                         res.end();
-                        console.error(error);
                 }
             });
 
@@ -263,7 +326,6 @@ async function app(opts = {}) {
                 } catch (error) {
                     res.status(400);
                     res.end();
-                    console.error(error);
                 }
             });
 
@@ -303,6 +365,7 @@ async function app(opts = {}) {
                     // Nonce number which prevents transactions out of order, same lambda, same timestamp
                     nonce += 1;
 
+                    // Transact with the DB.
                     res.status(200).json({
                         error: null,
                         result: utils.RLP.encode(
@@ -322,7 +385,6 @@ async function app(opts = {}) {
                 } catch (error) {
                     res.status(400);
                     res.end();
-                    console.error(error);
                 }
             });
 
@@ -349,7 +411,6 @@ async function app(opts = {}) {
                 } catch (error) {
                     res.status(400);
                     res.end();
-                    console.error(error);
                 }
             });
 
@@ -370,7 +431,6 @@ async function app(opts = {}) {
                 } catch (error) {
                     res.status(400);
                     res.end();
-                    console.error(error);
                 }
             });
 
@@ -394,7 +454,6 @@ async function app(opts = {}) {
                 } catch (error) {
                     res.status(400);
                     res.end();
-                    console.error(error);
                 }
             });
 
@@ -435,7 +494,7 @@ async function app(opts = {}) {
             process.exit(0);
         }
     } catch (clientError) {
-        console.error(clientError);
+        console.error('Client error: ' + clientError.message);
         process.exit(0);
     }
 };
