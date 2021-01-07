@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/client",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "The Fuel version 1.0.0 client.",
   "main": "src/index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "start-mainnet": "node src/index.js -e --network='mainnet' --produce=false --clear=true --archive=true",
     "start-mainnet-nonarchive": "node src/index.js -e --network='mainnet' --produce=false --clear=true --archive=false",
     "start-rinkeby": "node src/index.js -e --network='rinkeby' --produce=false --clear=false --archive=true",
-    "start-rinkeby-2": "node src/index.js -e --serve=true --network='rinkeby' --produce=false --clear=false --archive=true",
+    "start-rinkeby-2": "node src/index.js -e --serve=true --cors='http://localhost:1234' --network='rinkeby' --produce=false --clear=false --archive=true",
     "start-rinkeby-local": "node src/full.js -e --serve=true --network='rinkeby' --produce=true --clear=false --proxy=true --archive=true --scanSize=10000 --wallet='../../../wallets/.fuel-wallet.json' --faucet_wallet='../../../wallets/.faucet-wallet.json'",
     "start-oracle": "node src/index.js -e --oracle=true --network='mainnet'",
     "start-testing": "genacheServer=1 node src/testing.js --serve=true --network='unspecified' --produce=true --proxy=true --archive=true --scanSize=10000",
@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "@fuel-js/utils": "^0.1.0",
-    "@fuel-js/logic": "^0.5.3",
+    "@fuel-js/logic": "^0.5.5",
     "@fuel-js/down": "^0.1.5",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/protocol": "^0.4.2",

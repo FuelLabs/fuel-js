@@ -2,6 +2,7 @@ const write = require('write');
 const read = require('fs-readfile-promise');
 const prompts = require('prompts');
 const ethers = require('ethers');
+const { sign } = require('crypto');
 
 // default wallet path
 const defaultPath = '.fuel-wallet.json';
@@ -45,26 +46,31 @@ async function wallet(flags = {}, environment = {}) {
       }
 
       // Password.
-      let password = null;
+      let password = '';
 
       // Get environmental password if not available.
-      if (environment.fuel_v1_default_password) {
-        password = environment.fuel_v1_default_password;
-
-        console.log('password detected in the environment');
-      } else {
-        // ask for password
-        const promptResult = await prompts({
-          type: 'password',
-          name: 'password',
-          message,
-        });
-
-        password = promptResult.password;
+      try {
+        if (environment.fuel_v1_default_password) {
+          password = environment.fuel_v1_default_password;
+  
+          console.log('Wallet password detected in the environment');
+        } else {
+          // ask for password
+          const promptResult = await prompts({
+            type: 'password',
+            name: 'password',
+            message,
+          });
+  
+          password = promptResult.password;
+        }
+      } catch (promptError) {
+        console.error('Password prompt error' + promptError.message);
+        throw new Error(error.message);
       }
 
       // length check
-      if (password.length < 8) {
+      if ((password || '').length < 8) {
         throw new Error('password must be more than 8 characters');
       }
 
@@ -85,7 +91,7 @@ async function wallet(flags = {}, environment = {}) {
       // encrypto wallet JSON again
       json = await _wallet.encrypt(password);
     } catch (readError) {
-      console.error(readError);
+      console.error('Wallet decryption error: ' + readError.message);
     }
 
     // write the JSON to the appropriate path

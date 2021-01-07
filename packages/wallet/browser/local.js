@@ -4,13 +4,17 @@ const fuel = require('../src/index');
 (async () => {
     // Create a new wallet with a new key
     const wallet = new fuel.Wallet(window.ethereum, {
-        // privateKey: pk,
-        network: 'mainnet', 
+        network: 'rinkeby', 
+        path: 'http://localhost:3000',
     });
 
-    wallet.on('deposit-funnel-receipt', console.log);
-    wallet.on('deposit-commmitment-receipt', console.log);
-    wallet.on('deposit', console.log);
+    await wallet.sync();
+
+    console.log(await wallet.transfer(
+        1,
+        wallet.address,
+        fuel.utils.parseEther('1'),
+    ));
 
     /*
     const pk = fuel.utils.hexlify(fuel.utils.randomBytes(32));
@@ -31,11 +35,11 @@ const fuel = require('../src/index');
             expiry: 5000000,
         },
     ));
-        */
 
     const daiAddress = '0x6b175474e89094c44da98b954eedeac495271d0f';
     const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
 
+        */
     /*
     console.log(
         await wallet.deposit(

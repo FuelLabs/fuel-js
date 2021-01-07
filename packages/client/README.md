@@ -11,3 +11,30 @@
 Please consult the SDK documentation:
 
 [docs.fuel.sh](https://docs.fuel.sh)
+
+## Build from Source
+
+```bash
+git clone https://github.com/FuelLabs/fuel-js
+cd fuel-js/packages/client
+npm install
+npm run build-bin
+```
+
+Then select the distro for your environment i.e. `./dist/client-linux --help`
+
+## Running from Source
+
+You may run Fuel with NodeJS vanilla.
+
+```bash
+node src/index.js --help
+```
+
+## Recommended Go-Ethereum (Geth) Settings
+
+```
+geth --http
+```
+
+These are the recommended settings for `geth` which by default will host the go-ethereum RPC at `http://localhost:8545`. If you are still having trouble connection, try adjusting your `--http.cors` settings.

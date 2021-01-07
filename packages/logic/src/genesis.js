@@ -1,16 +1,37 @@
 const utils = require('@fuel-js/utils');
 
-// return the genesis Ethereum block for this contract
+// Block numbers.
+const blockNumbers = {
+  "v1": {
+      "mainnet": 11559670,
+      "rinkeby": 7581296
+  }
+};
+
+// Return the genesis Ethereum block for this contract.
 async function genesis(config = {}) {
   try {
-    // get logs
+    let fromBlock = 0;
+
+    // Mainnet patch.
+    if (config.network.chainId === 1) {
+      fromBlock = blockNumbers.v1.mainnet;
+    }
+
+    // Rinkeby patch.
+    if (config.network.name === 'rinkeby') {
+      fromBlock = blockNumbers.v1.rinkeby;
+    }
+
+    // Get logs.
     const logs = await config.provider.getLogs({
-      fromBlock: 0,
+      fromBlock,
       toBlock: 'latest',
       address: config.contract.address,
       topics: config.contract.filters.BlockCommitted(null, null, null, null, 0, null).topics,
     });
 
+    // Return the genesis block number log.
     return logs[0].blockNumber;
   } catch (error) {
     throw new utils.ByPassError(error);
