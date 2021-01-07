@@ -10,7 +10,7 @@ function cli() {
 
   ${chalk.grey(`Options:`)}
 
-    -n, --network         the ethereum network "rinkeby"; default "rinkeby"
+    -n, --network         the ethereum network "mainnet"; default "mainnet"
     -r, --rpc             a standard Ethereum RPC provider (i.e. local go-ethereum)
     -i, --infura          an Infura service API key (--network must also be specified)
     -es, --etherscan      an Etherscan service API key (--network must also be specified)
@@ -19,6 +19,7 @@ function cli() {
     -c, --clear           clears the leveldb store
     -s, --serve           starts a local Fuel RPC server on http://localhost:3000; default false
     -p, --port            specify the Fuel RPC server port; default 3000
+    -cr, --cors           cors domain for the Fuel RPC server; default http://localhost:1234
     -o, --oracle          start a price feed oracle for stablecoins and ether
     -f, --faucet          start a test network faucet
 
@@ -61,9 +62,17 @@ function cli() {
         type: 'string',
         alias: 'db',
       },
+      cors: {
+        type: 'string',
+        alias: 'cr',
+      },
       faucet_wallet: {
         type: 'string',
         alias: 'fw',
+      },
+      deploy: {
+        type: 'boolean',
+        alias: 'd',
       },
       produce: {
         type: 'boolean',

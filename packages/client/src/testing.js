@@ -4,6 +4,7 @@ const { ERC20, OwnedProxy, Fuel } = require('@fuel-js/contracts');
 const database = require('@fuel-js/database');
 const { copy } = require('@fuel-js/down');
 const leveldown = require('leveldown');
+const ethers = require('ethers');
 const schema = require('@fuel-js/interface');
 const faucetPlugin = require('./faucetPlugin');
 
@@ -127,7 +128,7 @@ test('testing node', async t => {
             await t.increaseBlock(1);
         },
         increaseBlock: t.increaseBlock,
-        provider: t.getProvider(),
+        provider: new ethers.providers.JsonRpcProvider('http://localhost:8545', 'unspecified'),
         network: 'unspecified',
         minimumTransactionsPerRoot: 2000,
         pullLimit: 12000,

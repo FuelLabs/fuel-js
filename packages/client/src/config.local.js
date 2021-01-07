@@ -63,6 +63,7 @@ function config(opts = process.env, _prefix = 'fuel_v1_') {
         provider = new ethers.providers.EtherscanProvider(networkObject.name, etherscan);
       }
     } else {
+      _console.log('Using RPC provider: ' + resolve('rpc') + ' on network: ' + networkObject.name);
       provider = new ethers.providers.JsonRpcProvider(resolve('rpc'), networkObject.name);
     }
   }
