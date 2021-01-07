@@ -70,6 +70,37 @@ module.exports = test('wallet', async t => {
       apiKey,
     });
 
+
+    const walletC = new fuel.Wallet(jsonProvider, {
+        privateKey: t.wallets[1].privateKey,
+        network,
+        path,
+        apiKey,
+    });
+
+    await walletC.faucet();
+
+    // Get the transaction Id for this transfer.
+    const txTokenId = 1;
+    const txAddress = '0x1dF62f291b2E969fB0849d99D9Ce41e2F137006e';
+    const txAmount = utils.parseEther('1');
+    const transactionId = await walletC.transfer(txTokenId, txAddress, txAmount, {
+        transactionId: true,
+    });
+
+    // Commit the witness.
+    let commitTx = await walletC.contract.commitWitness(transactionId, {
+        gasLimit: 200000,
+    });
+
+    // Wait for the commitment to happen.
+    commitTx = await commitTx.wait(12);
+
+    // Transfer with caller.
+    t.ok(await walletC.transfer(txTokenId, txAddress, txAmount, {
+        caller: commitTx.events[0].args,
+    }));
+
     console.log('wallet a address', walletA.address);
 
     await walletA.sync();
