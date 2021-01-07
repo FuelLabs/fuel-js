@@ -918,6 +918,9 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
     utils.assert(amount.gt(0), 'amount-underflow');
     utils.assert(balance.gte(amount), 'not-enough-balance');
 
+    // Use caller witness.
+    let useCallerWitness = opts.caller || null;
+
     // No inputs..
     utils.assert(inputs.length, 'spendable-inputs-underflow');
 
@@ -1017,7 +1020,10 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
         utils.assert(0, `fee-token-error-${JSON.stringify(feeError)}`);
       }
 
-      const fakeWitness = utils.hexlify(utils.randomBytes(66));
+      // This is just for setting the correct byte length.
+      const fakeWitness = useCallerWitness
+        ? 25
+        : utils.hexlify(utils.randomBytes(66));
 
       // This is the pretend leaf we use for size calculation.
       const _leaf = protocol.transaction._Transaction({
@@ -1075,9 +1081,6 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
       });
     }
 
-    // Resign this tx.
-    witnesses = [await self._sign(unsigned, opts)];
-
     const {
       hash,
     } = protocol.eip712.hash({
@@ -1085,6 +1088,34 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
       contract: self.contract,
       chainId: self.network.chainId,
     });
+
+    // This will return the proposed tx id.
+    if (opts.transactionId) {
+      return hash;
+    }
+
+    // Resign this tx.
+    if (useCallerWitness) {
+      witnesses = [
+        protocol.witness.Caller({
+          ...opts.caller,
+          /*
+          ...await opts.caller({
+            transactionId: hash,
+            unsigned,
+            network: self.network,
+            address: self.address,
+            contract: self.contract,
+            chainId: self.network.chainId,
+          }),
+          */
+        }),
+      ];
+    } else {
+      witnesses = [
+        await self._sign(unsigned, opts),
+      ];
+    }
 
     let addChange = () => {};
     let addSelfTransfer = () => {};
