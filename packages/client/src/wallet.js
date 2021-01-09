@@ -52,7 +52,7 @@ async function wallet(flags = {}, environment = {}) {
       try {
         if (environment.fuel_v1_default_password) {
           password = environment.fuel_v1_default_password;
-  
+
           console.log('Wallet password detected in the environment');
         } else {
           // ask for password
@@ -61,7 +61,7 @@ async function wallet(flags = {}, environment = {}) {
             name: 'password',
             message,
           });
-  
+
           password = promptResult.password;
         }
       } catch (promptError) {
@@ -70,7 +70,7 @@ async function wallet(flags = {}, environment = {}) {
       }
 
       // length check
-      if ((password || '').length < 8) {
+      if (!json && (password || '').length < 8) {
         throw new Error('password must be more than 8 characters');
       }
 
