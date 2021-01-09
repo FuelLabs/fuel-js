@@ -1,8 +1,8 @@
 const write = require('write');
-const read = require('fs-readfile-promise');
 const prompts = require('prompts');
 const ethers = require('ethers');
 const { sign } = require('crypto');
+const { promises: fs } = require('fs')
 
 // default wallet path
 const defaultPath = '.fuel-wallet.json';
@@ -17,7 +17,7 @@ async function wallet(flags = {}, environment = {}) {
     // if the user provided a wallet path, try to read it
     if (provided) {
       try {
-        json = await read(_path, 'utf8');
+        json = await fs.read(_path, 'utf8');
       } catch (readError) {
         throw new Error('Error reading wallet path: ' + readError.message);
       }
@@ -29,7 +29,7 @@ async function wallet(flags = {}, environment = {}) {
       // if no wallet was provided, attempt to read the default path wallet
       if (!provided) {
         try {
-          json = await read(_path, 'utf8');
+          json = await fs.read(_path, 'utf8');
         } catch (readDefaultError) {
           // ignore defualt read error
         }
