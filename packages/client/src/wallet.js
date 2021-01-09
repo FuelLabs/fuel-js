@@ -12,9 +12,7 @@ async function wallet(flags = {}, environment = {}) {
   try {
     const provided = flags.wallet;
     const _path = provided || defaultPath;
-    let _wallet = null;
     let json = null;
-    let message = null;
 
     // if the user provided a wallet path, try to read it
     if (provided) {
@@ -37,13 +35,9 @@ async function wallet(flags = {}, environment = {}) {
         }
       }
 
-      // default message
-      message = 'Please enter a Fuel wallet encryption passphrase';
-
-      // if the wallet was found or provided locally
-      if (json) {
-        message = 'Please enter your Fuel wallet decryption passphrase';
-      }
+      const message = json ?
+        'Please enter your Fuel wallet decryption passphrase' :
+        'Please enter a Fuel wallet encryption passphrase';
 
       // Password.
       let password = '';
@@ -74,17 +68,13 @@ async function wallet(flags = {}, environment = {}) {
         throw new Error('password must be more than 8 characters');
       }
 
-      // if no json found, create a wallet
-      if (!json) {
-        _wallet = ethers.Wallet.createRandom();
-      }
-
       // if no wallet present, attempt to load the JSON from password
-      if (!_wallet) {
-        _wallet = await ethers.Wallet.fromEncryptedJson(json, password);
-      }
+      // otherwise create wallet
+      const _wallet = json ?
+        (await ethers.Wallet.fromEncryptedJson(json, password)) :
+        ethers.Wallet.createRandom();
 
-      // encrypto wallet JSON again
+      // encrypt to wallet JSON again
       json = await _wallet.encrypt(password);
     } catch (readError) {
       console.error('Wallet decryption error: ' + readError.message);
