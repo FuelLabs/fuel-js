@@ -10,18 +10,23 @@ function cli() {
 
   ${chalk.grey(`Options:`)}
 
-    -n, --network         the ethereum network "mainnet"; default "mainnet"
-    -r, --rpc             a standard Ethereum RPC provider (i.e. local go-ethereum)
-    -i, --infura          an Infura service API key (--network must also be specified)
-    -es, --etherscan      an Etherscan service API key (--network must also be specified)
-    -e, --environment     use the environment variables to specify node paramaters
-    -w, --wallet          path to a pbkdf2 encrypted Ethers wallet JSON file; default ".fuel-wallet.json"
-    -c, --clear           clears the leveldb store
-    -s, --serve           starts a local Fuel RPC server on http://localhost:3000; default false
-    -p, --port            specify the Fuel RPC server port; default 3000
-    -cr, --cors           cors domain for the Fuel RPC server; default http://localhost:1234
-    -o, --oracle          start a price feed oracle for stablecoins and ether
-    -f, --faucet          start a test network faucet
+    -n, --network           the ethereum network "mainnet"; default "mainnet"
+    -r, --rpc               a standard Ethereum RPC provider (i.e. local go-ethereum)
+    -i, --infura            an Infura service API key (--network must also be specified)
+    -es, --etherscan        an Etherscan service API key (--network must also be specified)
+    -e, --environment       use the environment variables to specify node paramaters
+    -w, --wallet            path to a pbkdf2 encrypted Ethers wallet JSON file; default ".fuel-wallet.json"
+    -c, --clear             clears the leveldb store
+    -s, --serve             starts a local Fuel RPC server on http://localhost:3000; default false
+    -p, --port              specify the Fuel RPC server port; default 3000
+    -cr, --cors             cors domain for the Fuel RPC server; default http://localhost:1234
+    -o, --oracle            start a price feed oracle for stablecoins and ether
+    -f, --faucet            start a test network faucet
+    -pr, --produce          start a block producing node
+    -px, --proxy            ??should the node run as the proxy hot operator
+    -ma, --maxMempoolAge    ??max age for transactions
+    -ms, --minRootSize      ??unknown
+    -ss, --scanSize         ??number of blocks to ingest when syncing
 
   ${chalk.grey(`Examples:`)}
 
@@ -76,7 +81,7 @@ function cli() {
       },
       produce: {
         type: 'boolean',
-        alias: 'p',
+        alias: 'pr',
       },
       clear: {
         type: 'boolean',
@@ -112,7 +117,7 @@ function cli() {
       },
       proxy: {
         type: 'boolean',
-        alias: 'p',
+        alias: 'px',
       },
       oracle: {
         type: 'boolean',
