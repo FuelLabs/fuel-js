@@ -81,11 +81,7 @@ async function wallet(flags = {}, environment = {}) {
 
       // if no wallet present, attempt to load the JSON from password
       if (!_wallet) {
-        try {
-          _wallet = await ethers.Wallet.fromEncryptedJson(json, password);
-        } catch (decryptError) {
-          throw new Error(decryptError.message);
-        }
+        _wallet = await ethers.Wallet.fromEncryptedJson(json, password);
       }
 
       // encrypto wallet JSON again
