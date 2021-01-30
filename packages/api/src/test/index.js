@@ -21,7 +21,9 @@ module.exports = test('api', async t => {
     );
     t.ok(balance, 'balance');
 
-    // const profile2 = await api.getProfile('0x73813909482106190c0e0fa220028d7787c221dc');
+    const profile2 = await api.getProfile('0x2e0a5d875f0209d2267721105847d6d52df50784');
+
+    console.log(profile2);
 
     // const profile3 = await api.getProfile('0x19148d0a7ae99f19bc3862857318a7f80f96564c');
 

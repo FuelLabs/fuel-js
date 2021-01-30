@@ -1,4 +1,4 @@
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const utils = require('@fuel-js/utils');
 
 /// @notice Proof from Metadata and Input.

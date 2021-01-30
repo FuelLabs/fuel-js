@@ -1,7 +1,6 @@
 const utils = require('@fuel-js/utils');
 const interface = require('@fuel-js/interface');
 const streamToArray = require('stream-to-array');
-const protocol = require('@fuel-js/protocol');
 const getAssets = require('./assets');
 const getHistory = require('./history');
 

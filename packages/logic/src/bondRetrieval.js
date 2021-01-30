@@ -1,5 +1,5 @@
 const utils = require('@fuel-js/utils');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const interface = require('@fuel-js/interface');
 const operatorsToWallets = require('./operatorsToWallets');
 

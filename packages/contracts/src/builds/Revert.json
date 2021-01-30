@@ -1,13 +1,23 @@
 {
-  "bytecode": "0x604680600e600039806000f350fe600036818237600160e01b8151046370a082318114602d5763a9059cbb8114603a5760028252602082fd6043565b6113888252602082f36043565b60018252602082fd5b5050",
+  "bytecode": "0x60fd8061000f600039806000f350fe600036818237600160e01b8151046370a08231811460425763a9059cbb8114604f5763352e65528114605c57634c97815b811460a357603e60058360e5565b60df565b6113888252602082f360df565b605860018360e5565b60df565b3660048337815160205160405163f9609f08855281602052806040525050608c600284856044601c88875af160e5565b609e600384856044601c88875af160e5565b5060df565b3660048337815160205163cc4c0b4b8452806020525060cb600284856024601c88875af160e5565b60dd600484856024601c88875af160e5565b505b505060fc565b600181101560f7578160005260206000fd5b5b5050565b",
   "abi": [
     "balanceOf(address owner) public view returns (uint256 balance)",
-    "transfer(address owner, uint256 amount) public returns (bool success)"
+    "transfer(address owner, uint256 amount) public returns (bool success)",
+    "doubleDeposit(address fuel, address owner, address token)",
+    "deposit(address owner, address token)",
+    "doubleCommitWitnesss(address fuel, bytes32 witness)",
+    "commitWitness(bytes32)"
   ],
   "errors": {
     "transfer": "0x01",
     "0x01": "transfer",
-    "invalid-sig": "0x02",
-    "0x02": "invalid-sig"
+    "call": "0x02",
+    "0x02": "call",
+    "per-block": "0x03",
+    "0x03": "per-block",
+    "already-witnessed": "0x04",
+    "0x04": "already-witnessed",
+    "invalid-sig": "0x05",
+    "0x05": "invalid-sig"
   }
 }

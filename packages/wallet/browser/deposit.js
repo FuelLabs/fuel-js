@@ -1,16 +1,19 @@
 const regeneratorRuntime = require("regenerator-runtime");
 const fuel = require('../src/index');
+const Api = require('@fuel-js/api');
+const { setInterval } = require("timers");
 
 (async () => {
     // Create a new wallet with a new key
     const wallet = new fuel.Wallet(window.ethereum, {
-        // privateKey: pk,
         network: 'mainnet', 
     });
 
     wallet.on('deposit-funnel-receipt', console.log);
     wallet.on('deposit-commmitment-receipt', console.log);
     wallet.on('deposit', console.log);
+
+    const api = new Api('mainnet');
 
     /*
     const pk = fuel.utils.hexlify(fuel.utils.randomBytes(32));
@@ -20,21 +23,41 @@ const fuel = require('../src/index');
     });
 
     console.log('private key', pk);
+    */
 
-    console.log(await wallet.transfer(
-        0,
-        wallet2.address,
-        fuel.utils.parseEther('.0002'),
-        {
-            htlc: true,
-            preImage: fuel.utils.keccak256('0xdeadbead'),
-            expiry: 5000000,
-        },
-    ));
-        */
+    await wallet.sync();
 
+    // console.log('profile', await api.getProfile(wallet.address));
+
+    const dest = '0xc1e0Dc2deE0fb13000452259CBCD5b1a9023b4Fa';
     const daiAddress = '0x6b175474e89094c44da98b954eedeac495271d0f';
     const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
+    const usdtAddress = '0xdac17f958d2ee523a2206206994597c13d831ec7';
+
+    /*
+    for (var i = 0; i < 30; i++) {
+        console.log(await wallet.transfer(
+            usdcAddress,
+            dest,
+            fuel.utils.parseUnits('.0435', 6),
+        ));
+        console.log(await wallet.transfer(
+            usdtAddress,
+            dest,
+            fuel.utils.parseUnits('.0435', 6),
+        ));
+    }
+
+    console.log(
+        await wallet.deposit(
+            usdtAddress,
+            fuel.utils.parseUnits('5.50', 6),
+            {
+                gasLimit: 300000,
+            },
+        ),
+    );
+    */
 
     /*
     console.log(

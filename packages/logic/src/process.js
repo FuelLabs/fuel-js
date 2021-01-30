@@ -1,4 +1,4 @@
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const utils = require('@fuel-js/utils');
 const struct = require('@fuel-js/struct');
 const database = require('@fuel-js/database');
@@ -106,7 +106,7 @@ async function commitFraud(kind = '', args = [], config = {}) {
 }
 
 /// @notice Proof from Metadata and Input.
-async function proofFromMetadata({ metadata, input, config }) {
+async function proofFromMetadata({ metadata, input, config, includeFirstProof, returnUTXOProof }) {
   const block = await protocol.block.BlockHeader.fromLogs(
     metadata.properties.blockHeight().get().toNumber(),
     config.contract,
@@ -146,7 +146,7 @@ async function proofFromMetadata({ metadata, input, config }) {
   const transactions = protocol.root.decodePacked(calldata);
 
   // Selected transaction index.
-  const transactionIndex = metadata.properties.transactionIndex().get();
+  const transactionIndex = metadata.properties.transactionIndex().get().toNumber();
 
   // Check index overflow.
   utils.assert(transactions[transactionIndex], 'transaction-index');
@@ -205,6 +205,9 @@ async function proofFromMetadata({ metadata, input, config }) {
   // The map of this is stored in the db.
   let data = [];
 
+  // Feed the first proof into input proofs for invalidWitness.
+  let inputProofs = [];
+
   // Go through each input and build the data array.
   for (var i = 0; i < transaction.inputs.length; i++) {
     const _input = transaction.inputs[i];
@@ -228,6 +231,16 @@ async function proofFromMetadata({ metadata, input, config }) {
             _metadata.properties.outputIndex().get(),
           ]),
         );
+
+        // Include this as first proof.
+        if (includeFirstProof && i === 0) {
+          inputProofs = (await proofFromMetadata({
+            metadata: _metadata,
+            input: _input,
+            returnUTXOProof: true,
+            config,
+          })).encodePacked();
+        }
         break;
 
       case protocol.inputs.InputTypes.Deposit:
@@ -238,14 +251,22 @@ async function proofFromMetadata({ metadata, input, config }) {
           _metadata.properties.blockNumber().get(),
         );
 
+        // The deposit proof.
+        const _depositProof = protocol.deposit.Deposit({
+          value: _amount,
+          owner: _input.properties.owner().hex(),
+          token: _metadata.properties.token().get(),
+          blockNumber: _metadata.properties.blockNumber().get(),
+        });
+
+        // Include this as first proof.
+        if (includeFirstProof && i === 0) {
+          inputProofs = _depositProof.encode();
+        }
+
         // Look up deposit details namely, amount.
         data.push(
-          protocol.deposit.Deposit({
-            value: _amount,
-            owner: _input.properties.owner().hex(),
-            token: _metadata.properties.token().get(),
-            blockNumber: _metadata.properties.blockNumber().get(),
-          }).keccak256(),
+          _depositProof.keccak256(),
         );
         break;
 
@@ -259,7 +280,7 @@ async function proofFromMetadata({ metadata, input, config }) {
         // Get the root index, than root hash.
         const _rootIndex = _metadata.properties.rootIndex().get();
         const _rootHash = _block.properties.roots().get()[_rootIndex];
-        
+
         // Than get the logs for this root hash.
         const _logs = await config.contract.provider.getLogs({
           fromBlock: 0,
@@ -270,7 +291,19 @@ async function proofFromMetadata({ metadata, input, config }) {
 
         // Than get the root header.
         const _log = config.contract.interface.parseLog(_logs[0]);
-        const _root = new protocol.root.RootHeader({ ..._log.values });
+        const _root = new protocol.root.RootHeader({
+          ..._log.values,
+        });
+
+        // Include this as first proof.
+        if (includeFirstProof && i === 0) {
+          // Incldude the root proof, but without the first tx proof.
+          inputProofs = (await proofFromMetadata({
+            metadata: _metadata,
+            input: _input,
+            config,
+          })).encodePacked();
+        }
 
         // Look up root log.
         data.push(
@@ -291,11 +324,78 @@ async function proofFromMetadata({ metadata, input, config }) {
             _metadata.properties.outputIndex().get(),
           ]),
         );
+
+        // Include this as first proof.
+        if (includeFirstProof && i === 0) {
+          inputProofs = (await proofFromMetadata({
+            metadata: _metadata,
+            input: _input,
+            returnUTXOProof: true,
+            config,
+          })).encodePacked();
+        }
         break;
 
       default:
         utils.assert(0, 'invalid-type');
     }
+  }
+
+  // If return UTXO proof of selected output, not Tx proof. Used for proveInvalidWitness.
+  if (returnUTXOProof) {
+    // Unsigned proof.
+    const unsigned = protocol.transaction.Unsigned({
+      inputs: transaction.inputs,
+      outputs: transaction.outputs,
+      data,
+      signatureFee: root.properties.fee().get(),
+      signatureFeeToken: root.properties.feeToken().get(),
+    });
+
+    // Compute transaction hash id.
+    const id = protocol.witness.transactionHashId(
+        unsigned,
+        config.contract,
+        config.network.chainId,
+    );
+
+    // Check output index overflow.
+    const outputIndex = metadata.properties.outputIndex().get();
+  
+    // The output referenced.
+    const outputReferenced = transaction.outputs[outputIndex];
+
+    // Is HTLC.
+    const _isHTLC = input.properties.type().get()
+      .eq(protocol.inputs.InputTypes.HTLC);
+
+    // Resolve address data.
+    async function resolveAddress(addressData = '0x', config) {
+      // Is an address.
+      if (utils.hexDataLength(addressData) === 20) {
+        return addressData;
+      } else {
+        // Return the owner address from id.
+        return await config.db.get([ interface.db.address, addressData ]);
+      }
+    }
+
+    // UTXO proof.
+    return protocol.outputs.UTXO({
+      transactionHashId: id,
+      owner: await resolveAddress(outputReferenced.properties.owner().hex(), config),
+      amount: protocol.outputs.decodeAmount(outputReferenced),
+      token: outputReferenced.properties.token().get(),
+      expiry: _isHTLC
+        ? outputReferenced.properties.expiry().get()
+        : 0,
+      digest: _isHTLC
+        ? outputReferenced.properties.digest().get()
+        : utils.emptyBytes32,
+      returnOwner: await resolveAddress(_isHTLC
+        ? outputReferenced.properties.returnOwner().hex()
+        : utils.emptyAddress, config),
+    });
   }
 
   // Return transaction proof.
@@ -315,6 +415,7 @@ async function proofFromMetadata({ metadata, input, config }) {
     inputOutputIndex: outputIndex,
     token: outputOwner,
     selector: returnOwner,
+    inputProofs,
   });
 }
 
@@ -324,12 +425,18 @@ async function invalidInput({
   proof,
   metadata,
   input,
+  inputs,
   block,
   root,
   rootIndex,
   transactionIndex,
   inputIndex,
   config }) {
+  // Some fill data.
+  const dataFill = (new Array(inputs.length))
+    .fill(0)
+    .map(() => utils.keccak256('0xaa'));
+
   // Input is a deposit, skip to double spend.
   const inputType = input.properties
     .type().get();
@@ -414,7 +521,7 @@ async function invalidInput({
     const transactions = protocol.root.decodePacked(calldata);
 
     // Selected transaction index.
-    let selectedTransactionIndex = metadata.properties.transactionIndex().get();
+    let selectedTransactionIndex = metadata.properties.transactionIndex().get().toNumber();
 
     // Roots overflow. Submit any root as the invalit input proof.
     if (selectedRootIndex >= roots.length) {
@@ -435,11 +542,11 @@ async function invalidInput({
       isInvalidInput = true;
     }
 
-    // Transaction to be tested.
-    let transaction = null;
-
     // Input output index.
     let inputOutputIndex = 0;
+
+    // Tx data for input proof.
+    let data = [];
 
     // If the transaciton index is valid.
     if (selectedTransactionIndex < transactions.length) {
@@ -450,6 +557,11 @@ async function invalidInput({
       // Check output index overflow.
       inputOutputIndex = metadata.properties.outputIndex()
         .get();
+
+      // Setup data fill.
+      data = (new Array(transaction.metadata.length))
+        .fill(0)
+        .map(() => utils.emptyBytes32);
 
       // Selecting an input that doesn't exist (overflow).
       if (inputOutputIndex >= transaction.outputs.length) {
@@ -486,6 +598,7 @@ async function invalidInput({
                 '0x' + txHex.slice(6),
               ),
             })),
+            data,
             rootIndex: selectedRootIndex,
             transactionIndex: selectedTransactionIndex,
             inputOutputIndex: inputOutputIndex,
@@ -527,12 +640,8 @@ async function invalidDoubleSpend({
     input,
     inputMetadata,
     config,
+    data,
   }) {
-  // Do a backward search starting from current block for double spend.
-  const state = protocol.state.State(
-    await config.db.get([ interface.db.state ]),
-  );
-
   // Get the block tip.
   const tip = inputMetadata.properties.blockHeight()
     .get().toNumber();
@@ -656,6 +765,7 @@ async function invalidDoubleSpend({
                         })),
                       rootIndex,
                       transactionIndex,
+                      data,
                       inputOutputIndex: inputIndex,
                     }).encodePacked(),
                     proof.encodePacked(),
@@ -669,6 +779,39 @@ async function invalidDoubleSpend({
       }
     }
   }
+}
+
+/// Prepair UTXO proofs for invalid sum.
+/// @dev if root, provie the metadata proof.
+async function prepairUTXOForSum(proofs, metadata, inputs, config) {
+  // Return proofs.
+  let _proofs = [];
+
+  // Input index.
+  let index = 0;
+
+  // Proof.
+  for (const proof of proofs) {
+    // Root.
+    if (proof.properties.rootProducer) {
+      _proofs.push(
+        (await proofFromMetadata({
+          metadata: metadata[index],
+          inputs: inputs[index],
+          config,
+        })).encodePacked(),
+      );
+    } else {
+      // Deposit / UTXO
+      _proofs.push(proof.encode());
+    }
+
+    // Increase index.
+    index++;
+  }
+
+  // Return proofs.
+  return struct.chunkJoin(_proofs);
 }
 
 /// @notice Build input Transaction proofs from inputs.
@@ -687,7 +830,11 @@ async function inputTransactionProofs({ metadata, inputs, config }) {
     switch (inputType) {
       case protocol.inputs.InputTypes.Transfer:
         proofs.push((await proofFromMetadata({
-          input, metadata: data, config })).encodePacked());
+          input,
+          metadata: data,
+          config,
+          includeFirstProof: true,
+        })).encodePacked());
         break;
 
       case protocol.inputs.InputTypes.Deposit:
@@ -706,12 +853,19 @@ async function inputTransactionProofs({ metadata, inputs, config }) {
 
       case protocol.inputs.InputTypes.HTLC:
         proofs.push((await proofFromMetadata({
-          input, metadata: data, config })).encodePacked());
+          input,
+          metadata: data,
+          config,
+          includeFirstProof: true,
+        })).encodePacked());
         break;
 
       case protocol.inputs.InputTypes.Root:
         proofs.push((await proofFromMetadata({
-          input, metadata: data, config })).encodePacked());
+          input,
+          metadata: data,
+          config,
+        })).encodePacked());
         break;
     }
 
@@ -767,8 +921,7 @@ async function process(block = {}, config = {}) {
 
         // Check the merkle root.
         const computedRoot = protocol.root.merkleTreeRoot(
-          transactions.map(v => utils.keccak256(v)),
-          false,
+          transactions,
         );
 
         // Check invalid merkle root.
@@ -787,7 +940,6 @@ async function process(block = {}, config = {}) {
           ],
           config,
         );
-        break;
       }
 
       // attempt transaction decode
@@ -825,7 +977,6 @@ async function process(block = {}, config = {}) {
             ],
             config,
           );
-          break;
         }
         const { inputs, outputs, metadata, witnesses } = transaction;
 
@@ -918,7 +1069,7 @@ async function process(block = {}, config = {}) {
                     interface.db.owner,
                     input.properties.owner().get(),
                     metadata[inputIndex].properties.token().get(),
-                    last(proofs).getAddon()[0], // addons.RootHeader.properties.timestamp
+                    last(proofs).getAddon()[0],
                     protocol.inputs.InputTypes.Deposit,
                     spendableInput,
                     last(data),
@@ -953,7 +1104,7 @@ async function process(block = {}, config = {}) {
 
                 if (block.properties.blockNumber().get()
                   .lte(last(proofs).properties.expiry().get())) {
-                  utils.assertHexEqual(utils.keccak256(input.properties.preImage().hex()),
+                  utils.assertHexEqual(utils.sha256(input.properties.preImage().hex()),
                     last(proofs).properties.digest().hex(), 'htlc-pre-image');
                 }
 
@@ -1073,6 +1224,7 @@ async function process(block = {}, config = {}) {
               }),
               metadata: metadata[inputIndex],
               input: inputs[inputIndex],
+              inputs,
               block,
               root,
               rootIndex,
@@ -1231,6 +1383,7 @@ async function process(block = {}, config = {}) {
                             '0x' + txHex.slice(6),
                           ),
                         })),
+                      data,
                       rootIndex,
                       transactionIndex,
                     }).encodePacked(),
@@ -1266,12 +1419,12 @@ async function process(block = {}, config = {}) {
                   rootIndex,
                   transactionIndex,
                   chainId: config.network.chainId,
+                  inputProofs: struct.chunkJoin(await inputTransactionProofs({
+                    metadata,
+                    inputs,
+                    config,
+                  })),
                 }).encodePacked(),
-                struct.chunkJoin(await inputTransactionProofs({
-                  metadata,
-                  inputs,
-                  config,
-                })),
               ],
               config,
             );
@@ -1359,6 +1512,7 @@ async function process(block = {}, config = {}) {
                         '0x' + txHex.slice(6),
                       ),
                     })),
+                  data,
                   rootIndex,
                   transactionIndex,
                 }).encodePacked(),
@@ -1551,8 +1705,13 @@ async function process(block = {}, config = {}) {
                   transactionIndex,
                   token,
                   chainId: config.network.chainId,
+                  inputProofs: await prepairUTXOForSum(
+                    proofs,
+                    metadata,
+                    inputs,
+                    config,
+                  ),
                 }).encodePacked(),
-                protocol.transaction.utxoPacked(proofs),
               ],
               config,
             );
@@ -1568,11 +1727,8 @@ async function process(block = {}, config = {}) {
             transactionIndex,
           ], transactionHashId);
 
-          // archival transaction data, this is prunable
-          await db.put([
-            interface.db.transactionId,
-            transactionHashId,
-          ], protocol.addons.Transaction({
+          // Filter option now available.
+          const _transactionInput = protocol.addons.Transaction({
             transaction: transactionHex,
             data,
             transactionIndex,
@@ -1589,7 +1745,21 @@ async function process(block = {}, config = {}) {
             inputProofs: proofs.map(v => v.encodeRLP()),
             outputProofs: outputProofs.map(v => v.encodeRLP()),
             inputTypes,
-          }));
+          });
+
+          // Filter API would allow developers to run a node and create simple filter plugins easily.
+          try {
+            // If the transaction filter is present, currently if there is an error it will just continue syncing.
+            if (config.filter) {
+              await config.filter(_transactionInput);
+            }
+          } catch (filterError) {}
+
+          // archival transaction data, this is prunable
+          await db.put([
+            interface.db.transactionId,
+            transactionHashId,
+          ], _transactionInput);
         }
 
         // increase tx index
@@ -1641,14 +1811,6 @@ async function process(block = {}, config = {}) {
           0,
           rootHash,
         ], root);
-        /*
-        await db.put([
-          interface.db.archiveHash,
-          protocol.inputs.InputTypes.Root,
-          0,
-          rootHash,
-        ], root);
-        */
         await db.put([
           interface.db.root,
           block.properties.height().get(),

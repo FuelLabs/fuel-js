@@ -33,7 +33,7 @@ async function history(opts = {}, config = {}) {
     // include up to 10 tx proofs using batch 1 round trip
     try {
       if (include && transactions.length) {
-        proofs = await batch(config.db, transactions.slice(0, 10).map(data => {
+        proofs = await batch(config.db, transactions.map(data => {
           const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
   
           return [ interface.db.transactionId, data.value ];

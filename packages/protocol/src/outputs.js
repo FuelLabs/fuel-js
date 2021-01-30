@@ -79,7 +79,7 @@ const OutputHTLC = struct(
 const OutputReturn = struct(
   `uint8 type,
   bytes1[**] data`,
-  opts => ({ ...opts, ...packAmount(opts), type: OutputTypes.Return })
+  opts => ({ ...opts, type: OutputTypes.Return })
 );
 
 const UTXO = struct(`

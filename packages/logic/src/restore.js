@@ -1,7 +1,7 @@
 /// @dev This will download and or resubmit the mempool.
 const mempool = require('./mempool');
 const transact = require('./transact');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const utils = require('@fuel-js/utils');
 
 /// @dev backup mempool.

@@ -1,4 +1,4 @@
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const utils = require('@fuel-js/utils');
 const batch = require('@fuel-js/batch');
 const struct = require('@fuel-js/struct');
@@ -225,7 +225,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
             });
           } else {
             // Check preimage.
-            utils.assertHexEqual(utils.keccak256(input.properties.preImage().hex()),
+            utils.assertHexEqual(utils.sha256(input.properties.preImage().hex()),
               proof.properties.digest().hex(), 'htlc-pre-image');
 
             // Increase owner balance.
