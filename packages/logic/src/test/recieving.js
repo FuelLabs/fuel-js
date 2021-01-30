@@ -2,9 +2,9 @@
 // inputs, we will see if the balance reconsiling is correct.
 const { test, utils, overrides } = require("@fuel-js/environment");
 const { ERC20, OwnedProxy, Fuel } = require("@fuel-js/contracts");
-const tx = require("@fuel-js/protocol/src/transaction");
+const tx = require("@fuel-js/protocol2/src/transaction");
 const interface = require("@fuel-js/interface");
-const protocol = require("@fuel-js/protocol");
+const protocol = require("@fuel-js/protocol2");
 const struct = require("@fuel-js/struct");
 const config = require("./config.local");
 const sync = require("../sync");
@@ -12,7 +12,7 @@ const transact = require("../transact");
 const balance = require('../balance');
 const outputFromMetadata = require("./outputFromMetadata");
 
-module.exports = test("produce", async (t) => {
+module.exports = test("receiving", async (t) => {
   // Setup Addresses
   const producer = t.wallets[0].address;
   const cold = t.wallets[1].address;
@@ -39,7 +39,7 @@ module.exports = test("produce", async (t) => {
       20,
       utils.parseEther("1.0"),
       "Fuel",
-      "1.0.0",
+      "1.1.0",
       0,
       genesisHash,
     ]);

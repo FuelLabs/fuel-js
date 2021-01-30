@@ -1,4 +1,4 @@
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const utils = require('@fuel-js/utils');
 const struct = require('@fuel-js/struct');
 const interface = require('@fuel-js/interface');
@@ -43,7 +43,7 @@ async function withdrawProofFromMetadata({ metadata, config }) {
     const transactions = protocol.root.decodePacked(calldata);
 
     // Selected transaction index.
-    const transactionIndex = metadata.properties.transactionIndex().get();
+    const transactionIndex = metadata.properties.transactionIndex().get().toNumber();
 
     // Check index overflow.
     utils.assert(transactions[transactionIndex], 'transaction-index');
@@ -82,6 +82,9 @@ async function withdrawProofFromMetadata({ metadata, config }) {
         tokenId,
     ]);
 
+    const numInputs = transaction.metadata.length;
+    const fillData = (new Array(numInputs)).fill(0).map(v => utils.emptyBytes32);
+
     // Return transaction proof.
     return protocol.transaction.TransactionProof({
         block,
@@ -93,7 +96,7 @@ async function withdrawProofFromMetadata({ metadata, config }) {
                 '0x' + txHex.slice(6),
                 ),
             })),
-        data: [],
+        data: fillData,
         rootIndex,
         transactionIndex,
         inputOutputIndex: outputIndex,

@@ -46,8 +46,13 @@ function config(opts = process.env, _prefix = 'fuel_v1_') {
 
   // local provider
   let provider = opts.provider || null;
-  const infura = resolve('infura');
+  let infura = resolve('infura');
   const etherscan = resolve('etherscan');
+
+  if (infura === '$ENV') {
+    infura = process.env[_prefix + 'default_infura'];
+    _console.log('Using Infura from environment: ' + infura);
+  }
 
   if (!provider && network !== 'unspecified') {
     if (infura || etherscan) {

@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/protocol",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Fuel protocol structures and logic.",
   "main": "src/index.js",
   "scripts": {

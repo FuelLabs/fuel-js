@@ -1,7 +1,6 @@
 const utils = require('@fuel-js/utils');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const _interface = require('@fuel-js/interface');
-const abi = require('./abi.json');
 const memdown = require('memdown');
 const ethers = require('ethers');
 const database = require('@fuel-js/database');
@@ -9,6 +8,7 @@ const streamToArray = require('stream-to-array');
 const struct = require('@fuel-js/struct');
 const PubNub = require('pubnub');
 const { deployments } = require('@fuel-js/contracts');
+const abi = require('./abi.json');
 
 // resolve the provider object down to an, Returns: Ethers provider
 function resolveProvider(provider = {}) {
@@ -628,7 +628,7 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
 
 function determinePreImage(preimages = [], digest = '0x') {
   for (const preimage of preimages) {
-    if (utils.keccak256(preimage) === digest) {
+    if (utils.sha256(preimage) === digest) {
       return preimage;
     }
   }
@@ -917,6 +917,8 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
     // Balance check
     utils.assert(amount.gt(0), 'amount-underflow');
     utils.assert(balance.gte(amount), 'not-enough-balance');
+    utils.assert(utils.hexDataLength(utils.hexlify(token)) > 0, 'token-id-or-address-empty');
+    utils.assert(utils.hexDataLength(utils.hexlify(to)) > 0, 'to-address-empty');
 
     // Use caller witness.
     let useCallerWitness = opts.caller || null;
@@ -955,7 +957,7 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
 
       returnOwner = options.returnOwner || self.address;
       expiry = options.expiry || 0;
-      digest = utils.keccak256(options.preImage);
+      digest = utils.sha256(options.preImage);
     }
 
     // Build Outputs

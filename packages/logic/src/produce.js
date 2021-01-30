@@ -1,5 +1,5 @@
 const utils = require('@fuel-js/utils');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const interface = require('@fuel-js/interface');
 const struct = require('@fuel-js/struct');
 const mempool = require('./mempool');
@@ -259,29 +259,6 @@ async function produce(currentBlockNumber = {}, state = {}, config = {}) {
         return;
     }
 
-    // Get commitment
-    /*
-    let commitment = protocol.addons.Commitment(state.object());
-    try {
-      // If commitment is available, it hasn't been processed yet.
-      commitment = protocol.addons.Commitment(await config.db.get([ interface.db.commitment ]));
-    } catch (noCommitmentError) {}
-    */
-
-    // if current height is less than commitment, stop
-    /*
-    if (state.properties.blockHeight().get()
-      .lt(commitment.properties.blockHeight().get())) {
-      return;
-    }
-
-    // if the current state blockheight is at or past previous commit, start new commitment
-    if (state.properties.blockHeight().get()
-      .gte(commitment.properties.blockHeight().get())) {
-      commitment = protocol.addons.Commitment(state.object());
-    }
-    */
-
     // Get state blocknumber from state
     const blockNumber = state.properties.blockNumber()
         .get().toNumber();
@@ -304,7 +281,7 @@ async function produce(currentBlockNumber = {}, state = {}, config = {}) {
     // Reconcile balances before processing.
     await reconcileMempoolBalance(config);
 
-    // collection
+    // Collection.
     const options = {
       minTimestamp: 0,  //commitment.properties.endTimestamp().get(),
       minNonce: 0, //commitment.properties.endNonce().get(),
@@ -497,24 +474,18 @@ async function produce(currentBlockNumber = {}, state = {}, config = {}) {
               transaction => transaction.encodePacked(),
           );
 
-          // Hashes.
-          const hashes = leafs.map(
-              leaf => utils.keccak256(leaf),
-          );
-
           // Root Header
           root.header = new protocol.root.RootHeader({
-              rootProducer: blockProducer.address, // rootProducers[rootIndex].address,
-              merkleTreeRoot: protocol.root.merkleTreeRoot(
-                  hashes,
-                  false,
-              ),
-              commitmentHash: utils.keccak256(
-                  struct.chunkJoin(leafs),
-              ),
-              rootLength: root.size,
-              feeToken: root.token,
-              fee: root.fee,
+            rootProducer: blockProducer.address,
+            merkleTreeRoot: protocol.root.merkleTreeRoot(
+              leafs,
+            ),
+            commitmentHash: utils.keccak256(
+              struct.chunkJoin(leafs),
+            ),
+            rootLength: root.size,
+            feeToken: root.token,
+            fee: root.fee,
           });
 
           // Root hash
@@ -650,20 +621,6 @@ async function produce(currentBlockNumber = {}, state = {}, config = {}) {
 
     // Wait on the Block to be produced
     blockReceipt = await blockCommitment.wait();
-
-    // Set transaction hash
-    /*
-    commitment.properties.transactionHash().set(
-        blockReceipt.transactionHash,
-    );
-    */
-
-    // Set the new block commitment
-    /*
-    await config.db.put([
-        interface.db.commitment,
-    ], commitment);
-    */
 
     // Final
     config.console.log(`

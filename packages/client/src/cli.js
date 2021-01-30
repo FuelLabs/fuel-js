@@ -75,6 +75,10 @@ function cli() {
         type: 'string',
         alias: 'fw',
       },
+      producer_address: {
+        type: 'string',
+        alias: 'pa',
+      },
       deploy: {
         type: 'boolean',
         alias: 'd',

@@ -1,6 +1,6 @@
 const { test, utils } = require('@fuel-js/environment');
 const interface = require('@fuel-js/interface');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const { ERC20, Fuel } = require('@fuel-js/contracts');
 const struct = require('@fuel-js/struct');
 const defaults = require('./defaults');
@@ -9,7 +9,6 @@ const sync = require('../sync');
 const balance = require('../balance');
 const transact = require('../transact');
 const { withdrawProofFromMetadata } = require('../withdraw');
-const { scrypt } = require('crypto');
 
 module.exports = test('sync', async t => {
   // check if sync dbs the right values
@@ -557,7 +556,7 @@ module.exports = test('sync', async t => {
       owner: depositOwner,
       amount: utils.parseEther('0.04'),
       token: 0,
-      digest: utils.keccak256('0xdeadbeef'),
+      digest: utils.sha256('0xdeadbeef'),
       expiry: (await t.getProvider().getBlockNumber() + 50),
       returnOwner: userC,
     }), protocol.outputs.OutputTransfer({
@@ -636,16 +635,23 @@ module.exports = test('sync', async t => {
     etherDeposit.properties.token().get(), settings),
     utils.parseEther('.2'), 'user B check');
 
-  let withdrawTx = await settings.contract.withdraw((await withdrawProofFromMetadata({
-    metadata: protocol.metadata.Metadata({
-      blockHeight: 1,
-      transactionIndex: 0,
-      rootIndex: 0,
-      outputIndex: 0,
-    }),
-    config: settings,
-  })).encodePacked(), t.getOverrides());
-  withdrawTx = await withdrawTx.wait();
+  let withdrawTx = null;
+
+  try {
+    withdrawTx = await settings.contract.withdraw((await withdrawProofFromMetadata({
+      metadata: protocol.metadata.Metadata({
+        blockHeight: 1,
+        transactionIndex: 0,
+        rootIndex: 0,
+        outputIndex: 0,
+      }),
+      config: settings,
+    })).encodePacked(), t.getOverrides());
+    withdrawTx = await withdrawTx.wait();
+  } catch (err) {
+    console.log(err);
+    return;
+  }
 
   for (var i = 0; i < 6; i++) {
     await sync({ ...settings, rootLengthTarget: 1000 });

@@ -5,11 +5,11 @@ const { chunk, combine } = require('@fuel-js/struct');
 
 const { ERC20, OwnedProxy, Fuel } = require('@fuel-js/contracts');
 const { BlockHeader, RootHeader, Leaf,
-    merkleTreeRoot } = require('@fuel-js/protocol/src/block');
-const tx = require('@fuel-js/protocol/src/transaction');
-const { Deposit } = require('@fuel-js/protocol/src/deposit');
+    merkleTreeRoot } = require('@fuel-js/protocol2/src/block');
+const tx = require('@fuel-js/protocol2/src/transaction');
+const { Deposit } = require('@fuel-js/protocol2/src/deposit');
 const interface = require('@fuel-js/interface');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const struct = require('@fuel-js/struct');
 const config = require('./config.local');
 const sync = require('../sync');
@@ -49,7 +49,7 @@ module.exports = test('correctness', async t => {
             20,
             utils.parseEther('1.0'),
             "Fuel",
-            "1.0.0",
+            "1.1.0",
             0,
             genesisHash,
         ]);
@@ -264,7 +264,7 @@ module.exports = test('correctness', async t => {
                     owner: '0x00',
                     amount: utils.parseEther('100.00'),
                     expiry: 70000,
-                    digest: utils.keccak256('0xdeadbeaf'),
+                    digest: utils.sha256('0xdeadbeaf'),
                     returnOwner: utils.emptyAddress,
                 }),
                 specialOutput,
@@ -545,7 +545,7 @@ module.exports = test('correctness', async t => {
                 owner: '0x02',
                 amount: utils.parseEther('100.00'),
                 expiry: 70000,
-                digest: utils.keccak256(
+                digest: utils.sha256(
                     utils.hexZeroPad('0xdeadbeaf', 32),
                 ),
                 returnOwner: utils.emptyAddress,

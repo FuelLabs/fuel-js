@@ -2,7 +2,7 @@
 const utils = require('@fuel-js/utils');
 const interface = require('@fuel-js/interface');
 const streamToArray = require('stream-to-array');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 
 // This would just have to give both balances, but that's okay.
 // It simply decides to look at either the mempool or sync balance.

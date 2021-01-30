@@ -1,5 +1,5 @@
 const utils = require('@fuel-js/utils');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const interface = require('@fuel-js/interface');
 const process = require('./process');
 const produce = require('./produce');
@@ -191,8 +191,15 @@ async function sync(config = {}) {
           switch (event.name) {
             case 'DepositMade':
               const timestamp = utils.timestamp();
+              // More precise deposit tracking.
+              const depositAmount = await config.contract.depositAt(
+                event.values.owner,
+                event.values.token,
+                log.blockNumber,
+              );
               const deposit = protocol.deposit.Deposit({
                 ...event.values,
+                value: depositAmount,
                 blockNumber: log.blockNumber,
               }, protocol.addons.Deposit({
                 timestamp,
@@ -201,7 +208,7 @@ async function sync(config = {}) {
               const depositHash = deposit.keccak256();
               const notWithdrawal = 0;
 
-              // this data is prunable
+              // This data is prunable.
               if (config.archive) {
                 // Attempt to retrieve deposit, if it exists, skip increase, otherwise process increase.
                 try {

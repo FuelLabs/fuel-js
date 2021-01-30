@@ -223,7 +223,8 @@ const _TransactionProof = struct(`
   uint256 signatureFeeToken,
   uint256 signatureFee,
   address token,
-  address selector
+  address selector,
+  bytes1[**] inputProofs
 `);
 
 function TransactionProof({
@@ -236,7 +237,8 @@ function TransactionProof({
   signatureFeeToken,
   data,
   token,
-  selector }) {
+  selector,
+  inputProofs }) {
   const isSignatureFee = typeof signatureFee !== "undefined";
   const isEmpty = transactionIndex >= transactions.length;
   const transaction = isEmpty ? null : transactions[transactionIndex || 0];
@@ -258,6 +260,7 @@ function TransactionProof({
           .map(d => d._isStruct ? d.keccak256() : d) : []),
     token,
     selector,
+    inputProofs,
   });
 }
 

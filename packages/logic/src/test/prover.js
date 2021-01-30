@@ -3,11 +3,11 @@ const { chunk, combine } = require('@fuel-js/struct');
 const { ERC20, OwnedProxy, Fuel } = require('@fuel-js/contracts');
 
 const { BlockHeader, RootHeader, Leaf,
-    merkleTreeRoot } = require('@fuel-js/protocol/src/block');
-const tx = require('@fuel-js/protocol/src/transaction');
-const { Deposit } = require('@fuel-js/protocol/src/deposit');
+    merkleTreeRoot } = require('@fuel-js/protocol2/src/block');
+const tx = require('@fuel-js/protocol2/src/transaction');
+const { Deposit } = require('@fuel-js/protocol2/src/deposit');
 const interface = require('@fuel-js/interface');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const struct = require('@fuel-js/struct');
 const config = require('./config.local');
 const sync = require('../sync');
@@ -22,6 +22,7 @@ module.exports = test('prover', async t => {
     const userAWallet = t.wallets[2];
     const userB = t.wallets[3].address;
     const userBWallet = t.wallets[3];
+    const __chainId = 0;
 
     // Before method.
     async function state (opts = {}) {
@@ -36,13 +37,13 @@ module.exports = test('prover', async t => {
             const genesisHash = utils.keccak256('0xdeadbeaf');
             const contract = await t.deploy(Fuel.abi, Fuel.bytecode, [
                 proxy.address,
-                20,
+                40,
                 20,
                 20,
                 utils.parseEther('1.0'),
                 "Fuel",
-                "1.0.0",
-                0,
+                "1.1.0",
+                __chainId,
                 genesisHash,
             ]);
 
@@ -74,7 +75,8 @@ module.exports = test('prover', async t => {
                     : data;
 
                 // If it's an address, return it.
-                if (typeof ownerId === 'string' && utils.hexDataLength(ownerId) == 20) {
+                if (typeof ownerId === 'string'
+                    && utils.hexDataLength(ownerId) == 20) {
                     return ownerId;
                 }
 
@@ -205,7 +207,7 @@ module.exports = test('prover', async t => {
             ) + 4;
             let inputTx0 = await tx.Transaction({
                 override: true,
-                chainId: 0,
+                chainId: __chainId,
                 witnesses: [
                     { _caller: true },
                 ],
@@ -242,7 +244,7 @@ module.exports = test('prover', async t => {
                         token: '0x00',
                         owner: producer,
                         amount: utils.parseEther('150.00'),
-                        digest: utils.keccak256(utils.hexZeroPad('0xdeadbeaf', 32)),
+                        digest: utils.sha256(utils.hexZeroPad('0xdeadbeaf', 32)),
                         expiry: 10000,
                         returnOwner: '0x00',
                     }),
@@ -250,7 +252,7 @@ module.exports = test('prover', async t => {
                         token: '0x00',
                         owner: producer,
                         amount: utils.parseEther('100.00'),
-                        digest: utils.keccak256(utils.hexZeroPad('0xdeadbeaf', 32)),
+                        digest: utils.sha256(utils.hexZeroPad('0xdeadbeaf', 32)),
                         expiry: inputTx0HTLCExpiry,
                         returnOwner: userA,
                     }),
@@ -284,7 +286,7 @@ module.exports = test('prover', async t => {
             // Produce a valid tx for the Main tx to input.
             let inputTx = await tx.Transaction({
                 override: true,
-                chainId: 0,
+                chainId: __chainId,
                 witnesses: [
                     { _caller: true },
                 ],
@@ -311,7 +313,7 @@ module.exports = test('prover', async t => {
                         outputIndex: 2,
                         outputType: protocol.outputs.OutputTypes.HTLC,
                         amount: utils.parseEther('150.00'),
-                        digest: utils.keccak256(utils.hexZeroPad('0xdeadbeaf', 32)),
+                        digest: utils.sha256(utils.hexZeroPad('0xdeadbeaf', 32)),
                         token: 0,
                         expiry: 10000,
                         owner: producer,
@@ -470,7 +472,7 @@ module.exports = test('prover', async t => {
                     outputIndex: 3,
                     outputType: protocol.outputs.OutputTypes.HTLC,
                     amount: utils.parseEther('100.00'),
-                    digest: utils.keccak256(utils.hexZeroPad('0xdeadbeaf', 32)),
+                    digest: utils.sha256(utils.hexZeroPad('0xdeadbeaf', 32)),
                     token: 0,
                     expiry: inputTx0HTLCExpiry,
                     owner: producer,
@@ -494,7 +496,7 @@ module.exports = test('prover', async t => {
             // Build the transaction in question.
             let transactionMain = await tx.Transaction({
                 override: true,
-                chainId: 0,
+                chainId: __chainId,
                 witnesses: opts.witnesses || [
                     userAWallet,
                     { _caller: true },
@@ -590,7 +592,7 @@ module.exports = test('prover', async t => {
                         owner: '0x00',
                         amount: utils.parseEther('100.00'),
                         expiry: 70000,
-                        digest: utils.keccak256('0xdeadbeaf'),
+                        digest: utils.sha256('0xdeadbeaf'),
                         returnOwner: utils.emptyAddress,
                     }),
                     tx.OutputTransfer({
@@ -728,10 +730,6 @@ module.exports = test('prover', async t => {
                 interface.db.state,
             ]));
 
-            // Check pre-state block height in client.
-            // t.equalBig(preState.properties.blockHeight().get(), 
-            //    2, "pre block height");
-
             // Process the block in question.
             await sync(settings);
 
@@ -754,20 +752,6 @@ module.exports = test('prover', async t => {
             const postState = protocol.state.State(await settings.db.get([
                 interface.db.state,
             ]));
-
-            /*
-            console.log(
-                'pre state',
-                preState.object(),
-                'post state',
-                await settings.db.get([
-                    interface.db.state,
-                ]),
-                postState.object(),
-                postState.properties.blockHeight().get(),
-                opts.fraud,
-            );
-            */
 
             // Check block height after block processing in client.
             t.equalBig(postState.properties.blockHeight().get(), 
@@ -833,7 +817,6 @@ module.exports = test('prover', async t => {
     });
 
     await state({
-        signatureFee: '0x00',
         outputs: [
             protocol.outputs.OutputTransfer({
                 amount: utils.parseEther('10000.0'),
@@ -1252,7 +1235,7 @@ module.exports = test('prover', async t => {
             amount: utils.parseEther('1.0'),
             owner: utils.emptyAddress,
         }),protocol.outputs.OutputHTLC({
-            digest: utils.keccak256('0xdeadbeaf'),
+            digest: utils.sha256('0xdeadbeaf'),
             expiry: 10000,
             returnOwner: [],
             token: '0x01',
@@ -1269,7 +1252,7 @@ module.exports = test('prover', async t => {
             amount: utils.parseEther('1.0'),
             owner: utils.emptyAddress,
         }),protocol.outputs.OutputHTLC({
-            digest: utils.keccak256('0xdeadbeaf'),
+            digest: utils.sha256('0xdeadbeaf'),
             expiry: 10000,
             returnOwner: utils.hexZeroPad('0x01', 21),
             token: '0x01',
@@ -1286,7 +1269,7 @@ module.exports = test('prover', async t => {
             amount: utils.parseEther('1.0'),
             owner: utils.emptyAddress,
         }),protocol.outputs.OutputHTLC({
-            digest: utils.keccak256('0xdeadbeaf'),
+            digest: utils.sha256('0xdeadbeaf'),
             expiry: 10000,
             returnOwner: utils.hexZeroPad('0x03', 4),
             token: '0x01',

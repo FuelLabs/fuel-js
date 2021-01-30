@@ -1,7 +1,7 @@
 // get data from the mempool
 const utils = require('@fuel-js/utils');
 const interface = require('@fuel-js/interface');
-const protocol = require('@fuel-js/protocol');
+const protocol = require('@fuel-js/protocol2');
 const streamToArray = require('stream-to-array');
 
 async function mempool(opts = {}, config = {}) {

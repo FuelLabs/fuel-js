@@ -1,11 +1,11 @@
 {
 	"name": "@fuel-js/api",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"description": "A simple API wrapper for the Fuel API.",
 	"main": "src/index.js",
-  "scripts": {
-    "test": "node src/test"
-  },
+	"scripts": {
+		"test": "node src/test"
+	},
 	"publishConfig": {
 		"access": "public"
 	},
@@ -20,7 +20,7 @@
 	],
 	"dependencies": {
 		"@fuel-js/interface": "^0.2.0",
-		"@fuel-js/protocol": "^0.4.2",
+		"@fuel-js/protocol2": "^0.4.6",
 		"@fuel-js/utils": "^0.1.4"
 	},
 	"devDependencies": {
