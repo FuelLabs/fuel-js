@@ -469,11 +469,43 @@ async function sync(config = {}) {
                 }
                 await config.db.put([interface.db.withdraw, withdraw.keccak256Packed()],
                   protocol.withdraw.Withdraw(event.values));
+
+                console.log(
+                  'withdraw',
+                  [
+                    interface.db.owner,
+                    event.values.owner,
+                    utxo.properties.token().get(),
+                    utxo.getAddon()[0],
+                    protocol.outputs.OutputTypes.Withdraw,
+                    isWithdraw,
+                    hash,
+                  ],
+                  [
+                    interface.db.owner,
+                    event.values.owner,
+                    utxo.properties.token().get(),
+                    0,
+                    protocol.outputs.OutputTypes.Withdraw,
+                    isWithdraw,
+                    hash,
+                  ],
+                );
+
                 await config.db.del([
                   interface.db.owner,
                   event.values.owner,
                   utxo.properties.token().get(),
                   utxo.getAddon()[0],
+                  protocol.outputs.OutputTypes.Withdraw,
+                  isWithdraw,
+                  hash,
+                ]);
+                await config.db.del([
+                  interface.db.owner,
+                  event.values.owner,
+                  utxo.properties.token().get(),
+                  0,
                   protocol.outputs.OutputTypes.Withdraw,
                   isWithdraw,
                   hash,
