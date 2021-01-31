@@ -206,13 +206,6 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
             type: 'del',
             key: [interface.db.owner, returnOwner, token, 0, inputType, 0, inputHashes[inputIndex]],
           });
-          /*
-          deltas.push({
-            type: 'put',
-            key: [interface.db.decrease, returnOwner, token, 0, inputType, 0, inputHashes[inputIndex]],
-            value: amount,
-          });
-          */
 
           if (state.properties.blockNumber().get().gt(expiry)) {
             owner = returnOwner;
@@ -374,14 +367,6 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
             key: [interface.db.archiveOwner, returnOwner, timestamp, transactionHashId],
             value: transactionHashId,
           });
-
-          /*
-          deltas.push({
-            type: 'put',
-            key: [interface.db.increase, returnOwner, token, 0, outputType, isWithdraw, hash],
-            value: amount,
-          });
-          */
 
           // emit to publisher, if any
           if (config.emit) {

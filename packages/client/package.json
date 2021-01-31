@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/client",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "The Fuel version 1.0.0 client.",
   "main": "src/index.js",
   "scripts": {

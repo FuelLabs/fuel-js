@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/logic",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Essential fuel-js logic for clients.",
   "main": "src/index.js",
   "scripts": {

@@ -681,6 +681,21 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
         if (options.inputs.indexOf(hash) === -1) continue;
       }
 
+      // Check for already retrieved keys.
+      if (options.retrieve) {
+        try {
+          // Will look for if this has already been retrieved.
+          await self.db.get([
+            _interface.db.spent,
+            0,
+            utils.keccak256(entry.key),
+          ]);
+
+          // If so, we continue;
+          continue;
+        } catch (noop) {}
+      }
+
       // Is withdraw selected, input not withdraw
       if (isWithdraw && !_inputWithdrawable
         || !isWithdraw && _inputWithdrawable) continue;
@@ -1101,16 +1116,6 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
       witnesses = [
         protocol.witness.Caller({
           ...opts.caller,
-          /*
-          ...await opts.caller({
-            transactionId: hash,
-            unsigned,
-            network: self.network,
-            address: self.address,
-            contract: self.contract,
-            chainId: self.network.chainId,
-          }),
-          */
         }),
       ];
     } else {
@@ -1326,7 +1331,6 @@ Wallet.prototype.withdraw = async function (token = '0x', amount = 0, opts = {})
 /// @notice Proof from Metadata and Input.
 Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config }) {
   const self = this;
-
   const block = await protocol.block.BlockHeader.fromLogs(
       metadata.properties.blockHeight().get().toNumber(),
       config.contract,
@@ -1365,7 +1369,7 @@ Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config 
   const transactions = protocol.root.decodePacked(calldata);
 
   // Selected transaction index.
-  const transactionIndex = metadata.properties.transactionIndex().get();
+  const transactionIndex = metadata.properties.transactionIndex().get().toNumber();
 
   // Check index overflow.
   utils.assert(transactions[transactionIndex], 'transaction-index');
@@ -1412,7 +1416,7 @@ Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config 
           .map(txHex => protocol.root.Leaf({
               // Trim the length and 0x prefix.
               data: struct.chunk(
-              '0x' + txHex.slice(6),
+                '0x' + txHex.slice(6),
               ),
           })),
       data: [],
@@ -1424,8 +1428,8 @@ Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config 
   });
 }
 
-// retrieve, retrieve withdrawals from Fuel, Returns: TransactionResponse
-Wallet.prototype.retrieve = async function (opts = {}) {
+// Retrieve, retrieve withdrawals from Fuel, Returns: TransactionResponse.
+Wallet.prototype.retrieve = async function (tokenId = 0, opts = {}) {
   try {
     const self = this;
     await self._setup();
@@ -1434,10 +1438,9 @@ Wallet.prototype.retrieve = async function (opts = {}) {
     await self.sync();
 
     // Get inputs for retrieval.
-    const { keys, proofs } = await self._inputs(0, {
-      ...opts,
+    let { keys, proofs } = await self._inputs(tokenId, {
       retrieve: true,
-      anytoken: true,
+      ...opts,
     });
 
     // Submissions.
@@ -1456,6 +1459,7 @@ Wallet.prototype.retrieve = async function (opts = {}) {
         },
       })).encodePacked(), {
         gasLimit: 4000000,
+        ...filterOptions(opts),
       });
 
       // Withdraw tx.
@@ -1465,7 +1469,16 @@ Wallet.prototype.retrieve = async function (opts = {}) {
       receipts.push(withdrawTx);
 
       // Delete key from inputs. 
-      self.db.del(keys[inputIndex]);
+      await self.db.del(
+        utils.RLP.decode(keys[inputIndex]),
+      );
+
+      // Notate this key as spent, for future sync prevention.
+      await self.db.put([
+        _interface.db.spent,
+        0,
+        utils.keccak256(keys[inputIndex]),
+      ], '0x01');
 
       // Increase the index.
       inputIndex += 1;
