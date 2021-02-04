@@ -1,4 +1,4 @@
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const utils = require('@fuel-js/utils');
 const database = require('@fuel-js/database');
 const { simulate } = require('@fuel-js/down');

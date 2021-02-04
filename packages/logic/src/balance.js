@@ -1,6 +1,6 @@
 const utils = require('@fuel-js/utils');
 const interface = require('@fuel-js/interface');
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const streamToArray = require('stream-to-array');
 const emptyTxHash = utils.emptyBytes32;
 

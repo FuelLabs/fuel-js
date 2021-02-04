@@ -1,4 +1,4 @@
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const utils = require('@fuel-js/utils');
 const struct = require('@fuel-js/struct');
 const interface = require('@fuel-js/interface');

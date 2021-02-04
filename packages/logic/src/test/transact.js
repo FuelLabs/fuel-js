@@ -1,6 +1,6 @@
 const { test, utils } = require('@fuel-js/environment');
 const interface = require('@fuel-js/interface');
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const struct = require('@fuel-js/struct');
 const defaults = require('./defaults');
 const config = require('./config.local');

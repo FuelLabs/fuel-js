@@ -16,9 +16,6 @@ async function history(opts = {}, config = {}) {
       include = false,
     } = opts;
 
-    // Max number of entries to grab
-    const maximum = Math.min(parseInt(limit, 10), 64);
-
     // get transactions from range proof up to 64
     let transactions = await streamToArray(config.db.createReadStream({
       lte: interface.db.archiveOwner.encode([ owner, timestamp, transactionId ]),

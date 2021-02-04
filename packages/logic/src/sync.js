@@ -1,5 +1,5 @@
 const utils = require('@fuel-js/utils');
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const interface = require('@fuel-js/interface');
 const process = require('./process');
 const produce = require('./produce');

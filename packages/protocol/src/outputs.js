@@ -29,7 +29,7 @@ function shiftValue(value = 0, opts = {}) {
 }
 
 function packAmount(output = {}) {
-  if (output.shift) return {};
+  if (output.shift || output.noPack) return {};
   return shiftValue(output.amount, output);
 }
 
