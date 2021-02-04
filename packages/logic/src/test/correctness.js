@@ -5,11 +5,11 @@ const { chunk, combine } = require('@fuel-js/struct');
 
 const { ERC20, OwnedProxy, Fuel } = require('@fuel-js/contracts');
 const { BlockHeader, RootHeader, Leaf,
-    merkleTreeRoot } = require('@fuel-js/protocol2/src/block');
-const tx = require('@fuel-js/protocol2/src/transaction');
-const { Deposit } = require('@fuel-js/protocol2/src/deposit');
+    merkleTreeRoot } = require('@fuel-js/protocol/src/block');
+const tx = require('@fuel-js/protocol/src/transaction');
+const { Deposit } = require('@fuel-js/protocol/src/deposit');
 const interface = require('@fuel-js/interface');
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const struct = require('@fuel-js/struct');
 const config = require('./config.local');
 const sync = require('../sync');

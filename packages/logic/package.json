@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/logic",
-  "version": "0.5.9",
+  "version": "0.6.0",
   "description": "Essential fuel-js logic for clients.",
   "main": "src/index.js",
   "scripts": {
@@ -25,7 +25,7 @@
   },
   "dependencies": {
     "@fuel-js/interface": "^0.2.0",
-    "@fuel-js/protocol2": "^0.4.6",
+    "@fuel-js/protocol": "^0.4.6",
     "@fuel-js/batch": "^0.1.4",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/struct": "^0.1.7",
@@ -35,7 +35,7 @@
     "stream-to-array": "^2.3.0"
   },
   "devDependencies": {
-    "@fuel-js/contracts": "^0.1.7",
+    "@fuel-js/contracts": "^0.1.8",
     "@fuel-js/environment": "0.1.4",
     "eslint": "^7.6.0",
     "write": "^2.0.0",

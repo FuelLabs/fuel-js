@@ -1,10 +1,10 @@
-const { struct, chunk, pack, combine, chunkJoin } = require('@fuel-js/struct');
+const { struct, pack, combine, chunkJoin } = require('@fuel-js/struct');
 const utils = require('@fuel-js/utils');
 const inputs = require('./inputs');
 const outputs = require('./outputs');
 const witness = require('./witness');
 const metadata = require('./metadata');
-const { transactionHashId } = require('./witness');
+const { merkleProof } = require('./merkle');
 
 const TransactionSizeMinimum = 44;
 const TransactionSizeMaximum = 896;
@@ -31,9 +31,11 @@ const _Transaction = struct(`
 
 async function PromiseSync(proms = []) {
   let results = [];
+
   for (const prom of proms) {
     results.push(await prom());
   }
+
   return results;
 }
 
@@ -150,56 +152,6 @@ async function Transaction(opts = {}, addon = []) {
 
 Object.assign(Transaction, _Transaction);
 
-function merkleProof(leafs, transactionIndex, returnLeftish = false) {
-  let hashes = leafs.map(leaf => leaf.keccak256Packed());
-
-  if (hashes.length % 2 > 0) {
-    hashes.push(utils.emptyBytes32);
-  }
-
-  let oppositeLeafHash = hashes[transactionIndex];
-  let masterHash = oppositeLeafHash;
-  let swap = [];
-  let proof = [];
-  let leftish = false;
-
-  for (var i = 0; hashes.length > 0; i++) {
-    if (hashes.length % 2 > 0) {
-      hashes.push(utils.emptyBytes32);
-    }
-
-    for (var z = 0; z < hashes.length; z += 2) {
-      let depthHash = utils.keccak256(hashes[z]
-          + hashes[z + 1].slice(2));
-
-      if (hashes[z] === masterHash) {
-        proof.push(hashes[z + 1]);
-        masterHash = depthHash;
-
-        if (z < hashes.length) {
-          leftish = true;
-        }
-      }
-
-      if (hashes[z + 1] === masterHash) {
-        proof.push(hashes[z]);
-        masterHash = depthHash;
-      }
-
-      swap.push(depthHash);
-    }
-
-    hashes = swap;
-    swap = [];
-
-    if (hashes.length < 2) {
-      break;
-    }
-  }
-
-  return returnLeftish ? { leftish, proof } : proof;
-}
-
 const _TransactionProof = struct(`
   address producer,
   bytes32 previousBlockHash,
@@ -238,10 +190,12 @@ function TransactionProof({
   data,
   token,
   selector,
-  inputProofs }) {
+  inputProofs,
+  override }) {
   const isSignatureFee = typeof signatureFee !== "undefined";
   const isEmpty = transactionIndex >= transactions.length;
   const transaction = isEmpty ? null : transactions[transactionIndex || 0];
+
   return new _TransactionProof({
     ...block.object(),
     ...root.object(),
@@ -257,10 +211,13 @@ function TransactionProof({
       ? []
       : transaction.unsigned ?
         (transaction.unsigned().object().data || [])
-          .map(d => d._isStruct ? d.keccak256() : d) : []),
+          .map(d => d._isStruct
+              ? ((d.properties || {}).rootProducer ? d.keccak256Packed() : d.keccak256())
+              : d) : []),
     token,
     selector,
     inputProofs,
+    ...override,
   });
 }
 
@@ -339,4 +296,5 @@ module.exports = {
   MaxReturnDataSize,
   MaxInputs,
   MaxOutputs,
+  merkleProof,
 };

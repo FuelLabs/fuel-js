@@ -1,4 +1,4 @@
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const utils = require('@fuel-js/utils');
 const struct = require('@fuel-js/struct');
 const database = require('@fuel-js/database');
@@ -1393,6 +1393,12 @@ async function process(block = {}, config = {}) {
               }
             }
 
+            // If the owner is null, also throw invalid witness.
+            utils.assert(
+              utils.bigNumberify(owner).gt(0),
+              'null-witness',
+            );
+
             // check the witness
             utils.assertHexEqual(owner, protocol
                 .witness.recover(witnesses[witnessReference],
@@ -1599,10 +1605,6 @@ async function process(block = {}, config = {}) {
             if (config.archive) {
               // input hash
               await db.put([interface.db.inputHash, ...inputHashKey], utxo);
-
-              // add archival inputs with reference to the transactionHashId
-              // await db.put([interface.db.archiveHash, ...inputHashKey], utxo);
-              // await db.put([interface.db.archiveMetadata, ...inputMetadataKey], hash);
 
               // increase return owner balance
               if (!isWithdraw) {

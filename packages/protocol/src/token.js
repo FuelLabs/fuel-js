@@ -24,7 +24,7 @@ function toUtf8String(hex) {
 const EtherToken = Token({
     name: toUtf8Bytes('ether'),
     symbol: toUtf8Bytes('eth'),
-    version: toUtf8Bytes('1.0.0'),
+    version: toUtf8Bytes('1.1.0'),
     addr: utils.emptyAddress,
     decimals: 18,
 });

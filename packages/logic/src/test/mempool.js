@@ -1,5 +1,5 @@
 const { test, utils } = require('@fuel-js/environment');
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const mempool = require('../mempool');
 const config = require('./config.local');
 const interface = require('@fuel-js/interface');

@@ -3,8 +3,8 @@ const utils = require('@fuel-js/utils');
 // Block numbers.
 const blockNumbers = {
   "v1": {
-      "mainnet": 11738472,
-      "rinkeby": 7957768
+      "mainnet": 11787727,
+      "rinkeby": 8012426
   }
 };
 

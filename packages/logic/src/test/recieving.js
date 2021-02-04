@@ -2,9 +2,9 @@
 // inputs, we will see if the balance reconsiling is correct.
 const { test, utils, overrides } = require("@fuel-js/environment");
 const { ERC20, OwnedProxy, Fuel } = require("@fuel-js/contracts");
-const tx = require("@fuel-js/protocol2/src/transaction");
+const tx = require("@fuel-js/protocol/src/transaction");
 const interface = require("@fuel-js/interface");
-const protocol = require("@fuel-js/protocol2");
+const protocol = require("@fuel-js/protocol");
 const struct = require("@fuel-js/struct");
 const config = require("./config.local");
 const sync = require("../sync");

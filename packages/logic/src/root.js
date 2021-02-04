@@ -1,10 +1,10 @@
 const utils = require('@fuel-js/utils');
-const protocol = require('@fuel-js/protocol2');
+const protocol = require('@fuel-js/protocol');
 const struct = require('@fuel-js/struct');
 const interface = require('@fuel-js/interface');
 const transact = require('./transact');
 const operatorsToWallets = require('./operatorsToWallets');
-const transaction = require('@fuel-js/protocol2/src/transaction');
+const transaction = require('@fuel-js/protocol/src/transaction');
 
 /// @dev Transacting a single or all the root transactions if posisble.
 async function transactRoot(log = {}, root = {}, config = {}) {
