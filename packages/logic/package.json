@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/logic",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Essential fuel-js logic for clients.",
   "main": "src/index.js",
   "scripts": {
@@ -26,7 +26,7 @@
   "dependencies": {
     "@fuel-js/interface": "^0.2.0",
     "@fuel-js/protocol": "^0.4.6",
-    "@fuel-js/batch": "^0.1.4",
+    "@fuel-js/batch": "^0.1.6",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/struct": "^0.1.7",
     "@fuel-js/down": "^0.1.5",

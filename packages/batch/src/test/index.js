@@ -71,9 +71,31 @@ module.exports = test('check mysql preforms like any other keystore', async t =>
     },
   });
 
+  const fakeMysql2 = (opts = {}) => ({
+    supports: {
+      mysql: {
+        table: 'table',
+        escape: value => value,
+        _query: (query, callback) => {
+          if (opts.causeError) return callback(new Error('error!'));
+          if (opts.noLength) return callback(null, [[], []]);
+
+          callback(null, [{
+            key: '0xcc',
+            value: Buffer.from('bb', 'hex'),
+          }]);
+        },
+      },
+    },
+  });
+
   t.ok(await batch(fakeMysql(), [ ['0xcc'], ['0xaa'] ]), 'mysql batch');
   t.catch(batch(fakeMysql({ causeError: true }), [ ['0xcc'], ['0xaa'] ]), 'mysql batch');
   t.catch(batch(fakeMysql({ noLength: true }), [ ['0xcc'], ['0xaa'] ]), 'mysql batch');
+
+  t.ok(await batch(fakeMysql2(), [ ['0xcc'], ['0xaa'] ]), 'mysql batch 2');
+  t.catch(batch(fakeMysql2({ causeError: true }), [ ['0xcc'], ['0xaa'] ]), 'mysql batch 2');
+  t.catch(batch(fakeMysql2({ noLength: true }), [ ['0xcc'], ['0xaa'] ]), 'mysql batch 2');
 
   await mysqldb.close();
 });

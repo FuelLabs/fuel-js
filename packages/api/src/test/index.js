@@ -5,7 +5,10 @@ const Api = require('../index');
 module.exports = test('api', async t => {
   try {
 
-    const api = new Api('rinkeby');
+    const api = new Api('mainnet', {
+      base: '',
+      url: 'https://fuel-lambdas-mainnet-rg0rlrgkv.vercel.app/v1',
+    });
 
     t.ok(await api.getState(), 'get state');
     t.ok(await api.getBlockByHeight(0), 'block by height');
@@ -21,7 +24,7 @@ module.exports = test('api', async t => {
     );
     t.ok(balance, 'balance');
 
-    const profile2 = await api.getProfile('0x2e0a5d875f0209d2267721105847d6d52df50784');
+    const profile2 = await api.getProfile('0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C');
 
     console.log(profile2);
 
