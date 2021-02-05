@@ -535,7 +535,6 @@ Wallet.prototype.faucet = async function (opts = {}) {
 // deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse
 Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) {
   const self = this;
-
   try {
     const options = self._options({ timeout: 600, ...opts });
     await self._setup();

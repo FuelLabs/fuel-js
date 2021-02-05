@@ -226,6 +226,7 @@ async function sync(config = {}) {
                     config,
                     depositHash);
                 }
+                
                 await config.db.put([
                   interface.db.inputHash,
                   protocol.inputs.InputTypes.Deposit,
@@ -233,6 +234,7 @@ async function sync(config = {}) {
                   depositHash,
                 ], deposit);
 
+                // Put spent in place for balance rec.
                 try {
                   await db.get([
                     interface.db.spent,
@@ -250,12 +252,22 @@ async function sync(config = {}) {
                     depositHash,
                   ], deposit);
                 }
+
+                // Archive this hash.
                 await config.db.put([
                   interface.db.archiveHash,
                   protocol.inputs.InputTypes.Deposit,
                   notWithdrawal,
                   depositHash,
                 ], log.transactionHash);
+
+                // Archive this deposit
+                await config.db.put([
+                  interface.db.depositArchive,
+                  deposit.properties.owner().get(),
+                  deposit.properties.token().get(),
+                  deposit.properties.blockNumber().get(),
+                ], deposit);
               }
 
               // Write the deposit.
