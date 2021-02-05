@@ -16,8 +16,8 @@ async function getOwnerId(owner = '0x', config = {}) {
 async function getDeposits(opts = {}, config = {}) {
   // stream deposits
   const deposits = await streamToArray(config.db.createReadStream({
-    lte: interface.db.deposit2.encode([ opts.owner, opts.token, opts.blockNumber ]),
-    gte: interface.db.deposit2.encode([ opts.owner, '0x00', '0x00' ]),
+    lte: interface.db.depositArchive.encode([ opts.owner, opts.token, opts.blockNumber ]),
+    gte: interface.db.depositArchive.encode([ opts.owner, '0x00', '0x00' ]),
     limit: Math.min(parseInt(opts.limit, 10), 64),
     remote: true,
   }));

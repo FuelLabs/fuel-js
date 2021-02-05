@@ -123,6 +123,9 @@ const db = {
 
   // To mark withdrawls.
   withdraw: Key(index++, 'bytes32 withdrawHash'),
+
+  // Deposit archive.
+  depositArchive: Key(index++, 'address owner', 'address token', 'uint32 blockNumber'),
 };
 
 module.exports = {

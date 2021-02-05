@@ -48,4 +48,11 @@ module.exports = test('gasPrice', async t => {
   console.log('safe', utils.formatUnits(localPrices.safe, 'gwei'));
   console.log('median', utils.formatUnits(localPrices.median, 'gwei'));
   console.log('low', utils.formatUnits(localPrices.low, 'gwei'));
+
+  const mainnetPrices = await gasPrice(ethers.getDefaultProvider('mainnet'));
+  console.log('network', utils.formatUnits(mainnetPrices.network, 'gwei'));
+  console.log('fast', utils.formatUnits(mainnetPrices.fast, 'gwei'));
+  console.log('safe', utils.formatUnits(mainnetPrices.safe, 'gwei'));
+  console.log('median', utils.formatUnits(mainnetPrices.median, 'gwei'));
+  console.log('low', utils.formatUnits(mainnetPrices.low, 'gwei'));
 });

@@ -32,6 +32,26 @@ const { setInterval } = require("timers");
     const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
     const usdtAddress = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 
+    console.log(fuel.utils.formatUnits(await wallet.estimateGasCost(
+        usdcAddress,
+        dest,
+        fuel.utils.parseUnits('.0001', 6),
+    ), 6));
+
+    for (var i = 0; i < 30; i++) {
+        console.log(await wallet.transfer(
+            usdcAddress,
+            dest,
+            fuel.utils.parseUnits('.0001', 6),
+        ));
+        console.log(await wallet.transfer(
+            usdtAddress,
+            dest,
+            fuel.utils.parseUnits('.0001', 6),
+        ));
+    }
+
+    /*
     console.log(
         await wallet.deposit(
             daiAddress,
@@ -46,6 +66,7 @@ const { setInterval } = require("timers");
         daiAddress,
         '0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C',
         fuel.utils.parseEther('.00002')));
+    */
 
     /*
     console.log(

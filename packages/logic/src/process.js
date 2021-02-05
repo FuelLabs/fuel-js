@@ -883,6 +883,7 @@ async function process(block = {}, config = {}) {
 
     // setup a local config but with the new simulation db
     const local = { ...config, db };
+    const timestamp = utils.timestamp();
 
     // stats object
     let stats = {
@@ -1530,7 +1531,6 @@ async function process(block = {}, config = {}) {
 
           // Handle UTXO outputss
           if (outputType !== protocol.outputs.OutputTypes.Return) {
-            const timestamp = utils.timestamp();
             const utxo = protocol.outputs.UTXO({
               transactionHashId,
               outputType,
@@ -1740,7 +1740,7 @@ async function process(block = {}, config = {}) {
             witnessesLength: witnesses.length,
             blockHeight: block.properties.height().get(),
             blockNumber: block.properties.blockNumber().get(),
-            timestamp: utils.timestamp(),
+            timestamp,
             signatureFeeToken: feeToken,
             signatureFee: fee,
             spendableOutputs: spendableHashes,

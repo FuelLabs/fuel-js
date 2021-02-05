@@ -27,12 +27,37 @@ async function history(opts = {}, config = {}) {
     // setup default proofs
     let proofs = [];
 
+    // Retrieved [tx hash] => timestamp.
+    let retrieved = {};
+
+    // Always take the most recent one.
+    transactions.forEach(data => {
+      const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
+
+      // Retrieved.
+      if (utils.bigNumberify(_timestamp).gt(retrieved[_transactionId] || 0)) {
+        // set retrieved hash.
+        retrieved[_transactionId] = _timestamp;
+      }
+    });
+
+    // Filter only the most recent tx.
+    const filteredTransactions = transactions.filter(data => {
+      const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
+
+      // Return true if it's the latest tx.
+      if (retrieved[_transactionId] === _timestamp) {
+        return true;
+      }
+
+      // Return false. 
+      return false;
+    });
+
     // include up to 10 tx proofs using batch 1 round trip
     try {
       if (include && transactions.length) {
-        proofs = await batch(config.db, transactions.map(data => {
-          const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
-  
+        proofs = await batch(config.db, filteredTransactions.map(data => {
           return [ interface.db.transactionId, data.value ];
         }), { remote: true });
       }
