@@ -5,7 +5,7 @@ const Api = require('../index');
 module.exports = test('api', async t => {
   try {
 
-    const api = new Api('mainnet', {
+    const api = new Api('rinkeby', {
       base: '',
       url: 'https://fuel-lambdas-mainnet-rg0rlrgkv.vercel.app/v1',
     });
