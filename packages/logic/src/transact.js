@@ -544,6 +544,18 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
       value: transactionAddon,
     }];
 
+    // If no mempool is true, then we don't record locally.
+    if (config.nomempool) {
+      mempoolEntry = [{
+        type: 'put',
+        key: [
+          interface.db.transactionId,
+          transactionHashId,
+        ],
+        value: transactionAddon,
+      }];
+    }
+
     // If there is an API account provider present.
     if (config.account) {
       mempoolEntry.push({

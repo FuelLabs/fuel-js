@@ -365,6 +365,17 @@ async function app(opts = {}) {
                     // Nonce number which prevents transactions out of order, same lambda, same timestamp
                     nonce += 1;
 
+                    // Produce transaction using remote aggregator.
+                    if (settings.remote_production) {
+                        await fetch({
+                            unsigned: unsigned,
+                            witnesses: witnesses,
+                        }, {
+                            path: '/transact',
+                            network: providedNetwork,
+                        });
+                    }
+
                     // Transact with the DB.
                     res.status(200).json({
                         error: null,
@@ -377,6 +388,7 @@ async function app(opts = {}) {
                                     ...settings,
                                     account,
                                     feeEnforcement,
+                                    nomempool: settings.remote_production ? true : false,
                                 },
                             ),
                         ),

@@ -177,6 +177,8 @@ function config(opts = process.env, _prefix = 'fuel_v1_') {
     provider, // provider object
     operators: (opts.operator || {}).privateKey || '0x',
     proxy: opts.proxy,
+    producer_address: opts.producer_address,
+    remote_production: opts.remote_production || false,
     plugin: opts.plugin || null,
     port: opts.port || 3000,
     increaseBlock: opts.increaseBlock || null,
