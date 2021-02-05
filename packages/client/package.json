@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/client",
-  "version": "0.2.2",
+  "version": "0.2.4",
   "description": "The Fuel version 1.0.0 client.",
   "main": "src/index.js",
   "scripts": {
@@ -54,13 +54,13 @@
   },
   "dependencies": {
     "@fuel-js/utils": "^0.1.0",
-    "@fuel-js/logic": "^0.6.2",
+    "@fuel-js/logic": "^0.6.3",
     "@fuel-js/down": "^0.1.5",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/protocol": "^0.4.6",
     "@fuel-js/contracts": "^0.1.8",
     "@fuel-js/interface": "^0.2.2",
-    "@fuel-js/wallet": "^0.5.6",
+    "@fuel-js/wallet": "^0.5.7",
     "chalk": "^4.1.0",
     "prompts": "^2.3.2",
     "leveldown": "^5.6.0",

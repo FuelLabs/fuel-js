@@ -64,7 +64,7 @@ async function history(opts = {}, config = {}) {
     } catch (err) {}
 
     // return transactions parsed, timestamp, transactionId, proof if available
-    return transactions.map((data, index) => {
+    return filteredTransactions.map((data, index) => {
       // parse the key
       const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
 
