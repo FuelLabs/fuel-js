@@ -41,10 +41,10 @@ function config(opts = process.env, _prefix = 'fuel_v1_', noresolution = false) 
     produce: opts.produce,
     minimumTransactionsPerRoot: opts.minimumTransactionsPerRoot || 0,
     emit: () => {}, // emmitter for new outputs
-    console: console || {
+    console: {
       log: () => {},
       error: console.error,
-    },
+    } || console,
     erc20: opts.erc20 || erc20,
     increaseBlock: opts.increaseBlock,
     feeEnforcement: opts.feeEnforcement,

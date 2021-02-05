@@ -27,12 +27,61 @@ const { setInterval } = require("timers");
 
     await wallet.sync();
 
-    // console.log('profile', await api.getProfile(wallet.address));
-
     const dest = '0xc1e0Dc2deE0fb13000452259CBCD5b1a9023b4Fa';
     const daiAddress = '0x6b175474e89094c44da98b954eedeac495271d0f';
     const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
     const usdtAddress = '0xdac17f958d2ee523a2206206994597c13d831ec7';
+
+    console.log(
+        await wallet.deposit(
+            daiAddress,
+            fuel.utils.parseEther('2'),
+            {
+                skipTransfer: true,
+            },
+        ),
+    );
+
+    console.log(await wallet.transfer(
+        daiAddress,
+        '0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C',
+        fuel.utils.parseEther('.00002')));
+
+    /*
+    console.log(
+        await wallet.deposit(
+            daiAddress,
+            fuel.utils.parseEther('2'),
+        ),
+    );
+
+    console.log(await wallet.transfer(
+        daiAddress,
+        '0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C',
+        fuel.utils.parseEther('.00002')));
+
+    return;
+
+    console.log(
+        await wallet.deposit(
+            daiAddress,
+            fuel.utils.parseEther('.1'),
+        ),
+    );
+
+   console.log(
+        await wallet.deposit(
+            usdtAddress,
+            fuel.utils.parseUnits('1', 6),
+            {
+                gasLimit: 300000,
+            },
+        ),
+    );
+    */
+
+    /*
+    */
 
     /*
     for (var i = 0; i < 30; i++) {
@@ -47,16 +96,6 @@ const { setInterval } = require("timers");
             fuel.utils.parseUnits('.0435', 6),
         ));
     }
-
-    console.log(
-        await wallet.deposit(
-            usdtAddress,
-            fuel.utils.parseUnits('5.50', 6),
-            {
-                gasLimit: 300000,
-            },
-        ),
-    );
     */
 
     /*

@@ -264,7 +264,7 @@ Wallet.prototype._sendTransaction = async function (opts = {}) {
 Wallet.prototype._options = function (opts = {}) {
   const self = this;
   return {
-    gasLimit: 2000000,
+    gasLimit: 250000,
     ...self.options,
     ...opts,
   };
@@ -542,7 +542,7 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
 
     const funnel = await self.contract.funnel(self.address);
     let transferTx = null;
-
+  
     if (!opts.skipTransfer) {
       // handle Ether or Transfer
       if (utils.bigNumberify(token).eq(0)) {
@@ -551,6 +551,7 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
           to: funnel,
           value: amount,
           ...filterOptions(options),
+          ...(opts.transferOptions ? filterOptions(opts.transferOptions || {}) : {}),
         });
 
         // Wait on this transfer.
@@ -565,7 +566,10 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
 
         // Transfering token.
         transferTx = await Token(token, _signer)
-          .transfer(funnel, amount, filterOptions(options));
+          .transfer(funnel, amount, {
+            ...filterOptions(options),
+            ...filterOptions(opts.transferOptions || {}),
+          });
 
         // Transfer.
         transferTx = await transferTx.wait();
@@ -578,7 +582,10 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
     let depositTx = await self.contract.deposit(
       self.address,
       token,
-      filterOptions(options),
+      {
+        ...filterOptions(options),
+        ...(opts.depositOptions ? filterOptions(opts.depositOptions || {}) : {}),
+      },
     );
     depositTx = await depositTx.wait();
 
@@ -1458,7 +1465,7 @@ Wallet.prototype.retrieve = async function (tokenId = 0, opts = {}) {
           contract: self.contract,
         },
       })).encodePacked(), {
-        gasLimit: 4000000,
+        gasLimit: 400000,
         ...filterOptions(opts),
       });
 
