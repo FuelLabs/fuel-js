@@ -20,7 +20,7 @@ export class Wallet {
   sync(): void;
   withdraw(token: any, amount: any, opts?: any): Promise<any>;
   retrieve(opts?: any): Promise<any>;
-  fee(): Promsie<any>
+  fee(): Promise<any>
 
   on(name: string, cb: Function);
   off(name: string);
