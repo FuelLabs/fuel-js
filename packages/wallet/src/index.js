@@ -532,7 +532,7 @@ Wallet.prototype.faucet = async function (opts = {}) {
   }
 }
 
-// deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse
+// Deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse.
 Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) {
   const self = this;
   try {
@@ -642,10 +642,10 @@ function determinePreImage(preimages = [], digest = '0x') {
   utils.assert('no preimages provided, either specify htlc:false or preimages:[] in options');
 }
 
-// _inputs, get all inputs in the wallet, filtered by tokenId, Returns: Array, of inputs
+// _inputs, get all inputs in the wallet, filtered by tokenId, Returns: Array, of inputs.
 Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
   try {
-    // Setup
+    // Setup.
     const self = this;
     const options = { htlc: false, ...opts };
     let balance = utils.bigNumberify(0);
@@ -657,12 +657,12 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
     const tokenMin = options.anytoken ? 0 : tokenId;
     const tokenMax = options.anytoken ? '0xFFFFFFFF' : tokenId;
 
-    // Handle Inputs Restriction
+    // Handle Inputs Restriction.
     if (options.inputs) {
       utils.assert(options.inputs.length <= 8, 'inputs-length-overflow');
     }
 
-    // get the current block number for understanding HTLC's
+    // Get the current block number for understanding HTLC's.
     const _state = await self._state();
     const _blockNumber = _state.properties.blockNumber().get(); // await self.provider.getBlockNumber();
 
