@@ -14,6 +14,7 @@
     "start-oracle": "node src/index.js --infura='$ENV' --oracle=true --network='mainnet'",
     "start-testing": "genacheServer=1 node src/testing.js --serve=true --network='unspecified' --produce=true --proxy=true --archive=true --scanSize=10000",
     "start-faucet-rinkeby": "node src/index.js -e --faucet=true --network='rinkeby'",
+    "start-rinkeby-remote": "node src/index.js --infura='$ENV' --network='mainnet' --remote_production=true --serve=true --cors='http://localhost:57569' --produce=false --clear=true --archive=true",
     "recover-rinkeby": "node src/full.js -e --recover='balance-dump.json' --serve=false --network='rinkeby' --produce=false --clear=false --proxy=false --archive=true",
     "retrieve-rinkeby": "node src/index.js -e --serve=false --retrieveBonds=true --contract='0x669c63dDD6050838faf496F46EEb7378bff05d77' --network='rinkeby' --wallet='../../../wallets/.fuel-wallet.json' --produce=true --clear=false --proxy=false --archive=false",
     "browser": "parcel serve browser/index.html",

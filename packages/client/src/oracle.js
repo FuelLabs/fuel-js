@@ -51,11 +51,11 @@ async function oracle(loop = {}, settings = {}) {
         );
 
         // The gas and ether price.
-        const gasPrice = gasPrices.standard;
+        const gasPrice = gasPrices[settings.gasPriceMeasure || 'standard'];
         const ethPriceUSD = ethPrices[0].current_price;
 
         // Eth to USD price per Byte
-        const calldataGas = 16;
+        const calldataGas = settings.gasPerByte || 16;
         const gweiCost = utils.parseUnits(
             String(calldataGas * gasPrice), 'gwei');
         const ethGwei = utils.parseEther('1000000000')
