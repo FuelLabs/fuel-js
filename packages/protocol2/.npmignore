@@ -1,7 +1,0 @@
-src/test
-node_modules
-dist
-.cache
-old
-.nyc_output
-browser

@@ -304,8 +304,6 @@ async function app(opts = {}) {
                             network: providedNetwork,
                         });
 
-                        console.log('faucet', res);
-
                         // faucet success!
                         res.status(200).json({
                             error: null,

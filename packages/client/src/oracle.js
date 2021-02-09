@@ -6,32 +6,13 @@ const stablecoinsIds = {
     'dai': 1,
     'usdc': 2,
     'usdt': 3,
-    /*
-    'cusdt': 1,
-    'cdai': 2,
-    'cusdc': 3,
-    'curve': 6,
-    'usdt': 7,
-    'ausdc': 8,
-    'adai': 9,
-    'ausdt': 10,
-    */
 };
 const decimals = {
     'dai': 18,
     'usdc': 6,
     'usdt': 6,
-    /*
-    'cusdt': 1,
-    'cdai': 2,
-    'cusdc': 3,
-    'curve': 6,
-    'usdt': 7,
-    'ausdc': 8,
-    'adai': 9,
-    'ausdt': 10,
-    */
 };
+
 // const ether = utils.emptyAddress;
 const etherTokenId = 0;
 
