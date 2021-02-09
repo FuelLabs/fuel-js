@@ -23,7 +23,7 @@ jobs:
       - run: npm install
       - run: npm run bootstrap
       - run: |
-          nohup npm run --prefix ./packages/client start-testing & sleep 7
+          nohup npm run --prefix ./packages/client start-testing & sleep 10
       - run: npm test
     timeout-minutes: 150
     
