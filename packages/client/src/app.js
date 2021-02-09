@@ -294,6 +294,27 @@ async function app(opts = {}) {
                         ? req.query
                         : req.body;
 
+                    // If remote production is on, bypass local for remote service.
+                    if (settings.remote_production) {
+                        // faucet
+                        const res = await fetch({
+                            owner,
+                        }, {
+                            path: '/faucet',
+                            network: providedNetwork,
+                        });
+
+                        console.log('faucet', res);
+
+                        // faucet success!
+                        res.status(200).json({
+                            error: null,
+                            result: res,
+                        });
+                        res.end();
+                        return;
+                    }
+
                     // if successful, make stub to prevent overuse
                     const unixhour = utils.unixtime() / 10; // 3600;
                     const ip = utils.ipToHex(req.headers['x-forwarded-for'] || '0.0.0.0');

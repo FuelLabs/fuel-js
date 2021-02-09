@@ -25,5 +25,5 @@ jobs:
       - run: |
           nohup npm run --prefix ./packages/client start-testing & sleep 7
       - run: npm test
-    timeout-minutes: 60
+    timeout-minutes: 150
     
