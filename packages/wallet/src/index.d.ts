@@ -10,17 +10,18 @@ export class Wallet {
 
   constructor(provider: any, options?: any);
 
-  _tokenId(token: any): Promise<any>;
   balance(token: any, options?: any): Promise<any>;
   deposit(token: any, amount: any, opts?: any): Promise<void>;
   transfer(token: any, recipient: any, amount: any, opts?: any): Promise<any>;
+  estimateGasCost(token: any, recipient: any, amount: any, opts?: any): Promise<any>;
   faucet(): Promise<void>;
+  _tokenId(token: any): Promise<any>;
   _token(id: number): Promise<string>;
 
-  sync(): void;
+  sync(): Promise<void>;
   withdraw(token: any, amount: any, opts?: any): Promise<any>;
-  retrieve(opts?: any): Promise<any>;
-  fee(): Promise<any>
+  retrieve(token: any, opts?: any): Promise<any>;
+  fee(token: any): Promise<any>;
 
   on(name: string, cb: Function);
   off(name: string);
