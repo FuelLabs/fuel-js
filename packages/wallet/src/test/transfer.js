@@ -94,7 +94,7 @@ module.exports = test('wallet', async t => {
     });
 
     // Wait for the commitment to happen.
-    commitTx = await commitTx.wait(12);
+    commitTx = await commitTx.wait(20);
 
     // Transfer with caller.
     t.ok(await walletC.transfer(txTokenId, txAddress, txAmount, {

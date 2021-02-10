@@ -291,6 +291,12 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
       // witness refernece
       utils.assert(witnesses[witnessReference], 'invalid-witness-reference');
 
+      // If the owner is null, also throw invalid witness.
+      utils.assert(
+        utils.bigNumberify(owner).gt(0),
+        'null-witness',
+      );
+
       // check witnesses
       utils.assertHexEqual(owner, protocol
         .witness.recover(witnesses[witnessReference], transactionHashId, callers, rootBlock),
@@ -443,6 +449,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
         outs[utils.bigstring(token)] = (outs[utils.bigstring(token)]
           || utils.bigNumberify(0)).add(amount);
       } else {
+        // Database this return data.
         accountOutputs.push({
           type: 'put',
           key: [interface.db.return, transactionHashId, outputIndex],

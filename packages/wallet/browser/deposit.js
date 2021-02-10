@@ -1,7 +1,6 @@
 const regeneratorRuntime = require("regenerator-runtime");
 const fuel = require('../src/index');
 const Api = require('@fuel-js/api');
-const { setInterval } = require("timers");
 
 (async () => {
     // Create a new wallet with a new key
@@ -32,6 +31,14 @@ const { setInterval } = require("timers");
     const usdcAddress = '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48';
     const usdtAddress = '0xdac17f958d2ee523a2206206994597c13d831ec7';
 
+    console.log(
+        await wallet.deposit(
+            fuel.utils.emptyAddress,
+            fuel.utils.parseEther('.1'),
+        ),
+    );
+
+    /*
     console.log(fuel.utils.formatUnits(await wallet.estimateGasCost(
         usdcAddress,
         dest,
@@ -50,6 +57,7 @@ const { setInterval } = require("timers");
             fuel.utils.parseUnits('.0001', 6),
         ));
     }
+    */
 
     /*
     console.log(
