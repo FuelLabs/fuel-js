@@ -1,6 +1,6 @@
 {
     "name": "@fuel-js/contracts",
-    "version": "0.1.4",
+    "version": "0.1.8",
     "description": "Fuel protocol implemented in Yul+ for the Ethereum Virtual Machine",
     "main": "src/index.js",
     "repository": {

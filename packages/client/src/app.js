@@ -294,6 +294,25 @@ async function app(opts = {}) {
                         ? req.query
                         : req.body;
 
+                    // If remote production is on, bypass local for remote service.
+                    if (settings.remote_production) {
+                        // faucet
+                        const res = await fetch({
+                            owner,
+                        }, {
+                            path: '/faucet',
+                            network: providedNetwork,
+                        });
+
+                        // faucet success!
+                        res.status(200).json({
+                            error: null,
+                            result: res,
+                        });
+                        res.end();
+                        return;
+                    }
+
                     // if successful, make stub to prevent overuse
                     const unixhour = utils.unixtime() / 10; // 3600;
                     const ip = utils.ipToHex(req.headers['x-forwarded-for'] || '0.0.0.0');
@@ -365,6 +384,17 @@ async function app(opts = {}) {
                     // Nonce number which prevents transactions out of order, same lambda, same timestamp
                     nonce += 1;
 
+                    // Produce transaction using remote aggregator.
+                    if (settings.remote_production) {
+                        await fetch({
+                            unsigned: unsigned,
+                            witnesses: witnesses,
+                        }, {
+                            path: '/transact',
+                            network: providedNetwork,
+                        });
+                    }
+
                     // Transact with the DB.
                     res.status(200).json({
                         error: null,
@@ -377,6 +407,7 @@ async function app(opts = {}) {
                                     ...settings,
                                     account,
                                     feeEnforcement,
+                                    nomempool: settings.remote_production ? true : false,
                                 },
                             ),
                         ),

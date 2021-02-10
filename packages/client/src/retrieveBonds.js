@@ -38,8 +38,6 @@ async function retrieveBonds(address = null, config = {}) {
             continue;
         }
 
-        console.log(blockHeader.object());
-
         // If not continue, stop.
         if (!config.continue()) {
             break;

@@ -11,5 +11,4 @@ node_modules
 .fuel-wallet.json
 .fueldb-remote-unspecified
 ./.fueldb-remote-unspecified
-old
 geth

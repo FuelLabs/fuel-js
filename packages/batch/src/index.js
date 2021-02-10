@@ -25,9 +25,13 @@ async function batch(db = {}, keys = [], options = {}) {
               return reject(new Error('Invalid Batch Selection'));
             }
 
+            const rowData = Array.isArray(row)
+              ? row[0]
+              : row;
+
             return {
               key: encoding.keyEncoding.decode(encoding.keyEncoding.encode(keys[i])),
-              value: encoding.valueEncoding.decode(row[0].value),
+              value: encoding.valueEncoding.decode(rowData.value),
             };
           }));
         },
