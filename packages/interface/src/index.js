@@ -126,6 +126,9 @@ const db = {
 
   // Deposit archive.
   depositArchive: Key(index++, 'address owner', 'address token', 'uint32 blockNumber'),
+
+  // Deposit archive.
+  log: Key(index++, 'bytes32 topic', 'bytes32 transactionId', 'uint8 outputIndex'),
 };
 
 module.exports = {

@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/interface",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Fuel protocol interfaces.",
   "main": "src/index.js",
   "scripts": {
