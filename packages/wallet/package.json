@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/wallet",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Common Fuel utilites.",
   "main": "src/index.js",
   "types": "src/index.d.ts",
