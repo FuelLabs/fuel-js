@@ -40,7 +40,7 @@ module.exports = test('in-flight', async t => {
           20,
           utils.parseEther('1.0'),
           "Fuel",
-          "1.0.0",
+          "1.1.0",
           0,
           genesisHash,
       ]);

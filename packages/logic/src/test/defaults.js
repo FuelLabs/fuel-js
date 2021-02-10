@@ -8,7 +8,7 @@ const defaults = (producer, bondSize = utils.parseEther('1.0')) => [
   20,
   bondSize,
   "Fuel",
-  "1.0.0",
+  "1.1.0",
   1,
   utils.emptyBytes32
 ];

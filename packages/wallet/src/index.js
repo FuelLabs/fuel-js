@@ -1,7 +1,6 @@
 const utils = require('@fuel-js/utils');
 const protocol = require('@fuel-js/protocol');
 const _interface = require('@fuel-js/interface');
-const abi = require('./abi.json');
 const memdown = require('memdown');
 const ethers = require('ethers');
 const database = require('@fuel-js/database');
@@ -9,6 +8,7 @@ const streamToArray = require('stream-to-array');
 const struct = require('@fuel-js/struct');
 const PubNub = require('pubnub');
 const { deployments } = require('@fuel-js/contracts');
+const abi = require('./abi.json');
 
 // resolve the provider object down to an, Returns: Ethers provider
 function resolveProvider(provider = {}) {
@@ -264,7 +264,7 @@ Wallet.prototype._sendTransaction = async function (opts = {}) {
 Wallet.prototype._options = function (opts = {}) {
   const self = this;
   return {
-    gasLimit: 2000000,
+    gasLimit: 250000,
     ...self.options,
     ...opts,
   };
@@ -532,17 +532,16 @@ Wallet.prototype.faucet = async function (opts = {}) {
   }
 }
 
-// deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse
+// Deposit, deposit tokens into Fuel, Returns: Object, TransactionResponse.
 Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) {
   const self = this;
-
   try {
     const options = self._options({ timeout: 600, ...opts });
     await self._setup();
 
     const funnel = await self.contract.funnel(self.address);
     let transferTx = null;
-
+  
     if (!opts.skipTransfer) {
       // handle Ether or Transfer
       if (utils.bigNumberify(token).eq(0)) {
@@ -551,6 +550,7 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
           to: funnel,
           value: amount,
           ...filterOptions(options),
+          ...(opts.transferOptions ? filterOptions(opts.transferOptions || {}) : {}),
         });
 
         // Wait on this transfer.
@@ -565,7 +565,10 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
 
         // Transfering token.
         transferTx = await Token(token, _signer)
-          .transfer(funnel, amount, filterOptions(options));
+          .transfer(funnel, amount, {
+            ...filterOptions(options),
+            ...filterOptions(opts.transferOptions || {}),
+          });
 
         // Transfer.
         transferTx = await transferTx.wait();
@@ -578,7 +581,10 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
     let depositTx = await self.contract.deposit(
       self.address,
       token,
-      filterOptions(options),
+      {
+        ...filterOptions(options),
+        ...(opts.depositOptions ? filterOptions(opts.depositOptions || {}) : {}),
+      },
     );
     depositTx = await depositTx.wait();
 
@@ -628,7 +634,7 @@ Wallet.prototype.deposit = async function (token = '0x', amount = 0, opts = {}) 
 
 function determinePreImage(preimages = [], digest = '0x') {
   for (const preimage of preimages) {
-    if (utils.keccak256(preimage) === digest) {
+    if (utils.sha256(preimage) === digest) {
       return preimage;
     }
   }
@@ -636,10 +642,10 @@ function determinePreImage(preimages = [], digest = '0x') {
   utils.assert('no preimages provided, either specify htlc:false or preimages:[] in options');
 }
 
-// _inputs, get all inputs in the wallet, filtered by tokenId, Returns: Array, of inputs
+// _inputs, get all inputs in the wallet, filtered by tokenId, Returns: Array, of inputs.
 Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
   try {
-    // Setup
+    // Setup.
     const self = this;
     const options = { htlc: false, ...opts };
     let balance = utils.bigNumberify(0);
@@ -651,12 +657,12 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
     const tokenMin = options.anytoken ? 0 : tokenId;
     const tokenMax = options.anytoken ? '0xFFFFFFFF' : tokenId;
 
-    // Handle Inputs Restriction
+    // Handle Inputs Restriction.
     if (options.inputs) {
       utils.assert(options.inputs.length <= 8, 'inputs-length-overflow');
     }
 
-    // get the current block number for understanding HTLC's
+    // Get the current block number for understanding HTLC's.
     const _state = await self._state();
     const _blockNumber = _state.properties.blockNumber().get(); // await self.provider.getBlockNumber();
 
@@ -679,6 +685,21 @@ Wallet.prototype._inputs = async function (tokenId = 0, opts = {}) {
       // Filter inputs
       if (options.inputs) {
         if (options.inputs.indexOf(hash) === -1) continue;
+      }
+
+      // Check for already retrieved keys.
+      if (options.retrieve) {
+        try {
+          // Will look for if this has already been retrieved.
+          await self.db.get([
+            _interface.db.spent,
+            0,
+            utils.keccak256(entry.key),
+          ]);
+
+          // If so, we continue;
+          continue;
+        } catch (noop) {}
       }
 
       // Is withdraw selected, input not withdraw
@@ -917,6 +938,8 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
     // Balance check
     utils.assert(amount.gt(0), 'amount-underflow');
     utils.assert(balance.gte(amount), 'not-enough-balance');
+    utils.assert(utils.hexDataLength(utils.hexlify(token)) > 0, 'token-id-or-address-empty');
+    utils.assert(utils.hexDataLength(utils.hexlify(to)) > 0, 'to-address-empty');
 
     // Use caller witness.
     let useCallerWitness = opts.caller || null;
@@ -955,7 +978,7 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
 
       returnOwner = options.returnOwner || self.address;
       expiry = options.expiry || 0;
-      digest = utils.keccak256(options.preImage);
+      digest = utils.sha256(options.preImage);
     }
 
     // Build Outputs
@@ -1099,16 +1122,6 @@ Wallet.prototype.transfer = async function (token = '0x', to = '0x', _amount = 0
       witnesses = [
         protocol.witness.Caller({
           ...opts.caller,
-          /*
-          ...await opts.caller({
-            transactionId: hash,
-            unsigned,
-            network: self.network,
-            address: self.address,
-            contract: self.contract,
-            chainId: self.network.chainId,
-          }),
-          */
         }),
       ];
     } else {
@@ -1324,7 +1337,6 @@ Wallet.prototype.withdraw = async function (token = '0x', amount = 0, opts = {})
 /// @notice Proof from Metadata and Input.
 Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config }) {
   const self = this;
-
   const block = await protocol.block.BlockHeader.fromLogs(
       metadata.properties.blockHeight().get().toNumber(),
       config.contract,
@@ -1363,7 +1375,7 @@ Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config 
   const transactions = protocol.root.decodePacked(calldata);
 
   // Selected transaction index.
-  const transactionIndex = metadata.properties.transactionIndex().get();
+  const transactionIndex = metadata.properties.transactionIndex().get().toNumber();
 
   // Check index overflow.
   utils.assert(transactions[transactionIndex], 'transaction-index');
@@ -1410,7 +1422,7 @@ Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config 
           .map(txHex => protocol.root.Leaf({
               // Trim the length and 0x prefix.
               data: struct.chunk(
-              '0x' + txHex.slice(6),
+                '0x' + txHex.slice(6),
               ),
           })),
       data: [],
@@ -1422,8 +1434,8 @@ Wallet.prototype.withdrawProofFromMetadata = async function ({ metadata, config 
   });
 }
 
-// retrieve, retrieve withdrawals from Fuel, Returns: TransactionResponse
-Wallet.prototype.retrieve = async function (opts = {}) {
+// Retrieve, retrieve withdrawals from Fuel, Returns: TransactionResponse.
+Wallet.prototype.retrieve = async function (tokenId = 0, opts = {}) {
   try {
     const self = this;
     await self._setup();
@@ -1432,10 +1444,9 @@ Wallet.prototype.retrieve = async function (opts = {}) {
     await self.sync();
 
     // Get inputs for retrieval.
-    const { keys, proofs } = await self._inputs(0, {
-      ...opts,
+    let { keys, proofs } = await self._inputs(tokenId, {
       retrieve: true,
-      anytoken: true,
+      ...opts,
     });
 
     // Submissions.
@@ -1453,7 +1464,8 @@ Wallet.prototype.retrieve = async function (opts = {}) {
           contract: self.contract,
         },
       })).encodePacked(), {
-        gasLimit: 4000000,
+        gasLimit: 400000,
+        ...filterOptions(opts),
       });
 
       // Withdraw tx.
@@ -1463,7 +1475,16 @@ Wallet.prototype.retrieve = async function (opts = {}) {
       receipts.push(withdrawTx);
 
       // Delete key from inputs. 
-      self.db.del(keys[inputIndex]);
+      await self.db.del(
+        utils.RLP.decode(keys[inputIndex]),
+      );
+
+      // Notate this key as spent, for future sync prevention.
+      await self.db.put([
+        _interface.db.spent,
+        0,
+        utils.keccak256(keys[inputIndex]),
+      ], '0x01');
 
       // Increase the index.
       inputIndex += 1;

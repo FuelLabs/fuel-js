@@ -19,7 +19,7 @@ const { ERC20, Fuel } = require('@fuel-js/contracts');
                 4,
                 utils.parseEther('1.0'),
                 "Fuel",
-                "1.0.0",
+                "1.1.0",
                 0,
                 utils.keccak256('0xdeadbeaf'),
             );
