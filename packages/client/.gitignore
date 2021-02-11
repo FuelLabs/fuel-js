@@ -7,3 +7,9 @@ node_modules
 .fueldb-mainnet
 .fueldb-kovan
 .fueldb-unspecified
+.cache
+.fuel-wallet.json
+.fueldb-remote-unspecified
+./.fueldb-remote-unspecified
+old
+geth

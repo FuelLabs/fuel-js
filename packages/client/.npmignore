@@ -1,0 +1,14 @@
+dist
+node_modules
+.fueldb
+.fueldb-goerli
+.fueldb-rinkeby
+.fueldb-ropsten
+.fueldb-mainnet
+.fueldb-kovan
+.fueldb-unspecified
+.cache
+.fuel-wallet.json
+.fueldb-remote-unspecified
+./.fueldb-remote-unspecified
+geth

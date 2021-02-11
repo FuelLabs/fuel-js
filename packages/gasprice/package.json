@@ -4,7 +4,9 @@
   "description": "Sample transactions from recent Ethereum blocks to determine average fast/safe/network/medium/low gas prices.",
   "main": "src/index.js",
   "scripts": {
-    "test": "node src/test"
+    "test": "nyc node src/test",
+    "lint": "eslint src/index.js",
+    "prepublish": "npm test && npm run lint"
   },
   "repository": {
     "type": "git",
@@ -26,8 +28,11 @@
   "homepage": "https://github.com/fuellabs/fuel-js#readme",
   "devDependencies": {
     "ethers": "^4.0.47",
-    "@fuel-js/environment": "^0.1.0"
-  },
-  "dependencies": {
+    "@fuel-js/environment": "^0.1.0",
+    "eslint": "^7.6.0",
+    "nyc": "^15.1.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint": "^7.2.0",
+    "eslint-plugin-import": "^2.21.2"
   }
 }

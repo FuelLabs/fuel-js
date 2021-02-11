@@ -1,10 +1,13 @@
 {
   "name": "@fuel-js/down",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "The Fuel-JS common down implimentations.",
   "main": "src/index.js",
   "scripts": {
-    "test": "rm -rf .testdb && node src/test"
+    "test": "npm run clean && nyc node src/test",
+    "lint": "eslint src/**",
+    "prepublish": "npm test && npm run lint",
+    "clean": "rm -rf .testdb && rm -rf .testdb3"
   },
   "repository": {
     "type": "git",
@@ -28,10 +31,13 @@
     "@fuel-js/environment": "^0.1.0",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/key": "^0.1.0",
-    "@fuel-js/environment": "^0.1.0",
     "leveldown": "^5.6.0",
     "memdown": "^5.1.0",
-    "stream-to-array": "^2.3.0"
+    "stream-to-array": "^2.3.0",
+    "nyc": "^15.1.0",
+    "eslint-config-airbnb-base": "^14.2.0",
+    "eslint": "^7.2.0",
+    "eslint-plugin-import": "^2.21.2"
   },
   "dependencies": {
     "@fuel-js/encoding": "^0.1.0",

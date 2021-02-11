@@ -1,6 +1,9 @@
 node_modules/
 packages/**/node_modules
-packages/.testdb
+packages/**/.nyc_output
+packages/**/.testdb
 fuel
 lerna-debug.log
 ./lerna-debug.log
+.nyc_output
+coverage

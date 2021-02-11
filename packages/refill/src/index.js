@@ -12,18 +12,25 @@ async function refill(wallet = {}, accounts = [], targetBalance = 0, opts = {
 }) {
   try {
     let total = ethers.utils.bigNumberify(0);
-    let amounts = [];
-    let recipients = [];
+    const amounts = [];
+    const recipients = [];
 
-    for (const account of accounts) {
-      const balance = await wallet.provider.getBalance(account);
+    // get all balances
+    const balances = await Promise.all(accounts
+      .map(account => wallet.provider.getBalance(account)));
 
+    // go through balances
+    let index = 0;
+    for (const balance of balances) {
       // if balance is less than tagret, add to amounts / recipients list
       if (balance.lt(targetBalance)) {
-        recipients.push(account);
+        recipients.push(accounts[index]);
         amounts.push(targetBalance.sub(balance));
         total = total.add(targetBalance.sub(balance));
       }
+
+      // increase index
+      index += 1;
     }
 
     const factory = new ethers.ContractFactory(abi, bytecode, wallet);

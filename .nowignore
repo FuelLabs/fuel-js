@@ -1,6 +1,0 @@
-node_modules/
-packages/**/node_modules
-packages/.testdb
-fuel
-lerna-debug.log
-./lerna-debug.log

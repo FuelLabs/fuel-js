@@ -6,7 +6,7 @@ const defaults = type => {
   const arrayish = type.indexOf('[') !== -1;
   let value = null;
   if (type.indexOf('uint') !== -1) value = 0;
-  if (type.indexOf('bytes') !== -1) value = utils.hexZeroPad('0x', length);
+  if (type.indexOf('bytes') !== -1) value = utils.hexZeroPad('0x', length || 0);
   if (type.indexOf('address') !== -1) value = utils.hexZeroPad('0x', 20);
   return type.indexOf('[') !== -1 ? [] : value;
 };

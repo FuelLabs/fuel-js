@@ -1,9 +1,29 @@
 const transact = require('./transact');
 const sync = require('./sync');
-const config = require('./config.local');
+const mempool = require('./mempool');
+const balance = require('./balance');
+const genesis = require('./genesis');
+const produce = require('./produce');
+const root = require('./root');
+const assets = require('./assets');
+const profile = require('./profile');
+const transactions = require('./transactions');
+const account = require('./account');
+const withdraw = require('./withdraw');
+const requests = require('./requests');
 
 module.exports = {
   transact,
   sync,
-  config,
+  mempool,
+  balance,
+  genesis,
+  produce,
+  root,
+  assets,
+  transactions,
+  profile,
+  account,
+  withdraw,
+  requests,
 };
