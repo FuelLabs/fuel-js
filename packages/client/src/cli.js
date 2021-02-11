@@ -70,6 +70,14 @@ function cli() {
         type: 'string',
         alias: 'fw',
       },
+      producer_address: {
+        type: 'string',
+        alias: 'pa',
+      },
+      remote_production: {
+        type: 'boolean',
+        alias: 'rep',
+      },
       deploy: {
         type: 'boolean',
         alias: 'd',

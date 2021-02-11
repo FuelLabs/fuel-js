@@ -191,8 +191,15 @@ async function sync(config = {}) {
           switch (event.name) {
             case 'DepositMade':
               const timestamp = utils.timestamp();
+              // More precise deposit tracking.
+              const depositAmount = await config.contract.depositAt(
+                event.values.owner,
+                event.values.token,
+                log.blockNumber,
+              );
               const deposit = protocol.deposit.Deposit({
                 ...event.values,
+                value: depositAmount,
                 blockNumber: log.blockNumber,
               }, protocol.addons.Deposit({
                 timestamp,
@@ -201,7 +208,7 @@ async function sync(config = {}) {
               const depositHash = deposit.keccak256();
               const notWithdrawal = 0;
 
-              // this data is prunable
+              // This data is prunable.
               if (config.archive) {
                 // Attempt to retrieve deposit, if it exists, skip increase, otherwise process increase.
                 try {
@@ -219,6 +226,7 @@ async function sync(config = {}) {
                     config,
                     depositHash);
                 }
+                
                 await config.db.put([
                   interface.db.inputHash,
                   protocol.inputs.InputTypes.Deposit,
@@ -226,6 +234,7 @@ async function sync(config = {}) {
                   depositHash,
                 ], deposit);
 
+                // Put spent in place for balance rec.
                 try {
                   await db.get([
                     interface.db.spent,
@@ -243,12 +252,22 @@ async function sync(config = {}) {
                     depositHash,
                   ], deposit);
                 }
+
+                // Archive this hash.
                 await config.db.put([
                   interface.db.archiveHash,
                   protocol.inputs.InputTypes.Deposit,
                   notWithdrawal,
                   depositHash,
                 ], log.transactionHash);
+
+                // Archive this deposit
+                await config.db.put([
+                  interface.db.depositArchive,
+                  deposit.properties.owner().get(),
+                  deposit.properties.token().get(),
+                  deposit.properties.blockNumber().get(),
+                ], deposit);
               }
 
               // Write the deposit.
@@ -462,11 +481,21 @@ async function sync(config = {}) {
                 }
                 await config.db.put([interface.db.withdraw, withdraw.keccak256Packed()],
                   protocol.withdraw.Withdraw(event.values));
+
                 await config.db.del([
                   interface.db.owner,
                   event.values.owner,
                   utxo.properties.token().get(),
                   utxo.getAddon()[0],
+                  protocol.outputs.OutputTypes.Withdraw,
+                  isWithdraw,
+                  hash,
+                ]);
+                await config.db.del([
+                  interface.db.owner,
+                  event.values.owner,
+                  utxo.properties.token().get(),
+                  0,
                   protocol.outputs.OutputTypes.Withdraw,
                   isWithdraw,
                   hash,

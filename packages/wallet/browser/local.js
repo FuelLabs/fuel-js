@@ -10,6 +10,8 @@ const fuel = require('../src/index');
 
     await wallet.sync();
 
+    // await wallet.faucet();
+
     console.log(await wallet.transfer(
         1,
         wallet.address,

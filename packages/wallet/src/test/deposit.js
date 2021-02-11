@@ -1,8 +1,8 @@
 const { test, utils } = require('@fuel-js/environment');
-const schema = require('@fuel-js/interface');
 const Api = require('@fuel-js/api');
 const ethers = require('ethers');
 const fuel = require('../index');
+const abi = require('../abi.json');
 
 module.exports = test('deposit', async t => {
   const network = 'unspecified';
@@ -79,10 +79,21 @@ module.exports = test('deposit', async t => {
 
   t.ok(await walletB.withdraw(0, utils.parseEther('2.0')));
 
+  t.ok(await walletB.withdraw(1, utils.parseEther('2.0')));
+
   t.equalBig(await walletB.balance(0), firstDepositAmount
     .sub(utils.parseEther('2.0'))
     .sub(fee3)
     .sub(fee), 'wallet b after first deposit');
+
+  const erc20 = new ethers.Contract(
+    await walletB._token(1),
+    abi,
+    jsonProvider,
+  );
+
+  let preEtherBalance = await jsonProvider.getBalance(walletB.address);
+  let preERC20Balance = await erc20.balanceOf(walletB.address);
 
   const preState = await api.getState();
 
@@ -94,7 +105,7 @@ module.exports = test('deposit', async t => {
   console.log('waiting for next finalization (might take a few minutes)...');
 
   // A few extra blocks. 
-  const blockBuffer = 2;
+  const blockBuffer = 4;
 
   // Wait for block to be produced.
   while (checkState.properties.blockNumber()
@@ -112,7 +123,59 @@ module.exports = test('deposit', async t => {
     t.ok(1, 'ping');
   }
 
-  await walletB.retrieve();
+  await walletB.retrieve(0);
+
+  t.equal(
+    parseFloat(utils.formatEther(await jsonProvider.getBalance(walletB.address))).toFixed(3),
+    parseFloat(utils.formatEther(preEtherBalance.add(utils.parseEther('2.0')))).toFixed(3),
+    'retrieved ether balance post ether ret.',
+  );
+
+  t.equal(
+    await erc20.balanceOf(walletB.address),
+    preERC20Balance,
+    'retrieved ERC20 balance post ether ret.',
+  );
+
+  await walletB.retrieve(1);
+
+  t.equal(
+    parseFloat(utils.formatEther(await jsonProvider.getBalance(walletB.address))).toFixed(3),
+    parseFloat(utils.formatEther(preEtherBalance.add(utils.parseEther('2.0')))).toFixed(3),
+    'retrieved ether balance post ether ret.',
+  );
+
+  t.equal(
+    await erc20.balanceOf(walletB.address),
+    preERC20Balance.add(utils.parseEther('2.0')),
+    'retrieved ERC20 balance post erc20 ret.',
+  );
+
+  let retInsEther = await walletB._inputs(0, {
+    retrieve: true,
+  });
+  let retInsERC20 = await walletB._inputs(1, {
+    retrieve: true,
+  });
+
+  t.equal(retInsEther.proofs.length, 0, 'no ether withdraw inputs');
+  t.equal(retInsERC20.proofs.length, 0, 'no erc20 withdraw inputs');
+
+  // Wait 15 seconds.
+  await utils.wait(30000);
+
+  // Resync.
+  await walletB.sync();
+
+  retInsEther = await walletB._inputs(0, {
+    retrieve: true,
+  });
+  retInsERC20 = await walletB._inputs(1, {
+    retrieve: true,
+  });
+
+  t.equal(retInsEther.proofs.length, 0, 'no ether withdraw inputs post resync');
+  t.equal(retInsERC20.proofs.length, 0, 'no erc20 withdraw inputs post resync');
 
   walletB.off();
 

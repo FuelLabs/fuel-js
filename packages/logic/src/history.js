@@ -16,9 +16,6 @@ async function history(opts = {}, config = {}) {
       include = false,
     } = opts;
 
-    // Max number of entries to grab
-    const maximum = Math.min(parseInt(limit, 10), 64);
-
     // get transactions from range proof up to 64
     let transactions = await streamToArray(config.db.createReadStream({
       lte: interface.db.archiveOwner.encode([ owner, timestamp, transactionId ]),
@@ -30,19 +27,44 @@ async function history(opts = {}, config = {}) {
     // setup default proofs
     let proofs = [];
 
+    // Retrieved [tx hash] => timestamp.
+    let retrieved = {};
+
+    // Always take the most recent one.
+    transactions.forEach(data => {
+      const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
+
+      // Retrieved.
+      if (utils.bigNumberify(_timestamp).gt(retrieved[_transactionId] || 0)) {
+        // set retrieved hash.
+        retrieved[_transactionId] = _timestamp;
+      }
+    });
+
+    // Filter only the most recent tx.
+    const filteredTransactions = transactions.filter(data => {
+      const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
+
+      // Return true if it's the latest tx.
+      if (retrieved[_transactionId] === _timestamp) {
+        return true;
+      }
+
+      // Return false. 
+      return false;
+    });
+
     // include up to 10 tx proofs using batch 1 round trip
     try {
       if (include && transactions.length) {
-        proofs = await batch(config.db, transactions.slice(0, 10).map(data => {
-          const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
-  
+        proofs = await batch(config.db, filteredTransactions.map(data => {
           return [ interface.db.transactionId, data.value ];
         }), { remote: true });
       }
     } catch (err) {}
 
     // return transactions parsed, timestamp, transactionId, proof if available
-    return transactions.map((data, index) => {
+    return filteredTransactions.map((data, index) => {
       // parse the key
       const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
 

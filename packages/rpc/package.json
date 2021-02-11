@@ -1,7 +1,7 @@
 {
-	"name": "@fuel-js/api",
-	"version": "0.3.2",
-	"description": "A simple API wrapper for the Fuel API.",
+	"name": "@fuel-js/rpc",
+	"version": "0.1.0",
+	"description": "A simple RPC interface the Fuel API.",
 	"main": "src/index.js",
 	"scripts": {
 		"test": "node src/test"

@@ -1,4 +1,5 @@
 const { struct } = require('@fuel-js/struct');
+const utils = require('@fuel-js/utils');
 
 const WithdrawProof = struct(
   `uint256 rootIndex,
@@ -15,7 +16,16 @@ const Withdraw = struct(`address account,
   uint8 outputIndex,
   uint256 transactionIndex`);
 
+function computeWithdrawId(rootIndex, transactionLeafHash, outputIndex) {
+  return utils.keccak256(
+    utils.hexZeroPad(utils.hexlify(rootIndex), 32)
+     + utils.hexZeroPad(transactionLeafHash, 32).slice(2)
+     + utils.hexZeroPad(utils.hexlify(outputIndex), 32).slice(2)
+  );
+}
+
 module.exports = {
   WithdrawProof,
   Withdraw,
+  computeWithdrawId,
 };

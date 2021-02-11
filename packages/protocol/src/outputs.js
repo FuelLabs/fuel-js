@@ -29,7 +29,7 @@ function shiftValue(value = 0, opts = {}) {
 }
 
 function packAmount(output = {}) {
-  if (output.shift) return {};
+  if (output.shift || output.noPack) return {};
   return shiftValue(output.amount, output);
 }
 
@@ -79,7 +79,7 @@ const OutputHTLC = struct(
 const OutputReturn = struct(
   `uint8 type,
   bytes1[**] data`,
-  opts => ({ ...opts, ...packAmount(opts), type: OutputTypes.Return })
+  opts => ({ ...opts, type: OutputTypes.Return })
 );
 
 const UTXO = struct(`

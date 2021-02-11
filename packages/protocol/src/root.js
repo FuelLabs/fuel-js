@@ -1,6 +1,7 @@
 const { struct } = require('@fuel-js/struct');
 const utils = require('@fuel-js/utils');
 const transaction = require('./transaction');
+const { merkleTreeRoot } = require('./merkle');
 
 const MAX_ROOT_SIZE = 57600;
 const MaxTransactionsInRoot = 2048;
@@ -71,32 +72,6 @@ RootHeader.fromLogsByIndex = async function (index, block, contract, transaction
 RootHeader.fromLogsByHash = async function (hash, contract, transactions = false) {
   return RootHeader.fromLogs(hash, null, contract, transactions);
 };
-
-function merkleTreeRoot(leafs = [], encoding = true) {
-  let hashes = leafs.map(v => encoding ? v.keccak256Packed() : v);
-  let swap = [];
-
-  for (var i = 0; hashes.length > 0; i++) {
-    const hash = hashes[i];
-
-    if (hashes.length % 2 > 0) {
-      hashes.push(utils.emptyBytes32);
-    }
-
-    for (var z = 0; z < hashes.length; z += 2) {
-      swap.push(utils.keccak256(hashes[z] + hashes[z + 1].slice(2)));
-    }
-
-    hashes = swap;
-    swap = [];
-
-    if (hashes.length < 2) {
-      break;
-    }
-  }
-
-  return hashes[0];
-}
 
 const Leaf = struct('bytes1[**] data');
 const transactions = leafs => '0x' + leafs.map(v => v.encodePacked().slice(2)).join('');

@@ -1,11 +1,12 @@
 const { test, utils } = require('@fuel-js/environment');
-const interface = require('@fuel-js/interface');
 const Api = require('../index');
 
 module.exports = test('api', async t => {
   try {
 
-    const api = new Api('rinkeby');
+    const api = new Api('unspecified', {
+      url: 'http://localhost:3000',
+    });
 
     t.ok(await api.getState(), 'get state');
     t.ok(await api.getBlockByHeight(0), 'block by height');
@@ -21,23 +22,7 @@ module.exports = test('api', async t => {
     );
     t.ok(balance, 'balance');
 
-    // const profile2 = await api.getProfile('0x73813909482106190c0e0fa220028d7787c221dc');
-
-    // const profile3 = await api.getProfile('0x19148d0a7ae99f19bc3862857318a7f80f96564c');
-
-    // console.log(profile3);
-
-    // console.log(await api.getTokenMetadata(1));
-
-    // console.log(JSON.stringify(profile2, null, 2));
-
-    // console.log((await api.getProfile(utils.emptyAddress)));
-
-    /*
-    const tx2 = await api.getTransactionByHash(
-      '0x68992241f7552d1e16880201c4186ce1a5d25a406f0c9ccee5d7feaf3b63b232',
-    );
-    */
+    t.ok(await api.getProfile('0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C'), 'profile');
 
     return;
 

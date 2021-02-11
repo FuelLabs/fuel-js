@@ -206,13 +206,6 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
             type: 'del',
             key: [interface.db.owner, returnOwner, token, 0, inputType, 0, inputHashes[inputIndex]],
           });
-          /*
-          deltas.push({
-            type: 'put',
-            key: [interface.db.decrease, returnOwner, token, 0, inputType, 0, inputHashes[inputIndex]],
-            value: amount,
-          });
-          */
 
           if (state.properties.blockNumber().get().gt(expiry)) {
             owner = returnOwner;
@@ -225,7 +218,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
             });
           } else {
             // Check preimage.
-            utils.assertHexEqual(utils.keccak256(input.properties.preImage().hex()),
+            utils.assertHexEqual(utils.sha256(input.properties.preImage().hex()),
               proof.properties.digest().hex(), 'htlc-pre-image');
 
             // Increase owner balance.
@@ -297,6 +290,12 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
 
       // witness refernece
       utils.assert(witnesses[witnessReference], 'invalid-witness-reference');
+
+      // If the owner is null, also throw invalid witness.
+      utils.assert(
+        utils.bigNumberify(owner).gt(0),
+        'null-witness',
+      );
 
       // check witnesses
       utils.assertHexEqual(owner, protocol
@@ -375,14 +374,6 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
             value: transactionHashId,
           });
 
-          /*
-          deltas.push({
-            type: 'put',
-            key: [interface.db.increase, returnOwner, token, 0, outputType, isWithdraw, hash],
-            value: amount,
-          });
-          */
-
           // emit to publisher, if any
           if (config.emit) {
             try {
@@ -458,6 +449,7 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
         outs[utils.bigstring(token)] = (outs[utils.bigstring(token)]
           || utils.bigNumberify(0)).add(amount);
       } else {
+        // Database this return data.
         accountOutputs.push({
           type: 'put',
           key: [interface.db.return, transactionHashId, outputIndex],
@@ -558,6 +550,18 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
       ],
       value: transactionAddon,
     }];
+
+    // If no mempool is true, then we don't record locally.
+    if (config.nomempool) {
+      mempoolEntry = [{
+        type: 'put',
+        key: [
+          interface.db.transactionId,
+          transactionHashId,
+        ],
+        value: transactionAddon,
+      }];
+    }
 
     // If there is an API account provider present.
     if (config.account) {

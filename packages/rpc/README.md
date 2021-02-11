@@ -1,4 +1,4 @@
-# @fuel-js/test
+# @fuel-js/api
 
 > Fuel is a stateless "Layer-2" system for ERC20 transfers and swaps designed for interoperable performance, scale and efficiency.
 

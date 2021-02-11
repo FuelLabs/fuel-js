@@ -12,7 +12,7 @@ const transact = require("../transact");
 const balance = require('../balance');
 const outputFromMetadata = require("./outputFromMetadata");
 
-module.exports = test("produce", async (t) => {
+module.exports = test("receiving", async (t) => {
   // Setup Addresses
   const producer = t.wallets[0].address;
   const cold = t.wallets[1].address;
@@ -39,7 +39,7 @@ module.exports = test("produce", async (t) => {
       20,
       utils.parseEther("1.0"),
       "Fuel",
-      "1.0.0",
+      "1.1.0",
       0,
       genesisHash,
     ]);

@@ -4,18 +4,15 @@ const schema = require('@fuel-js/interface');
 // Stablecoin IDs.
 const stablecoinsIds = {
     'dai': 1,
-    /*
-    'cusdt': 1,
-    'cdai': 2,
-    'cusdc': 3,
-    'usdc': 5,
-    'curve': 6,
-    'usdt': 7,
-    'ausdc': 8,
-    'adai': 9,
-    'ausdt': 10,
-    */
+    'usdc': 2,
+    'usdt': 3,
 };
+const decimals = {
+    'dai': 18,
+    'usdc': 6,
+    'usdt': 6,
+};
+
 // const ether = utils.emptyAddress;
 const etherTokenId = 0;
 
@@ -35,11 +32,11 @@ async function oracle(loop = {}, settings = {}) {
         );
 
         // The gas and ether price.
-        const gasPrice = gasPrices.standard;
+        const gasPrice = gasPrices[settings.gasPriceMeasure || 'standard'];
         const ethPriceUSD = ethPrices[0].current_price;
 
         // Eth to USD price per Byte
-        const calldataGas = 16;
+        const calldataGas = settings.gasPerByte || 16;
         const gweiCost = utils.parseUnits(
             String(calldataGas * gasPrice), 'gwei');
         const ethGwei = utils.parseEther('1000000000')
@@ -50,6 +47,11 @@ async function oracle(loop = {}, settings = {}) {
             .mul(ethGwei)
             .mul(parseInt(ethPriceUSD, 10))
             .div(utils.parseEther('1'));
+        const costPerByteInUSD_dec6 = gweiCost
+            .mul(ethGwei)
+            .mul(parseInt(ethPriceUSD, 10))
+            .div(utils.parseEther('1'))
+            .div(utils.parseUnits('1', 12));
 
         // Log cost per byte.
         settings.console.log(
@@ -59,6 +61,8 @@ async function oracle(loop = {}, settings = {}) {
                 ethPriceUSD
             } | USD per Byte ${
                 utils.formatEther(costPerByteInUSD)
+            } | USD per Byte (Decimals 6) ${
+                utils.formatUnits(costPerByteInUSD_dec6, 6)
             }`,
         );
 
@@ -69,12 +73,18 @@ async function oracle(loop = {}, settings = {}) {
         for (const tag of Object.keys(stablecoinsIds)) {
             // Get the address and id.
             const tokenId = stablecoinsIds[tag];
+            let feeValue = costPerByteInUSD;
+
+            // If the fee value is 6 decimals use this value.
+            if (decimals[tag] === 6) {
+                feeValue = costPerByteInUSD_dec6;
+            }
 
             // Cost per byte.
             await settings.db.put([
                 schema.db.fee,
                 tokenId,
-            ], costPerByteInUSD);
+            ], feeValue);
         }
 
         // Set the cost per byte for ether.

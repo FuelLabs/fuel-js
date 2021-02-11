@@ -1,13 +1,13 @@
 object "Funnel" {
   code {
-    // 66 + 32 = 98
+    // Sizes: 66 + 32 = 98.s
     datacopy(0, dataoffset("Runtime"), 98)
     return(0, 98)
   }
   object "Runtime" {
     code {
       // Copy owner set in constructor to memory.
-      // 66 = 85
+      // 66 - 13 = 53
       codecopy(0, 53, 32)
 
       // Check owner is caller.
