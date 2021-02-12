@@ -2,7 +2,7 @@
   "name": "root",
   "private": true,
   "scripts": {
-    "test": "lerna run test --parallel",
+    "test": "lerna run --stream --concurrency=1 test",
     "test-conc": "lerna run --stream --concurrency=1 test",
     "test2": "nyc --reporter=json lerna run test --parallel",
     "bootstrap": "lerna bootstrap --no-ci --ignore-prepublish",
