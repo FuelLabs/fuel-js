@@ -16,12 +16,21 @@ async function history(opts = {}, config = {}) {
       include = false,
     } = opts;
 
-    // get transactions from range proof up to 64
+    /*
+    Old settings not in descending.
+    lte: interface.db.archiveOwner.encode([ owner, timestamp, transactionId ]),
+    gte: interface.db.archiveOwner.encode([ owner, '0x00', utils.min_num ]),
+    limit: Math.min(parseInt(limit, 10), 64),
+    remote: true,
+    */
+
+    // Get transactions from range proof up to 64 -- descending order.
     let transactions = await streamToArray(config.db.createReadStream({
-      lte: interface.db.archiveOwner.encode([ owner, timestamp, transactionId ]),
-      gte: interface.db.archiveOwner.encode([ owner, '0x00', utils.min_num ]),
+      gte: interface.db.archiveOwner.encode([ owner, timestamp, transactionId ]),
+      lte: interface.db.archiveOwner.encode([ owner, '0x00', utils.min_num ]),
       limit: Math.min(parseInt(limit, 10), 64),
       remote: true,
+      reverse: true,
     }));
 
     // setup default proofs
@@ -34,8 +43,10 @@ async function history(opts = {}, config = {}) {
     transactions.forEach(data => {
       const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
 
-      // Retrieved.
-      if (utils.bigNumberify(_timestamp).gt(retrieved[_transactionId] || 0)) {
+      // Retrieved and account for mempool timestamp (i.e. zero.).
+      if (utils.bigNumberify(_timestamp)
+        .gt(retrieved[_transactionId] || 0)
+        || utils.bigNumberify(_timestamp).eq(0)) {
         // set retrieved hash.
         retrieved[_transactionId] = _timestamp;
       }

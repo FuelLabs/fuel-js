@@ -22,7 +22,11 @@ module.exports = test('api', async t => {
     );
     t.ok(balance, 'balance');
 
-    t.ok(await api.getProfile('0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C'), 'profile');
+    const _profile = await api.getProfile('0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C');
+
+    console.log(_profile);
+
+    t.ok(_profile, 'profile');
 
     return;
 
