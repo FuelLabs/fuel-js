@@ -2,7 +2,6 @@ const regeneratorRuntime = require("regenerator-runtime");
 // const Api = require('@fuel-js/api');
 // const fuel = require('../dist/fuel.umd.min.js');
 const fuel = require('../src/index');
-
 // import fuel from "http://localhost:1234/fuel.umd.js";
 
 (async () => {
