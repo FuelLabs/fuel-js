@@ -44,9 +44,7 @@ async function history(opts = {}, config = {}) {
       const [ _index, _owner, _timestamp, _transactionId ] = utils.RLP.decode(data.key);
 
       // Retrieved and account for mempool timestamp (i.e. zero.).
-      if (utils.bigNumberify(_timestamp)
-        .gt(retrieved[_transactionId] || 0)
-        || utils.bigNumberify(_timestamp).eq(0)) {
+      if (utils.bigNumberify(_timestamp).gt(retrieved[_transactionId] || 0)) {
         // set retrieved hash.
         retrieved[_transactionId] = _timestamp;
       }

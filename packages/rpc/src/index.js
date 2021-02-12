@@ -97,7 +97,7 @@ Api.prototype.getTransactionById = async function(transactionId = '0x') {
     inputs: data.inputTypes.map((kind, index) => {
       return inputObject(kind, data.inputProofs[index]);
     }),
-    outptus: data.outputProofs.map(),
+    outptus: [],
   };
 
   return result;
