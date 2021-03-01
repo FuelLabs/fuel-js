@@ -25,4 +25,6 @@ const { setInterval, setTimeout } = require("timers");
         await wallet.balance(1),
     ));
 
+    await wallet.sync();
+
 })();

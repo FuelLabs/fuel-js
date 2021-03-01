@@ -21,7 +21,7 @@ export class Wallet {
   sync(): Promise<void>;
   withdraw(token: any, amount: any, opts?: any): Promise<any>;
   retrieve(token: any, opts?: any): Promise<any>;
-  fee(token: any): Promsie<any>;
+  fee(token: any): Promise<any>;
 
   on(name: string, cb: Function);
   off(name: string);
