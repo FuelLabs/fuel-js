@@ -1,8 +1,7 @@
-const write = require('write');
-const read = require('fs-readfile-promise');
 const prompts = require('prompts');
 const ethers = require('ethers');
 const { sign } = require('crypto');
+const { promises: fs } = require('fs')
 
 // default wallet path
 const defaultPath = '.fuel-wallet.json';
@@ -14,36 +13,29 @@ async function wallet(flags = {}, environment = {}) {
     const _path = provided || defaultPath;
     let _wallet = null;
     let json = null;
-    let message = null;
 
     // if the user provided a wallet path, try to read it
     if (provided) {
       try {
-        json = await read(_path, 'utf8');
+        json = await fs.readFile(_path, 'utf8');
       } catch (readError) {
         throw new Error('Error reading wallet path: ' + readError.message);
+      }
+    }
+    // if no wallet was provided, attempt to read the default path wallet
+    if (!provided) {
+      try {
+        json = await fs.readFile(_path, 'utf8');
+      } catch (_) {
+        // ignore error
       }
     }
 
     // attempt to load, decrypto or create an Ethers wallet
     try {
-
-      // if no wallet was provided, attempt to read the default path wallet
-      if (!provided) {
-        try {
-          json = await read(_path, 'utf8');
-        } catch (readDefaultError) {
-          // ignore defualt read error
-        }
-      }
-
-      // default message
-      message = 'Please enter a Fuel wallet encryption passphrase';
-
-      // if the wallet was found or provided locally
-      if (json) {
-        message = 'Please enter your Fuel wallet decryption passphrase';
-      }
+      const message = json ?
+        'Please enter your Fuel wallet decryption passphrase' :
+        'Please enter a Fuel wallet encryption passphrase';
 
       // Password.
       let password = '';
@@ -52,7 +44,7 @@ async function wallet(flags = {}, environment = {}) {
       try {
         if (environment.fuel_v1_default_password) {
           password = environment.fuel_v1_default_password;
-  
+
           console.log('Wallet password detected in the environment');
         } else {
           // ask for password
@@ -61,7 +53,7 @@ async function wallet(flags = {}, environment = {}) {
             name: 'password',
             message,
           });
-  
+
           password = promptResult.password;
         }
       } catch (promptError) {
@@ -69,33 +61,28 @@ async function wallet(flags = {}, environment = {}) {
         throw new Error(error.message);
       }
 
-      // length check
-      if ((password || '').length < 8) {
+      // length check, only for new wallets
+      if (!json && (password || '').length < 8) {
         throw new Error('password must be more than 8 characters');
       }
 
-      // if no json found, create a wallet
-      if (!json) {
+      // if no wallet present, attempt to load the JSON from password
+      // otherwise create wallet
+      if (json) {
+        _wallet = await ethers.Wallet.fromEncryptedJson(json, password);
+      } else {
         _wallet = ethers.Wallet.createRandom();
       }
 
-      // if no wallet present, attempt to load the JSON from password
-      if (!_wallet) {
-        try {
-          _wallet = await ethers.Wallet.fromEncryptedJson(json, password);
-        } catch (decryptError) {
-          throw new Error(decryptError.message);
-        }
+      // encrypt and write to file if new wallet
+      if (!json) {
+        json = await _wallet.encrypt(password);
+        await fs.writeFile(_path, json);
       }
-
-      // encrypto wallet JSON again
-      json = await _wallet.encrypt(password);
     } catch (readError) {
       console.error('Wallet decryption error: ' + readError.message);
+      throw new Error();
     }
-
-    // write the JSON to the appropriate path
-    await write(_path, json);
 
     // return wallet object descrypted into memory
     return _wallet;
