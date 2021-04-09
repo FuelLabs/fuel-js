@@ -2,6 +2,7 @@ const utils = require('@fuel-js/utils');
 const protocol = require('@fuel-js/protocol');
 const interface = require('@fuel-js/interface');
 const operatorsToWallets = require('./operatorsToWallets');
+const ethers = require('ethers');
 
 /// @dev this will retrieve bonds from blocks that have finalized.
 /// @dev the last retrieved marker actually describes the next block up to be retrieved.
@@ -65,19 +66,72 @@ async function bondRetrieval(state = {}, config = {}) {
         try {
             // If the operator is a proxy, handle that, otherwise just normal transaciton.
             if (config.proxy) {
-                // Commit transaction encoded data.
-                const bondWithdraw = contract.interface.functions.bondWithdraw.encode([
-                    lastBlockRetrieved.encodePacked(),
-                ]);
+                // Here put a check for release.
+                if (config.release) {
+                    // Bond retrieval release.
+                    config.console.log('Release bond retrieval');
 
-                // Set block commitment.
-                const txValue = 0;
-                retrievalTx = await config.proxy.transact(
-                    config.contract.address,
-                    txValue, // no value.
-                    bondWithdraw,
-                    txOptions,
-                );
+                    // Get the operator address (i.e. the proxy address).
+                    const operatorAddress = await config.contract.operator();
+
+                    // Check hot operator.
+                    const HotStorageAddress = 0;
+                    const hotRaw = await config.provider.getStorageAt(
+                        operatorAddress,
+                        HotStorageAddress,
+                    );
+                    const hotSliced = utils.hexDataSlice(hotRaw, 12, 32);
+                    const hotAddress = utils.hexDataLength(hotRaw) === 20 ? hotRaw : hotSliced;
+
+                    // Here we will check for, did the producer *really* produce this block.
+                    // If they did, continue, you send the header to the leader contract.
+                    const leaderContract = contract.attach(hotAddress);
+
+                    // The getter contract for the leader system.
+                    const leaderContractGetter = new ethers.Contract(
+                        hotAddress,
+                        [
+                            'function commitment(address,uint256,uint256) external view returns (bool)',
+                            'function bondWithdraw(bytes) external',
+                        ],
+                        blockProducer,
+                    );
+
+                    // Was the commitment made by this block producer.
+                    const commitmentMade = await leaderContractGetter.commitment(
+                        blockProducer.address,
+                        lastBlockRetrieved.properties.height().get(),
+                        lastBlockRetrieved.properties.blockNumber().get(),
+                    );
+
+                    // Ask the leader contract if it made this commitment.
+                    if (commitmentMade) {
+                        // Leader did produce blocks.
+                        config.console.log('Leader produced block up for retrieval.');
+
+                        // Retrieval transaction.
+                        retrievalTx = await leaderContractGetter.bondWithdraw(
+                            lastBlockRetrieved.encodePacked(),
+                            txOptions,
+                        );
+                    }
+
+                    return;
+                } else {
+                    // Commit transaction encoded data.
+                    const bondWithdraw = contract.interface.functions.bondWithdraw.encode([
+                        lastBlockRetrieved.encodePacked(),
+                    ]);
+
+                    // Set block commitment.
+                    const txValue = 0;
+                    retrievalTx = await config.proxy.transact(
+                        config.contract.address,
+                        txValue, // no value.
+                        bondWithdraw,
+                        txOptions,
+                    );
+                }
             } else {
                 // Retrieval transaction.
                 retrievalTx = await contract.bondWithdraw(

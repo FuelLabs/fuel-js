@@ -74,6 +74,10 @@ function cli() {
         type: 'string',
         alias: 'pa',
       },
+      release: {
+        type: 'bool',
+        alias: 're',
+      },
       remote_production: {
         type: 'boolean',
         alias: 'rep',

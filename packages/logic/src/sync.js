@@ -536,6 +536,7 @@ async function sync(config = {}) {
           try {
             await produce(blockNumber, state, config);
           } catch (productionError) {
+            config.console.error('Production error:');
             config.console.error(productionError);
           }
         }

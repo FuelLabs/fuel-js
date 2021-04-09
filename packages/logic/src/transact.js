@@ -609,12 +609,14 @@ async function transact(unsigned = '0x', _witnesses = '0x', nonce = 0, config = 
     }
 
     // all is well, make database upserts
+    // problem here.
     try {
       await config.db.batch(accountOutputs
           .concat(deltas)
           .concat(spendableOutputs)
           .concat(mempoolEntry), { remote: true });
     } catch (error) {
+      console.error(error);
       utils.assert(0, 'failed-to-insert');
     }
 
