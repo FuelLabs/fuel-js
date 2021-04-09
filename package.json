@@ -12,6 +12,7 @@
   "devDependencies": {
     "dot-prop": ">=4.2.1",
     "fs-readfile-promise": "^3.0.1",
+    "husky": "^6.0.0",
     "istanbul-badges-readme": "1.0.5",
     "lerna": "^3.22.1",
     "nyc": "^15.1.0",

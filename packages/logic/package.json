@@ -31,6 +31,7 @@
     "@fuel-js/struct": "^0.1.7",
     "@fuel-js/down": "^0.1.5",
     "@fuel-js/utils": "^0.1.4",
+    "ethers": "^4.0.47",
     "memdown": "^5.1.0",
     "stream-to-array": "^2.3.0"
   },
