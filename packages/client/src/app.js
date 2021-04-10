@@ -206,9 +206,13 @@ async function app(opts = {}) {
 
             // Check the proxy is correctly configured.
             settings.console.log(`Hot Operator: ${hotAddress} | Operator: ${operator.address}`);
-            utils.assertHexEqual(hotAddress, operator.address,
-                'The operator does not match the proxy hot operator, use --proxy=false to continue.');
-        
+
+            // Release check.
+            if (!cl.flags.release) {
+                utils.assertHexEqual(hotAddress, operator.address,
+                    'The operator does not match the proxy hot operator, use --proxy=false to continue.');    
+            }
+
             // Set the settings up with a proxy as the operator.
             settings = {
                 ...settings,

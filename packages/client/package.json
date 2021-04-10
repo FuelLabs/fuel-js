@@ -13,6 +13,7 @@
     "start-rinkeby-local": "node src/full.js -e --serve=true --network='rinkeby' --produce=true --clear=false --proxy=true --archive=true --scanSize=10000 --wallet='../../../wallets/.fuel-wallet.json' --faucet_wallet='../../../wallets/.faucet-wallet.json'",
     "start-oracle": "node src/index.js --infura='$ENV' --oracle=true --network='mainnet'",
     "start-testing": "genacheServer=1 node src/testing.js --serve=true --network='unspecified' --produce=true --proxy=true --archive=true --scanSize=10000",
+    "start-testing-leader": "genacheServer=1 node src/testing-leader.js --serve=true --release=true --network='unspecified' --produce=true --proxy=true --archive=true --scanSize=10000",
     "start-faucet-rinkeby": "node src/index.js -e --faucet=true --network='rinkeby'",
     "start-rinkeby-remote": "node src/index.js --infura='$ENV' --network='mainnet' --remote_production=true --serve=true --cors='http://localhost:57569' --produce=false --clear=true --archive=true",
     "recover-rinkeby": "node src/full.js -e --recover='balance-dump.json' --serve=false --network='rinkeby' --produce=false --clear=false --proxy=false --archive=true",

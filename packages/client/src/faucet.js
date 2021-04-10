@@ -76,7 +76,6 @@ async function faucet(config = {}) {
         type: 'del',
         key: entry.key,
       })), { remote: true });
-
     } catch (loopError) {
       config.console.error(loopError);
     }
