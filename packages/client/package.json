@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/client",
-  "version": "0.2.6",
+  "version": "0.2.8",
   "description": "The Fuel version 1.0.0 client.",
   "main": "src/index.js",
   "scripts": {
@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "@fuel-js/utils": "^0.1.0",
-    "@fuel-js/logic": "^0.6.6",
+    "@fuel-js/logic": "^0.6.7",
     "@fuel-js/down": "^0.1.5",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/protocol": "^0.4.6",

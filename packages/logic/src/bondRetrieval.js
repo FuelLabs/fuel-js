@@ -83,10 +83,6 @@ async function bondRetrieval(state = {}, config = {}) {
                     const hotSliced = utils.hexDataSlice(hotRaw, 12, 32);
                     const hotAddress = utils.hexDataLength(hotRaw) === 20 ? hotRaw : hotSliced;
 
-                    // Here we will check for, did the producer *really* produce this block.
-                    // If they did, continue, you send the header to the leader contract.
-                    const leaderContract = contract.attach(hotAddress);
-
                     // The getter contract for the leader system.
                     const leaderContractGetter = new ethers.Contract(
                         hotAddress,
@@ -114,9 +110,9 @@ async function bondRetrieval(state = {}, config = {}) {
                             lastBlockRetrieved.encodePacked(),
                             txOptions,
                         );
+                    } else {
+                        config.console.log('Commitment not made by producer');
                     }
-
-                    return;
                 } else {
                     // Commit transaction encoded data.
                     const bondWithdraw = contract.interface.functions.bondWithdraw.encode([

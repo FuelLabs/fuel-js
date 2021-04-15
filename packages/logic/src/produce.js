@@ -616,8 +616,39 @@ async function produce(currentBlockNumber = {}, state = {}, config = {}) {
         // Connect to the proxy leader contract.
         const leader = contract.attach(hotAddress);
 
+        // The getter contract for the leader system.
+        const leaderSelection = new ethers.Contract(
+          hotAddress,
+          [
+              'function leaderId() public view returns (uint32)',
+              'function releases(uint32) public view returns (address)',
+          ],
+          blockProducer,
+        );
+
+        // Get the release address.
+        const releaseAddress = await leaderSelection.releases(await leaderSelection.leaderId());
+
+        // The getter contract for the release system.
+        const release = new ethers.Contract(
+          releaseAddress,
+          [
+            'function beneficiary() public view returns (address)',
+          ],
+          blockProducer,
+        );
+
+        // If the beneficiary is not correct, stop the process.
+        if (await release.beneficiary() !== blockProducer.address) {
+          // Message they are not the current leader.
+          config.console.log('Block producer not leader.');
+
+          // Stop the process from committing the block.
+          return;
+        }
+
         // Console log it.
-        config.console.log('Committing block as sender as leader.');
+        config.console.log('Committing block as sender as leader!');
 
         // Non proxied, i.e. a key is used.
         blockCommitment = await leader.commitBlock(

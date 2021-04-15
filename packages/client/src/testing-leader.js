@@ -10,10 +10,9 @@ const faucetPlugin = require('./faucetPlugin');
 const Leader = require('../../logic/src/test/artifacts/LeaderSelection.json');
 const Factory = require('../../logic/src/test/artifacts/TokenReleaseFactory.json');
 const Multisig = require('../../logic/src/test/artifacts/Multisig.json');
+const MultisigData = require('./test/artifacts/multisig.js');
 
 test('testing leader node', async t => {
-    const multisig = await t.deploy(Multisig.abi, Multisig.bytecode, []);
-
     // Setup Addresses
     const producer = t.wallets[0].address;
     const producerWallet = t.wallets[0];
@@ -23,6 +22,16 @@ test('testing leader node', async t => {
     const userAWallet = producerWallet; // t.wallets[2];
     const userB = t.wallets[3].address;
     const userBWallet = t.wallets[3];
+
+   // Create multisig.
+    const multisig = await t.deploy([
+        'function addOwner(address owner)',
+        'function submitTransaction(address,uint256,bytes)',
+        'constructor(address[] _owners, uint _required)',
+    ], MultisigData.bytecode, [
+        [producer],
+        1,
+    ]);
 
     // Produce the Block Producer Proxy.
     const proxy = await t.deploy(OwnedProxy.abi, OwnedProxy.bytecode, [
@@ -115,6 +124,17 @@ test('testing leader node', async t => {
         proxy.address,
         0,
         changeData,
+        overrides,
+    );
+
+    // Add the leader as the owner.
+    const addLeaderOwner = multisig.interface.functions.addOwner.encode([
+        leader.address,
+    ]);
+    await multisig.submitTransaction(
+        multisig.address,
+        0,
+        addLeaderOwner,
         overrides,
     );
 
