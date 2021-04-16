@@ -56,6 +56,7 @@ function config(opts = process.env, _prefix = 'fuel_v1_', noresolution = false) 
     gas_limit: 4000000, // default gas limit
     confirmations: 0, // required block confirmations
     block_time: 0, // 13 * 1000,
+    release: opts.release || false,
     db: database(copy(memdown(), memdown())),
     proxy: opts.proxy || null,
     contract: opts.contract || {}, // new ethers.Contract(opts.contract || v1[network], abi.Fuel, provider), // selected Fuel contract object

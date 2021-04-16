@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/wallet",
-  "version": "0.5.8",
+  "version": "0.5.9",
   "description": "Common Fuel utilites.",
   "main": "src/index.js",
   "types": "src/index.d.ts",
@@ -49,6 +49,7 @@
     "ethers": "^4.0.47",
     "memdown": "^5.1.0",
     "pubnub": "^4.28.4",
+    "elliptic": ">=6.5.4",
     "stream-to-array": "^2.3.0"
   }
 }

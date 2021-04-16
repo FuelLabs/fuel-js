@@ -1,6 +1,6 @@
 {
   "name": "@fuel-js/client",
-  "version": "0.2.4",
+  "version": "0.2.8",
   "description": "The Fuel version 1.0.0 client.",
   "main": "src/index.js",
   "scripts": {
@@ -13,6 +13,7 @@
     "start-rinkeby-local": "node src/full.js -e --serve=true --network='rinkeby' --produce=true --clear=false --proxy=true --archive=true --scanSize=10000 --wallet='../../../wallets/.fuel-wallet.json' --faucet_wallet='../../../wallets/.faucet-wallet.json'",
     "start-oracle": "node src/index.js --infura='$ENV' --oracle=true --network='mainnet'",
     "start-testing": "genacheServer=1 node src/testing.js --serve=true --network='unspecified' --produce=true --proxy=true --archive=true --scanSize=10000",
+    "start-testing-leader": "genacheServer=1 node src/testing-leader.js --serve=true --release=true --network='unspecified' --produce=true --proxy=true --archive=true --scanSize=10000",
     "start-faucet-rinkeby": "node src/index.js -e --faucet=true --network='rinkeby'",
     "start-rinkeby-remote": "node src/index.js --infura='$ENV' --network='mainnet' --remote_production=true --serve=true --cors='http://localhost:57569' --produce=false --clear=true --archive=true",
     "recover-rinkeby": "node src/full.js -e --recover='balance-dump.json' --serve=false --network='rinkeby' --produce=false --clear=false --proxy=false --archive=true",
@@ -55,7 +56,7 @@
   },
   "dependencies": {
     "@fuel-js/utils": "^0.1.0",
-    "@fuel-js/logic": "^0.6.3",
+    "@fuel-js/logic": "^0.6.7",
     "@fuel-js/down": "^0.1.5",
     "@fuel-js/database": "^0.1.0",
     "@fuel-js/protocol": "^0.4.6",
@@ -73,7 +74,8 @@
     "express": "*",
     "ethers": "^4.0.47",
     "memdown": "^5.1.0",
-    "body-parser": "*"
+    "body-parser": "*",
+    "elliptic": ">=6.5.4"
   },
   "optionalDependencies": {
     "@fuel-js/environment": "^0.1.0"

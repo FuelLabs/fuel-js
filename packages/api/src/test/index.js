@@ -1,11 +1,12 @@
 const { test, utils } = require('@fuel-js/environment');
 const Api = require('../index');
+const { outputs } = require('@fuel-js/protocol');
 
 module.exports = test('api', async t => {
   try {
 
-    const api = new Api('unspecified', {
-      url: 'http://localhost:3000',
+    const api = new Api('mainnet', {
+      // url: 'http://localhost:3000',
     });
 
     t.ok(await api.getState(), 'get state');
@@ -16,14 +17,22 @@ module.exports = test('api', async t => {
     t.ok(await api.getState(), 'get state');
     t.ok(await api.getTokenMetadata(1), 'get token');
 
-    const balance = await api.getBalance(
-      '0x19148d0a7ae99f19bc3862857318a7f80f96564c'
-      , 0
-    );
-    t.ok(balance, 'balance');
+   const api2 = new Api('mainnet', {
+    });
+    const userProfile = await api2.getProfile('0x8328d1693d693130f141812b5fa3e46602abcb45');
+    const firstTransactionId = userProfile.history[0].transactionId;
+    const firstTransaction = await api.getTransactionByHash(firstTransactionId);
+    const lastOutput = firstTransaction.outputs[2];
+    const returnData = lastOutput;
+
+    return;
 
     const _profile = await api.getProfile('0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C');
     t.ok(_profile, 'profile');
+
+    console.log(_profile);
+
+    console.log(await api.getAccount('0xD2a8dD8F9F4371b636BFE8dd036772957a5D425C'));
 
     return;
 

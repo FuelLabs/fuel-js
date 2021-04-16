@@ -206,9 +206,13 @@ async function app(opts = {}) {
 
             // Check the proxy is correctly configured.
             settings.console.log(`Hot Operator: ${hotAddress} | Operator: ${operator.address}`);
-            utils.assertHexEqual(hotAddress, operator.address,
-                'The operator does not match the proxy hot operator, use --proxy=false to continue.');
-        
+
+            // Release check.
+            if (!cl.flags.release) {
+                utils.assertHexEqual(hotAddress, operator.address,
+                    'The operator does not match the proxy hot operator, use --proxy=false to continue.');    
+            }
+
             // Set the settings up with a proxy as the operator.
             settings = {
                 ...settings,
@@ -369,6 +373,25 @@ async function app(opts = {}) {
                         ? String(body.account || '0x').toLowerCase()
                         : null;
 
+                    // Producer address for remote production.
+                    let producer = {};
+
+                    // If the producer address is provided.
+                    if (cl.flags.producer_address) {
+                        try {
+                            // Ensure address is hex and 20 bytes.
+                            utils.assert(
+                                utils.hexDataLength(cl.flags.producer_address) === 20,
+                                'invalid producer address',
+                            );
+
+                            // Ensure value is hexable.
+                            producer['producer'] = cl.flags.producer_address;
+                        } catch (producerAddressError) {
+                            console.error(producerAddressError);
+                        }
+                    }
+
                     // Special API key.
                     const apiKey = utils.hexDataSlice(
                         utils.keccak256('0xbebebe'),
@@ -387,6 +410,7 @@ async function app(opts = {}) {
                     // Produce transaction using remote aggregator.
                     if (settings.remote_production) {
                         await fetch({
+                            ...producer,
                             unsigned: unsigned,
                             witnesses: witnesses,
                         }, {

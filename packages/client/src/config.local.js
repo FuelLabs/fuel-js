@@ -187,6 +187,7 @@ function config(opts = process.env, _prefix = 'fuel_v1_') {
       (opts.operator || {}).privateKey || '0x',
       provider,
     ),
+    release: opts.release,
     scanSize: parseInt(opts.scanSize || 10000, 10),
     pullLimit: opts.pullLimit,
     feeEnforcement: opts.feeEnforcement || false,

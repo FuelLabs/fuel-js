@@ -3,6 +3,7 @@ const protocol = require('@fuel-js/protocol');
 const interface = require('@fuel-js/interface');
 const struct = require('@fuel-js/struct');
 const mempool = require('./mempool');
+const ethers = require('ethers');
 const operatorsToWallets = require('./operatorsToWallets');
 const reconcileMempoolBalance = require('./reconcileMempoolBalance');
 
@@ -542,7 +543,8 @@ async function produce(currentBlockNumber = {}, state = {}, config = {}) {
     // Is not the operator, than stop the sequence.
     // We will need to wait for the SUBMISSION delay before continuing.
     if (productionOperator !== operator
-      && commitmentWait.properties.time().get().lte(0)) {
+      && commitmentWait.properties.time().get().lte(0)
+      && !config.release) {
       config.console.log('Third party operator detected, starting a commitment wait.');
 
       // Current block number + submission delay.
@@ -595,16 +597,80 @@ async function produce(currentBlockNumber = {}, state = {}, config = {}) {
         roots.map(root => root.hash),
       ]);
 
-      // Set block commitment.
-      blockCommitment = await config.proxy.transact(
-        contract.address,
-        await contract.BOND_SIZE(),
-        commitTx,
-        {
-            gasLimit: 4000000,
-            value: await contract.BOND_SIZE(),
-        },
-      );
+      // If release in block production is set.
+      if (config.release) {
+        console.log('using release!');
+
+        // Get the operator address (i.e. the proxy address).
+        const operatorAddress = await config.contract.operator();
+
+        // Check hot operator.
+        const HotStorageAddress = 0;
+        const hotRaw = await config.provider.getStorageAt(
+            operatorAddress,
+            HotStorageAddress,
+        );
+        const hotSliced = utils.hexDataSlice(hotRaw, 12, 32);
+        const hotAddress = utils.hexDataLength(hotRaw) === 20 ? hotRaw : hotSliced;
+
+        // Connect to the proxy leader contract.
+        const leader = contract.attach(hotAddress);
+
+        // The getter contract for the leader system.
+        const leaderSelection = new ethers.Contract(
+          hotAddress,
+          [
+              'function leaderId() public view returns (uint32)',
+              'function releases(uint32) public view returns (address)',
+          ],
+          blockProducer,
+        );
+
+        // Get the release address.
+        const releaseAddress = await leaderSelection.releases(await leaderSelection.leaderId());
+
+        // The getter contract for the release system.
+        const release = new ethers.Contract(
+          releaseAddress,
+          [
+            'function beneficiary() public view returns (address)',
+          ],
+          blockProducer,
+        );
+
+        // If the beneficiary is not correct, stop the process.
+        if (await release.beneficiary() !== blockProducer.address) {
+          // Message they are not the current leader.
+          config.console.log('Block producer not leader.');
+
+          // Stop the process from committing the block.
+          return;
+        }
+
+        // Console log it.
+        config.console.log('Committing block as sender as leader!');
+
+        // Non proxied, i.e. a key is used.
+        blockCommitment = await leader.commitBlock(
+          blockNumber,
+          blockHash,
+          blockHeight,
+          roots.map(root => root.hash), {
+          gasLimit: 2500000,
+          value: await contract.BOND_SIZE(),
+        });
+      } else {
+        // Set block commitment.
+        blockCommitment = await config.proxy.transact(
+          contract.address,
+          await contract.BOND_SIZE(),
+          commitTx,
+          {
+              gasLimit: 4000000,
+              value: await contract.BOND_SIZE(),
+          },
+        );
+      }
     } else {
       config.console.log('Committing block as sender.');
 

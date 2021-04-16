@@ -8,8 +8,12 @@ const config = require('./config.local');
 const sync = require('../sync');
 const transact = require('../transact');
 const outputFromMetadata = require('./outputFromMetadata');
+const Leader = require('./artifacts/LeaderSelection.json');
+const Factory = require('./artifacts/TokenReleaseFactory.json');
+const Multisig = require('./artifacts/Multisig.json');
+const ethers = require('ethers');
 
-module.exports = test('produce', async t => {
+module.exports = test('leader', async t => {
   // Setup Addresses
   const producer = t.wallets[0].address;
   const cold = t.wallets[1].address;
@@ -21,10 +25,12 @@ module.exports = test('produce', async t => {
 
   // Before method.
   async function state (opts = {}) {
+      const multisig = await t.deploy(Multisig.abi, Multisig.bytecode, []);
+
       // Produce the Block Producer Proxy.
       const proxy = await t.deploy(OwnedProxy.abi, OwnedProxy.bytecode, [
           producer,
-          cold,
+          multisig.address,
       ]);
 
       // Produce Fuel and the Genesis Hash.
@@ -34,17 +40,33 @@ module.exports = test('produce', async t => {
           20,
           20,
           20,
-          utils.parseEther('1.0'),
+          utils.parseEther('.5'),
           "Fuel",
           "1.1.0",
           0,
           genesisHash,
       ]);
 
+      // Release factory.
+      const factory = await t.deploy(Factory.abi, Factory.bytecode, []);
+
       // Set proxy target to Fuel.
       const coldProxy = proxy.connect(coldWallet);
+
+      // Set the target in the proxy using the multisig.
+      const setTargetData = proxy.interface.functions.setTarget.encode([
+        contract.address,
+      ]);
+      await multisig.submitTransaction(
+        proxy.address,
+        0,
+        setTargetData,
+        overrides,
+      );
+      /*
       await t.wait(coldProxy.setTarget(contract.address, overrides),
-          'set target', OwnedProxy.errors);
+        'set target', OwnedProxy.errors);
+      */
 
       // Commit addresses.
       await t.wait(contract.commitAddress(producer, overrides),
@@ -98,6 +120,7 @@ module.exports = test('produce', async t => {
           produce: false,
           feeEnforcement: true,
           stopForOverflow: true, // for testing.
+          release: true,
           operators: [
               t.getWallets()[0].privateKey
           ],
@@ -109,6 +132,56 @@ module.exports = test('produce', async t => {
       // Produce the token.
       const totalSupply = utils.parseEther('100000000000000.00');
       const erc20 = await t.deploy(ERC20.abi, ERC20.bytecode, [producer, totalSupply]);
+
+      // Create release.
+      let releaseTx = await factory.createRelease(
+        producer,
+        {
+          gasLimit: 4000000,
+        },
+      );
+      releaseTx = await releaseTx.wait();
+
+      // The release address.
+      const release = releaseTx.events[2].args._release;
+
+      // The getter contract for the leader system.
+      const releaseContract = new ethers.Contract(
+        release,
+        [
+            'function transferOwnership(address) external',
+        ],
+        t.wallets[0],
+      );
+
+      // Transfer owner.
+      await releaseContract.transferOwnership(coldWallet.address, {
+        gasLimit: 4000000,
+      });
+
+      // Transfer some tokens.
+      await erc20.transfer(release, utils.parseEther('32000.0'), {
+        gasLimit: 400000,
+      });
+
+      // The leader.
+      const leader = await t.deploy(Leader.abi, Leader.bytecode, [
+        coldWallet.address,
+        contract.address,
+        release,
+        erc20.address,
+        multisig.address,
+      ]);
+
+      const changeData = proxy.interface.functions.change.encode([
+        leader.address,
+      ]);
+      await multisig.submitTransaction(
+        proxy.address,
+        0,
+        changeData,
+        overrides,
+      );
 
       // Make a Deposit for User A.
       const userAFunnel = await contract.funnel(userA);
@@ -254,7 +327,9 @@ module.exports = test('produce', async t => {
         });
 
         // Sync with deposits.
-        await sync(settings);
+        for (var i = 0; i < 6; i++) {
+          await sync(settings);
+        }
 
         // Add the transaction to the mempool.
         await transact(
@@ -309,85 +384,9 @@ module.exports = test('produce', async t => {
       });
 
       const txb = await makeTx({
-        inputTx: txa,
+        inputTx: null,
         feeToken: 0,
         data: '0xbb',
-      });
-
-      const tx0 = await makeTx({
-        inputTx: null,
-        feeToken: 1,
-        data: '0x00',
-      });
-
-      // Set the fees to a different structure.
-      await setFee(0, utils.parseEther('0.0000023'));
-      await setFee(1, utils.parseEther('0.0002'));
-
-      const tx0a = await makeTx({
-        inputTx: null,
-        feeToken: 1,
-        data: '0x0a',
-      });
-
-      const txc = await makeTx({
-        inputTx: txb,
-        feeToken: 0,
-        data: '0xcc',
-      });
-
-      const txd = await makeTx({
-        inputTx: txc,
-        feeToken: 0,
-        data: '0xdd',
-      });
-
-      const tx0b = await makeTx({
-        inputTx: tx0a,
-        feeToken: 1,
-        data: '0x0b',
-      });
-
-      const txad0 = await makeTx({
-        inputTx: txd,
-        feeToken: 0,
-        data: '0xad',
-      });
-
-      // Set the ether and token Fees.
-      await setFee(0, utils.parseEther('0.00000012'));
-      await setFee(1, utils.parseEther('0.00001'));
-
-      const tx1 = await makeTx({
-        inputTx: tx0,
-        feeToken: 1,
-        data: '0x01',
-      });
-
-      // Increase block for production purposes.
-      await t.increaseBlock(20);
-
-      // Get the pre-state before the block in question is processed.
-      let preState = protocol.state.State(await settings.db.get([
-        interface.db.state,
-      ]));
-
-      // Check pre-state block height in client.
-      t.equalBig(preState.properties.blockHeight().get(), 
-          0, "pre block height");
-
-      // Now produce this block.
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
       });
 
       // Get the pre-state before the block in question is processed.
@@ -397,49 +396,91 @@ module.exports = test('produce', async t => {
 
       // Check pre-state block height in client.
       t.equalBig(postState.properties.blockHeight().get(), 
-          1, "post block height");
-
-      // Set the ether and token Fees.
-      await setFee(0, utils.parseEther('0.00000012'));
-      await setFee(1, utils.parseEther('0.00001'));
-
-      // Hacks.
-      let lastTx = null;
-
-      // Create 100 txs.
-      for (let i = 0; i < 128; i++) {
-        lastTx = await makeTx({
-          inputTx: lastTx,
-          feeToken: i % 2 == 0 ? 1 : 0,
-          data: utils.hexlify(i),
-        });
-      }
+          0, "post block height 0");
 
       // Increase block for production purposes.
       await t.increaseBlock(10);
 
+      // Now produce this block.
+      for (var i = 0; i < 10; i++) {
+        await sync({
+          ...settings,
+          produce: true,
+        });
+      }
+
       // Get the pre-state before the block in question is processed.
-      preState = protocol.state.State(await settings.db.get([
+      postState = protocol.state.State(await settings.db.get([
         interface.db.state,
       ]));
 
       // Check pre-state block height in client.
-      t.equalBig(preState.properties.blockHeight().get(), 
-          1, "pre block height 2");
+      t.equalBig(postState.properties.blockHeight().get(), 
+          1, "post block height 1");
+
+      let thirdPartyTx = await tx.Transaction({
+          override: true,
+          chainId: 0,
+          witnesses: [
+              userAWallet,
+          ],
+          metadata: [
+            protocol.metadata.Metadata({
+              blockHeight: 1,
+              rootIndex: 0,
+              transactionIndex: 0,
+              outputIndex: 1,
+            }),
+          ],
+          data: [
+            txa.outputs[2].keccak256(),
+          ],
+          inputs: [
+            protocol.inputs.InputTransfer({}),
+          ],
+          signatureFeeToken: 0,
+          signatureFee: 0,
+          signatureFeeOutputIndex: 0,
+          outputs: [
+            tx.OutputTransfer({
+              noshift: true,
+              token: '0x01',
+              owner: userA,
+              amount: utils.parseEther('500.00'),
+            }),
+            protocol.outputs.OutputReturn({
+              data: '0xdeadbeef',
+            }),
+          ],
+          contract,
+      });
+
+      // Third party submission (jam).
+      const thirdPartyRootContract = contract.connect(
+        t.getWallets()[2],
+      );
+
+      // Produce Root.
+      await thirdPartyRootContract.commitRoot(
+        utils.emptyBytes32,
+        0,
+        0,
+        struct.combine([
+          thirdPartyTx,
+        ]),
+        t.getOverrides(),
+      );
+
+      // Increase block for production purposes.
+      await t.increaseBlock(10);
 
       // Now produce this block.
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
-      });
+      for (var i = 0; i < 10; i++) {
+        await sync({
+          ...settings,
+          produce: true,
+        });
+      }
 
       // Get the pre-state before the block in question is processed.
       postState = protocol.state.State(await settings.db.get([
@@ -449,90 +490,6 @@ module.exports = test('produce', async t => {
       // Check pre-state block height in client.
       t.equalBig(postState.properties.blockHeight().get(), 
           2, "post block height 2");
-      
-      // Create 100 txs of one fee type.
-      for (let i = 0; i < 100; i++) {
-        lastTx = await makeTx({
-          inputTx: lastTx,
-          feeToken: 0,
-          data: utils.hexlify(i),
-        });
-      }
-
-      // Create 100 txs of another fee type.
-      for (let i = 0; i < 100; i++) {
-        lastTx = await makeTx({
-          inputTx: lastTx,
-          feeToken: 1,
-          data: utils.hexlify(i),
-        });
-      }
-
-      // Increase block for production purposes.
-      await t.increaseBlock(10);
-
-      // Get the pre-state before the block in question is processed.
-      preState = protocol.state.State(await settings.db.get([
-        interface.db.state,
-      ]));
-      await sync({
-        ...settings,
-        produce: true,
-      });
-
-      // Check pre-state block height in client.
-      t.equalBig(preState.properties.blockHeight().get(), 
-          2, "pre block height 3");
-
-      // Now produce this block.
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
-      });
-
-      // Get the pre-state before the block in question is processed.
-      postState = protocol.state.State(await settings.db.get([
-        interface.db.state,
-      ]));
-
-      // Check pre-state block height in client.
-      t.equalBig(postState.properties.blockHeight().get(), 
-          3, "post block height 3");
-
-      // Get the third block header.
-      const block3 = await protocol.block.BlockHeader.fromLogs(
-        3,
-        contract,
-      );
-
-      // Check the number of roots is right.
-      t.equal(block3.properties.roots().get().length, 
-        4, 'block 3 roots length');
-      
-      // Increase the blocks 100.
-      await t.increaseBlock(100);
-
-      // Check proxy retrieval of bonds.
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
-      });
-      await sync({
-        ...settings,
-        produce: true,
-      });
 
       /// @dev Get the return data for a specific metdata.
       async function getReturn(metdata) {
@@ -546,109 +503,37 @@ module.exports = test('produce', async t => {
 
       t.equal(
         await getReturn({
-          blockHeight: 1,
+          blockHeight: 2,
           rootIndex: 0,
           transactionIndex: 0,
-          outputIndex: 4,
+          outputIndex: 1,
         }),
-        '0xaa',
+        '0xdeadbeef',
         'txa',
       );
 
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 0,
-          transactionIndex: 1,
-          outputIndex: 4,
-        }),
-        '0xbb',
-        'txb',
-      );
+      // Attempt some withdrawals.
+      await t.increaseBlock(100);
 
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 1,
-          transactionIndex: 0,
-          outputIndex: 4,
-        }),
-        '0x00',
-        'tx0',
-      );
+      // Sync.
+      await sync(settings);
 
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 1,
-          transactionIndex: 1,
-          outputIndex: 4,
-        }),
-        '0x01',
-        'tx1',
-      );
 
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 2,
-          transactionIndex: 0,
-          outputIndex: 4,
-        }),
-        '0x0a',
-        'tx0a',
-      );
+      // Sync.
+      await sync(settings);
 
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 2,
-          transactionIndex: 1,
-          outputIndex: 4,
-        }),
-        '0x0b',
-        'tx0b',
-      );
 
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 3,
-          transactionIndex: 0,
-          outputIndex: 4,
-        }),
-        '0xcc',
-        'txcc',
-      );
+      // Sync.
+      await sync(settings);
 
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 3,
-          transactionIndex: 1,
-          outputIndex: 4,
-        }),
-        '0xdd',
-        'txdd',
-      );
-
-      t.equal(
-        await getReturn({
-          blockHeight: 1,
-          rootIndex: 3,
-          transactionIndex: 2,
-          outputIndex: 4,
-        }),
-        '0xad',
-        'txad',
-      );
-      
-
+      // Sync.
+      await sync(settings);
 
     }
 
     await state();
 });
+
 
 /*
 Where d inputs c inputs b inputs a; 0a inputs 0; 1 inputs 0; 0b inputs 0a; ad0 inputs a, d, 0;

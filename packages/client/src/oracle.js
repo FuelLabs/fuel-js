@@ -6,11 +6,13 @@ const stablecoinsIds = {
     'dai': 1,
     'usdc': 2,
     'usdt': 3,
+    'entrp': 4,
 };
 const decimals = {
     'dai': 18,
     'usdc': 6,
     'usdt': 6,
+    'entrp': 18,
 };
 
 // const ether = utils.emptyAddress;
