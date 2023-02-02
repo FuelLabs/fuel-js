@@ -14,7 +14,7 @@
     "fs-readfile-promise": "^3.0.1",
     "husky": "^6.0.0",
     "istanbul-badges-readme": "1.0.5",
-    "lerna": "^3.22.1",
+    "lerna": "^6.4.1",
     "nyc": "^15.1.0",
     "write": "^2.0.0"
   }
